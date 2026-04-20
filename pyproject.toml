@@ -1,0 +1,97 @@
+[project]
+name = "bmo"
+version = "0.1.0"
+description = "Batch ML training orchestrator — BTS flight delay prediction"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  # used by every service
+  "pydantic>=2.7",
+  "pydantic-settings>=2.3",
+  "pyarrow>=16",
+  "pandas>=2.2",
+  "boto3>=1.34",
+  "structlog>=24",
+  "tenacity>=8",
+]
+
+[project.optional-dependencies]
+# kept empty on purpose — we use dependency-groups below
+
+[dependency-groups]
+dev = [
+  "pytest>=8",
+  "pytest-cov",
+  "pytest-mock",
+  "ruff>=0.5",
+  "mypy>=1.10",
+  "pre-commit",
+  "moto[s3]",  # S3 mocking
+]
+
+dagster = [
+  "dagster>=1.8",
+  "dagster-webserver",
+  "dagster-dbt>=0.24",
+  "dagster-mlflow",
+  "dagster-pyspark",
+  "dagster-duckdb",
+]
+
+dbt = [
+  "dbt-core>=1.8",
+  "dbt-duckdb>=1.8",
+]
+
+training = [
+  "xgboost>=2.1",
+  "scikit-learn>=1.5",
+  "optuna>=3.6",
+  "mlflow>=2.14",
+  "numpy>=1.26",
+]
+
+spark = [
+  "pyspark>=3.5",
+  "delta-spark>=3.2",  # or pyiceberg
+]
+
+feast = [
+  "feast[redis]>=0.40",
+]
+
+serving = [
+  "fastapi>=0.111",
+  "uvicorn[standard]>=0.30",
+  "feast[redis]>=0.40",
+  "mlflow-skinny>=2.14",  # pulls model without full MLflow stack
+  "prometheus-client",
+]
+
+monitoring = [
+  "evidently>=0.4",
+]
+
+iceberg = [
+  "pyiceberg[s3fs,duckdb]>=0.7",
+]
+
+[tool.uv]
+# reproducible resolution
+resolution = "highest"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+strict = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "integration: slower tests requiring docker-compose stack",
+  "determinism: model byte-equality tests",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bmo"]

@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: postgres
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: bmo
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio
+    container_name: minio
+    command: server --console-address ":9001" /data
+    restart: unless-stopped
+    ports:
+      - '9000:9000' # API Port
+      - '9001:9001' # Console Port
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password123 # Must be at least 8 characters
+    volumes:
+      - minio_data:/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: orchestration_redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    # networks:
+    #   - ml_orchestration
+
+  # dagster:
+  #   image:
+  #   container_name:
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.14.0
+    container_name: ml_flow
+    command: >
+      mlflow server
+      --backend-store-uri postgresql://user:password@postgres:5432/bmo
+      --artifacts-destination s3://mlflow-artifacts/
+      --host 0.0.0.0
+    ports:
+      - '5000:5000'
+
+# networks:
+#   ml_orchestration:
+#     driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
