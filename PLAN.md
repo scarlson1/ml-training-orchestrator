@@ -807,7 +807,7 @@ Each phase ends with a verifiable deliverable. Build in order — later phases a
 
 - `ingestion/` Python package with idempotent download scripts.
 - BTS scraper that programmatically POSTs the download form on `transtats.bts.gov` (the site has no clean API — document the workaround).
-- CSV → Parquet conversion step with explicit schema + type coercion; bad rows routed to `s3://rejected/bts/`.
+- CSV → Parquet conversion step with explicit schema + type coercion; bad rows routed to `s3://rejected/bts/`. (NOTE: currently keeping bad rows in raw -> handle in move to staging ??)
 - Scripts are _checksum-verified_: if the upstream file hash matches the local manifest, skip.
 - Dagster assets `raw_bts_flights`, `raw_noaa_weather`, `raw_faa_airports`, `raw_openflights_routes` with a `MonthlyPartitionsDefinition` on the time-varying sources; a `@sensor` polls the BTS site for new monthly releases (BTS typically publishes with ~2 month lag).
 - Unit tests mocking the HTTP layer.

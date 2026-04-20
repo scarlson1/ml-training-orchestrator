@@ -8,5 +8,13 @@ repos:
     rev: v1.10.0
     hooks:
       - id: mypy
-        additional_dependencies: [pydantic>=2.7, types-boto3]
+        additional_dependencies:
+          - pydantic>=2.7
+          - pydantic-settings>=2.3
+          - types-boto3
+          - pyarrow>=16
+          - httpx
+          - tenacity
+          - pandas-stubs
+          - pytest
         args: [--strict]
