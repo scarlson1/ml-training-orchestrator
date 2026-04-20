@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# kept empty on purpose — we use dependency-groups below
+# kept empty on purpose — use dependency-groups below
 
 [dependency-groups]
 dev = [

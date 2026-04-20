@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# not necessary to run -- handled by setup script in compose.yml
+
 ENDPOINT='http://localhost:9000'
 AWS_ACCESS_KEY_ID='admin'
 AWS_SECRET_ACCESS_KEY='password123'
