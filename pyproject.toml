@@ -141,6 +141,7 @@ indent_width = 4
 [tool.mypy]
 strict = true
 plugins = ["pydantic.mypy"]
+mypy_path = "src"
 
 [[tool.mypy.overrides]]
 module = [
@@ -148,8 +149,17 @@ module = [
   "botocore.*",
   "pyarrow.*",
   "pandas",
+  "dagster",
+  "dagster.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# dagster decorators (@asset, @sensor) are not typed upstream — strict mode
+# would flag every decorated function. The real logic lives in src/bmo/ and
+# is fully checked; dagster_project/ is orchestration wiring only.
+module = ["dagster_project.*"]
+ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
