@@ -1,8 +1,6 @@
 """
 Unit tests for BTS ingestion.
 
-Location in project: tests/unit/test_ingestion_bts.py
-
 These tests mock the HTTP layer and exercise the CSV parsing + schema coercion
 against small in-memory fixtures. For integration tests that hit a real
 MinIO instance, see tests/integration/.
@@ -25,7 +23,6 @@ from bmo.ingestion.bts import (
     _extract_csv,
     ingest_month,
 )
-
 
 # ------------------------------------------------------------------
 # Fixtures
