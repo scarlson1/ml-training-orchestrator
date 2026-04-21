@@ -34,6 +34,7 @@ SCHEMA = pa.schema(
         ('elevation_ft', pa.float32()),
         ('municipality', pa.string()),
         ('iso_region', pa.string()),  # e.g. "US-CA"
+        ('tz_database_timezone', pa.string()),
     ]
 )
 
@@ -55,6 +56,7 @@ def ingest_airports(store: ObjectStore, bucket: str = 'raw', prefix: str = 'faa'
                 'elevation_ft',
                 'municipality',
                 'iso_region',
+                'tz_database_timezone',
             ],
             null_values=['', 'NA'],
             strings_can_be_null=True,
@@ -73,6 +75,7 @@ def ingest_airports(store: ObjectStore, bucket: str = 'raw', prefix: str = 'faa'
             'elevation_ft',
             'municipality',
             'iso_region',
+            'tz_database_timezone',
         ]
     )
 
