@@ -28,6 +28,7 @@ dev = [
   "pytest-mock",
   "ruff>=0.5",
   "mypy>=1.10",
+  "pandas-stubs",
   "pre-commit",
   "moto[s3]",  # S3 mocking
   "responses>=0.25",  # HTTP mocking
