@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "bmo"
 version = "0.1.0"
@@ -16,6 +20,8 @@ dependencies = [
   "requests>=2.32",
   "beautifulsoup4>=4.12",
   "lxml>=5.2",
+  "airportsdata>=20240101",
+  "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]
@@ -37,6 +43,7 @@ dev = [
 dagster = [
   "dagster>=1.8",
   "dagster-webserver",
+  "dagster-postgres",
   "dagster-dbt>=0.24",
   "dagster-mlflow",
   "dagster-pyspark",
@@ -152,6 +159,7 @@ module = [
   "pandas",
   "dagster",
   "dagster.*",
+  "airportsdata"
 ]
 ignore_missing_imports = true
 

@@ -9,6 +9,7 @@
 
 import io
 
+import airportsdata
 import httpx
 import pandas as pd
 import pyarrow as pa
@@ -23,7 +24,7 @@ OURAIRPORTS_URL = 'https://ourairports.com/data/airports.csv'
 AIRPORT_TYPES = {'medium_airport', 'large_airport'}
 US_ISO_PREFIX = 'US-'
 
-SCHEMA = pa.schema(
+AIRPORTS_SCHEMA = pa.schema(
     [
         ('iata_code', pa.string()),
         ('icao_code', pa.string()),
@@ -48,7 +49,7 @@ def ingest_airports(store: ObjectStore, bucket: str = 'raw', prefix: str = 'faa'
         convert_options=pacsv.ConvertOptions(
             include_columns=[
                 'iata_code',
-                'ident',
+                'icao_code',
                 'name',
                 'type',
                 'latitude_deg',
@@ -56,36 +57,31 @@ def ingest_airports(store: ObjectStore, bucket: str = 'raw', prefix: str = 'faa'
                 'elevation_ft',
                 'municipality',
                 'iso_region',
-                'tz_database_timezone',
             ],
             null_values=['', 'NA'],
             strings_can_be_null=True,
         ),
     )
 
-    # Rename ident → icao_code (OurAirports uses "ident" for the ICAO code)
-    table = table.rename_columns(
-        [
-            'iata_code',
-            'icao_code',
-            'name',
-            'type',
-            'latitude_deg',
-            'longitude_deg',
-            'elevation_ft',
-            'municipality',
-            'iso_region',
-            'tz_database_timezone',
-        ]
-    )
-
     # filter to US commercial airports with IATA codes
-    mask = (
-        pc.is_in(table['type'], value_set=pa.array(list(AIRPORT_TYPES)))
-        & pc.utf8_starts_with(table['iso_region'], pattern=US_ISO_PREFIX)
-        & pc.is_valid(table['iata_code'])
+    mask = pc.and_(
+        pc.and_(
+            pc.is_in(table['type'], value_set=pa.array(list(AIRPORT_TYPES))),
+            pc.starts_with(table['iso_region'], pattern=US_ISO_PREFIX),
+        ),
+        pc.is_valid(table['iata_code']),
     )
-    table = table.filter(mask).cast(SCHEMA)
+    table = table.filter(mask)
+
+    # OurAirports dropped the timezone column — join from airportsdata (IATA-keyed)
+    _tz_lookup: dict[str, str] = {
+        code: info['tz'] for code, info in airportsdata.load('IATA').items() if info.get('tz')
+    }
+    tz_col = pa.array(
+        [_tz_lookup.get(code) for code in table['iata_code'].to_pylist()],
+        type=pa.string(),
+    )
+    table = table.append_column('tz_database_timezone', tz_col).cast(AIRPORTS_SCHEMA)
 
     buf = io.BytesIO()
     pq.write_table(table, buf, compression='zstd')
@@ -109,7 +105,7 @@ COLUMN_NAMES = [
     'equipment',  # space-separated IATA aircraft codes e.g. "738 320"
 ]
 
-SCHEMA = pa.schema(
+ROUTES_SCHEMA = pa.schema(
     [
         ('airline_iata', pa.string()),
         ('origin', pa.string()),
@@ -141,7 +137,7 @@ def ingest_routes(store: ObjectStore, bucket: str = 'raw', prefix: str = 'openfl
     df = df[df['origin'].str.len() == 3]
     df = df[df['dest'].str.len() == 3]
 
-    table = pa.Table.from_pandas(df, preserve_index=False).cast(SCHEMA)
+    table = pa.Table.from_pandas(df, preserve_index=False).cast(ROUTES_SCHEMA)
 
     buf = io.BytesIO()
     pq.write_table(table, buf, compression='zstd')

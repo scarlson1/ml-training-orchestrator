@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import math
 
 import pandas as pd
@@ -57,8 +58,8 @@ def stage_airports(
     airports = pq.read_table(io.BytesIO(obj['Body'].read())).to_pandas()
 
     # load station map { [iata_code]: station_id }
-    obj = store.client.get_object(Bucket=raw_bucket, Key='noaa/_station_map.parquet')
-    station_map = pq.read_table(io.BytesIO(obj['Body'].read()))
+    obj = store.client.get_object(Bucket=raw_bucket, Key='noaa/_station_map.json')
+    station_map = json.loads(obj['Body'].read())
 
     # set noaa station id column for each airport (look up by iata code - calc in )
     airports['lcd_station_id'] = airports['iata_code'].map(station_map)

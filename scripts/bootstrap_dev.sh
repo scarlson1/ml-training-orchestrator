@@ -4,11 +4,11 @@ set -euo pipefail
 # not necessary to run -- handled by setup script in compose.yml
 
 ENDPOINT='http://localhost:9000'
-AWS_ACCESS_KEY_ID='admin'
-AWS_SECRET_ACCESS_KEY='password123'
+S3_ACCESS_KEY_ID='admin'
+S3_SECRET_ACCESS_KEY='password123'
 AWS_DEFAULT_REGION='us-east-1'
 
-export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION
+export S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY AWS_DEFAULT_REGION
 
 BUCKETS=(raw staging rejected mlflow-artifacts)
 

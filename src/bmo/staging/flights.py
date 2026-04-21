@@ -115,7 +115,7 @@ def stage_flights(
     raw_table = pq.read_table(io.BytesIO(raw_obj['Body'].read()))
 
     tz_map = _load_airport_tz(store)
-    unknown_tz = set(raw_table['origin'].to_pylist() | set(raw_table['dest'].to_pylist()))
+    unknown_tz = set(raw_table['origin'].to_pylist()) | set(raw_table['dest'].to_pylist())
     unknown_tz = {a for a in unknown_tz if a and a not in tz_map}
     if unknown_tz:
         log.warning(f'no timezone for {len(unknown_tz)} airports: {sorted(unknown_tz)[:10]}')

@@ -349,9 +349,11 @@ def ingest_noaa_month(
             if not df.empty:
                 frames.append(df)
         except httpx.HTTPStatusError as exc:
-            # 404 = NCEI has no file for this station+year. One missing station
-            # shouldn't abort the whole month — log and continue.
+            # 404 = NCEI has no file for this station+year.
             log.warning('LCD 404 for %s (%s) year=%d: %s', iata_code, station_id, year, exc)
+        except httpx.TimeoutException as exc:
+            # NOAA servers occasionally time out under load — skip station, don't abort month.
+            log.warning('LCD timeout for %s (%s) year=%d: %s', iata_code, station_id, year, exc)
 
     if not frames:
         raise RuntimeError(f'No LCD data retrieved for {year}-{month:02d}')

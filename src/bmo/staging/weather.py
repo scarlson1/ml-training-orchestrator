@@ -69,7 +69,7 @@ def stage_weather(
         pc.and_(pc.is_valid(table['wind_speed_kts']), invalid_wind),
     )
 
-    valid = table.filter(pc.not_(reject_mask)).cast(STAGED_WEATHER_SCHEMA, safe=False)
+    valid = table.filter(pc.invert(reject_mask)).cast(STAGED_WEATHER_SCHEMA, safe=False)
     rejected = table.filter(reject_mask)
 
     # create buffer and write tables to S3

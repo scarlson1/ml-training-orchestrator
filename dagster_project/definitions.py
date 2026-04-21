@@ -6,16 +6,26 @@ assets, jobs, sensors, schedules, resources. If it's not in Definitions,
 the UI won't show it and the daemon won't run it.
 """
 
-from dagster import Definitions, MonthlyPartitionsDefinition, define_asset_job
+from dotenv import load_dotenv
 
-from dagster_project.assets.raw import (
+load_dotenv()  # loads .env from cwd — no-op if already set in environment
+
+from dagster import Definitions, MonthlyPartitionsDefinition, define_asset_job  # noqa: E402
+
+from dagster_project.assets.raw import (  # noqa: E402
     raw_bts_flights,
     raw_faa_airports,
     raw_noaa_weather,
     raw_openflights_routes,
     station_map,
 )
-from dagster_project.sensors.bts_new_month import bts_new_month_sensor
+from dagster_project.assets.staging import (  # noqa: E402
+    dim_airport,
+    dim_route,
+    staged_flights,
+    staged_weather,
+)
+from dagster_project.sensors.bts_new_month import bts_new_month_sensor  # noqa: E402
 
 # A job is a named, executable subset of the asset graph.
 # The sensor targets this job by name to kick off a single BTS partition run.
@@ -35,6 +45,10 @@ defs = Definitions(
         station_map,
         raw_bts_flights,
         raw_noaa_weather,
+        dim_airport,
+        dim_route,
+        staged_flights,
+        staged_weather,
     ],
     jobs=[ingest_bts_month_job],
     sensors=[bts_new_month_sensor],

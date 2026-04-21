@@ -17,7 +17,7 @@ from dagster import (
 )
 
 from bmo.common.storage import make_object_store
-from bmo.staging.dimensions import stage_airports
+from bmo.staging.dimensions import stage_airports, stage_routes
 from bmo.staging.flights import stage_flights
 from bmo.staging.weather import stage_weather
 
@@ -35,12 +35,22 @@ def dim_airport(context: AssetExecutionContext) -> MaterializeResult:
 
 
 @asset(
+    group_name='staging',
+    deps=['raw_openflights_routes', 'dim_airport'],
+)
+def dim_route(context: AssetExecutionContext) -> MaterializeResult:
+    store = make_object_store()
+    count = stage_routes(store)
+    return MaterializeResult(metadata={'row_count': MetadataValue.int(count)})
+
+
+@asset(
     partitions_def=_MONTHLY,
     group_name='staging',
     deps=['raw_bts_flights', 'dim_airport'],
 )
 def staged_flights(context: AssetExecutionContext) -> MaterializeResult:
-    year_str, month_str = context.partition_key.split('-')
+    year_str, month_str, *_ = context.partition_key.split('-')
     year, month = int(year_str), int(month_str)
     store = make_object_store()
 
@@ -62,7 +72,7 @@ def staged_flights(context: AssetExecutionContext) -> MaterializeResult:
     deps=['raw_noaa_weather'],
 )
 def staged_weather(context: AssetExecutionContext) -> MaterializeResult:
-    year_str, month_str = context.partition_key.split('-')
+    year_str, month_str, *_ = context.partition_key.split('-')
     year, month = int(year_str), int(month_str)
     store = make_object_store()
 

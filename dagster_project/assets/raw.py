@@ -63,6 +63,11 @@ def station_map(context: AssetExecutionContext) -> MaterializeResult:
     """
     store = make_object_store()
 
+    existing = store.read_json_or_none('raw', 'noaa/_station_map.json')
+    if existing is not None:
+        context.log.info('Station map already exists in MinIO, skipping download')
+        return MaterializeResult(metadata={'station_count': MetadataValue.int(len(existing))})
+
     # Read the already-stored FAA airports parquet to get the IATA code set.
     # We don't take raw_faa_airports as a function argument — we stored it in S3
     # and read it back. deps=[raw_faa_airports] just ensures ordering.

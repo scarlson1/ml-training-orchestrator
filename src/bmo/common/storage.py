@@ -9,8 +9,8 @@ from environment variables.
 
 Relevant env vars:
     S3_ENDPOINT_URL       MinIO / R2 endpoint. Unset = AWS.
-    AWS_ACCESS_KEY_ID     credentials (or R2 token)
-    AWS_SECRET_ACCESS_KEY
+    S3_ACCESS_KEY_ID     credentials (or R2 token)
+    S3_SECRET_ACCESS_KEY
     AWS_REGION            default "auto" (R2 prefers "auto")
 """
 

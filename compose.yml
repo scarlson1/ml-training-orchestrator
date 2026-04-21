@@ -1,4 +1,6 @@
 services:
+  # dragster DB: run history, asset materialization records, schedules, sensors, event logs
+  # bmo: MLflow data - experiment runs, metric param logs, model registry entries
   postgres:
     image: postgres:17
     container_name: postgres
@@ -10,12 +12,14 @@ services:
       - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U user -d bmo']
       interval: 5s
       timeout: 3s
       retries: 10
 
+  # file object storage (S3: parquet, json, MLflow model artifacts)
   minio:
     image: minio/minio
     container_name: minio
@@ -84,8 +88,8 @@ services:
         condition: service_healthy
     environment:
       MLFLOW_S3_ENDPOINT_URL: http://minio:9000
-      AWS_ACCESS_KEY_ID: admin
-      AWS_SECRET_ACCESS_KEY: password123
+      S3_ACCESS_KEY_ID: admin
+      S3_SECRET_ACCESS_KEY: password123
     command: >
       mlflow server
       --backend-store-uri postgresql://user:password@postgres:5432/bmo
@@ -98,8 +102,8 @@ services:
   #   image: ghcr.io/mlflow/mlflow:v2.14.0
   #   container_name: ml_flow
   #   environment:
-  #     AWS_ACCESS_KEY_ID: admin
-  #     AWS_SECRET_ACCESS_KEY: password123
+  #     S3_ACCESS_KEY_ID: admin
+  #     S3_SECRET_ACCESS_KEY: password123
   #     MLFLOW_S3_ENDPOINT_URL: http://minio:9000
   #   command: >
   #     mlflow server

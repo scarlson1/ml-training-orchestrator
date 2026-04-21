@@ -93,7 +93,7 @@ def validate_flights(table: pa.Table) -> tuple[pa.Table, pa.Table]:
         # non-cancelled flights must have actual_departure_utc
         (
             pc.and_(
-                pc.not_(table['cancelled']),
+                pc.invert(table['cancelled']),
                 pc.is_null(table['actual_departure_utc']),
             ),
             'missing_actual_departure_for_operated_flight',
@@ -106,7 +106,7 @@ def validate_flights(table: pa.Table) -> tuple[pa.Table, pa.Table]:
 
     for condition, reason in reasons:
         # only flag rows not already rejected
-        newly_rejected = pc.and_(condition, pc.not_(reject_mask))
+        newly_rejected = pc.and_(condition, pc.invert(reject_mask))
         reject_mask = pc.or_(reject_mask, newly_rejected)
         # assign reason string to newly-rejected rows
         newly_rejected_list = newly_rejected.to_pylist()
@@ -114,9 +114,9 @@ def validate_flights(table: pa.Table) -> tuple[pa.Table, pa.Table]:
             if flag:
                 reason_col[i] = reason
 
-    valid = table.filter(pc.not_(reject_mask))
+    valid = table.filter(pc.invert(reject_mask))
     rejected_base = table.filter(reject_mask)
     rejected = rejected_base.append_column(
-        'rejection_reason', pa.array([r for r, f in zip(reason_col, reject_mask.to_pylist())])
+        'rejection_reason', pa.array([r for r, f in zip(reason_col, reject_mask.to_pylist()) if f])
     )
     return valid, rejected
