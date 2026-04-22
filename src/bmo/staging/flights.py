@@ -19,6 +19,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from bmo.common.iceberg import get_or_create_table, make_catalog, overwrite_month_flights
 from bmo.common.storage import ObjectStore
 from bmo.staging.contracts import STAGED_FLIGHTS_SCHEMA, validate_flights
 from bmo.staging.timezone import arrival_day_offset, local_hhmm_to_utc
@@ -35,6 +36,7 @@ class StagingResult:
     unknown_tz_count: int  # airports without a timezone in dim_airport
     target_uri: str
     rejected_uri: str
+    snapshot_id: str
 
 
 def _load_airport_tz(store: ObjectStore) -> dict[str, str]:
@@ -108,7 +110,8 @@ def stage_flights(
     staging_bucket: str = 'staging',
 ) -> StagingResult:
     raw_key = f'bts/year={year}/month={month:02d}/data.parquet'
-    target_key = f'bts/year={year}/month={month:02d}/flights.parquet'
+    # target_key = f'bts/year={year}/month={month:02d}/flights.parquet'
+    iceberg_location = f's3://{staging_bucket}/iceberg/staged_flights'
     rejected_key = f'rejected/bts/year={year}/month={month}/rejected.parquet'
 
     raw_obj = store.client.get_object(Bucket=raw_bucket, Key=raw_key)
@@ -135,11 +138,23 @@ def stage_flights(
     valid, rejected = validate_flights(staged_table)
 
     # write valid
-    buf = io.BytesIO()
-    pq.write_table(valid, buf, compression='zstd', compression_level=3)
-    store.put_bytes(staging_bucket, target_key, buf.getvalue())
+    # buf = io.BytesIO()
+    # pq.write_table(valid, buf, compression='zstd', compression_level=3)
+    # store.put_bytes(staging_bucket, target_key, buf.getvalue())
 
-    # write rejected
+    # valid → Iceberg (time-travel, ACID, schema evolution)
+    catalog = make_catalog()
+    iceberg_table = get_or_create_table(
+        catalog,
+        identifier='staging.staged_flights',
+        arrow_schema=STAGED_FLIGHTS_SCHEMA,
+        location=iceberg_location,
+        partition_column='flight_date',
+    )
+    overwrite_month_flights(iceberg_table, valid, year, month)
+    snapshot_id = iceberg_table.current_snapshot().snapshot_id
+
+    # write rejected -> Parquet instead of iceberg - not meant to be queried
     if len(rejected) > 0:
         buf = io.BytesIO()
         pq.write_table(rejected, buf, compression='zstd', compression_level=3)
@@ -152,6 +167,8 @@ def stage_flights(
         valid_count=len(valid),
         rejected_count=len(rejected),
         unknown_tz_count=len(unknown_tz),
-        target_uri=f's3://{staging_bucket}/{target_key}',
+        # target_uri=f's3://{staging_bucket}/{target_key}',
+        target_uri=f'{iceberg_location}',
         rejected_uri=f's3://{staging_bucket}/{rejected_key}',
+        snapshot_id=snapshot_id,
     )

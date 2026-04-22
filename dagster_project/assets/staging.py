@@ -62,6 +62,7 @@ def staged_flights(context: AssetExecutionContext) -> MaterializeResult:
             'rejected_count': MetadataValue.int(result.rejected_count),
             'unknown_tz_count': MetadataValue.int(result.unknown_tz_count),
             'target_uri': MetadataValue.text(result.target_uri),
+            'iceberg_snapshot_id': MetadataValue.int(result.snapshot_id),
         }
     )
 

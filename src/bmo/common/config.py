@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     s3_bucket_staging: str = 'staging'
     s3_bucket_rejected: str = 'rejected'
     mlflow_tracking_uri: str
+    # SQLite URI for the local Iceberg catalog. Data files live in MinIO.
+    # Example: sqlite:////home/user/.dagster/bmo_iceberg.db
+    iceberg_catalog_uri: str = 'sqlite:////tmp/bmo_iceberg.db'
 
 
 settings = Settings()

@@ -1,1 +1,2 @@
 CREATE DATABASE dagster;
+CREATE DATABASE iceberg;

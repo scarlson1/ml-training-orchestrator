@@ -6,6 +6,7 @@ These run after materialization as separate Dagster checks. Two types:
 """
 
 import io
+from datetime import date
 
 import pyarrow.parquet as pq
 from dagster import (
@@ -15,7 +16,9 @@ from dagster import (
     MonthlyPartitionsDefinition,
     asset_check,
 )
+from pyiceberg.expressions import And, GreaterThanOrEqual, LessThan
 
+from bmo.common.iceberg import make_catalog
 from bmo.common.storage import make_object_store
 from bmo.staging.contracts import STAGED_FLIGHTS_SCHEMA
 
@@ -27,20 +30,40 @@ _MONTHLY = MonthlyPartitionsDefinition(start_date='2018-01-01')
 )
 def check_staged_flights_nulls(context) -> AssetCheckResult:
     year, month, *_ = (int(x) for x in context.partition_key.split('-'))
-    store = make_object_store()
+    # store = make_object_store()
+    # key = f'bts/year={year}/month={month:02d}/flights.parquet'
+    # obj = store.client.get_object(Bucket='staging', Key=key)
+    # table = pq.read_table(io.BytesIO(obj['Body'].read()))
 
-    key = f'bts/year={year}/month={month:02d}/flights.parquet'
-    obj = store.client.get_object(Bucket='staging', Key=key)
-    table = pq.read_table(io.BytesIO(obj['Body'].read()))
+    # critical = ['scheduled_departure_utc', 'origin', 'dest', 'flight_date']
+    # failures = {}
+    # for col in critical:
+    #     if col not in table.column_names:
+    #         failures[col] = 'column missing'
+    #         continue
+    #     null_rate = table[col].null_count / len(table)
+    #     if null_rate > 0.01:  # if greater than 1%, nulls is a problem
+    #         failures[col] = f'{null_rate:.1%} null'
+
+    catalog = make_catalog()
+    iceberg_table = catalog.load_table('staging.staged_flights')
+
+    start = date(year, month, 1).isoformat()
+    end = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+
+    table = iceberg_table.scan(
+        row_filter=And(
+            GreaterThanOrEqual('flight_date', start),
+            LessThan('flight_date', end),
+        ),
+        selected_fields=['scheduled_departure_utc', 'origin', 'dest', 'flight_date'],
+    ).to_arrow()
 
     critical = ['scheduled_departure_utc', 'origin', 'dest', 'flight_date']
     failures = {}
     for col in critical:
-        if col not in table.column_names:
-            failures[col] = 'column missing'
-            continue
         null_rate = table[col].null_count / len(table)
-        if null_rate > 0.01:  # if greater than 1%, nulls is a problem
+        if null_rate > 0.01:
             failures[col] = f'{null_rate:.1%} null'
 
     if failures:
@@ -59,16 +82,25 @@ def check_staged_flights_nulls(context) -> AssetCheckResult:
     partitions_def=_MONTHLY,
 )
 def check_staged_flights_schema_evolution(context) -> AssetCheckResult:
-    """WARN (not ERROR) when BTS adds or removes columns — we want visibility, not a halt."""
+    """
+    With Iceberg, schema evolution is tracked natively — a column add/drop in the
+    Iceberg table schema means BTS upstream changed. WARN so the pipeline keeps
+    running; the Iceberg table itself handles the evolution gracefully.
+    """
     year, month, *_ = (int(x) for x in context.partition_key.split('-'))
-    store = make_object_store()
+    # store = make_object_store()
 
-    key = f'bts/year={year}/month={month:02d}/flights.parquet'
-    obj = store.client.get_object(Bucket='staging', Key=key)
-    schema = pq.read_schema(io.BytesIO(obj['Body'].read()))
+    # key = f'bts/year={year}/month={month:02d}/flights.parquet'
+    # obj = store.client.get_object(Bucket='staging', Key=key)
+    # schema = pq.read_schema(io.BytesIO(obj['Body'].read()))
+
+    catalog = make_catalog()
+    iceberg_table = catalog.load_table('staging.staged_flights')
+    iceberg_schema = iceberg_table.schema()
 
     expected = {f.name for f in STAGED_FLIGHTS_SCHEMA}
-    actual = set(schema.names)
+    # actual = set(schema.names)
+    actual = {field.name for field in iceberg_schema.fields}
     added = actual - expected
     removed = expected - actual
 

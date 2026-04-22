@@ -85,7 +85,7 @@ monitoring = [
 ]
 
 iceberg = [
-  "pyiceberg[s3fs,duckdb]>=0.7",
+  "pyiceberg[sql-postgres,s3fs,duckdb]>=0.7",
 ]
 
 [tool.uv]
@@ -159,7 +159,9 @@ module = [
   "pandas",
   "dagster",
   "dagster.*",
-  "airportsdata"
+  "airportsdata",
+  "pyiceberg",
+  "pyiceberg.*"
 ]
 ignore_missing_imports = true
 

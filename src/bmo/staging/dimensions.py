@@ -8,6 +8,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from bmo.common.iceberg import get_or_create_table, make_catalog
 from bmo.common.storage import ObjectStore
 
 DIM_AIRPORT_SCHEMA = pa.schema(
@@ -70,9 +71,20 @@ def stage_airports(
     table = table.select([c for c in keep if c in table.column_names])
     table = table.cast(DIM_AIRPORT_SCHEMA, safe=False)
 
-    buf = io.BytesIO()
-    pq.write_table(table, buf, compression='zstd')
-    store.put_bytes(staging_bucket, 'dim_airport/dim_airport.parquet', buf.getvalue())
+    # buf = io.BytesIO()
+    # pq.write_table(table, buf, compression='zstd')
+    # store.put_bytes(staging_bucket, 'dim_airport/dim_airport.parquet', buf.getvalue())
+    # return len(table)
+
+    catalog = make_catalog()
+    iceberg_table = get_or_create_table(
+        catalog,
+        identifier='staging.dim_airport',
+        arrow_schema=DIM_AIRPORT_SCHEMA,
+        location=f's3://{staging_bucket}/iceberg/dim_airport',
+        partition_column=None,
+    )
+    iceberg_table.overwrite(table)  # full overwrite - dim tables are small & not partitioned
     return len(table)
 
 
@@ -82,11 +94,18 @@ def stage_routes(
     obj = store.client.get_object(Bucket=raw_bucket, Key='openflights/routes.parquet')
     routes = pq.read_table(io.BytesIO(obj['Body'].read())).to_pandas()
 
-    obj = store.client.get_object(Bucket=staging_bucket, Key='dim_airport/dim_airport.parquet')
-    airports = pq.read_table(
-        io.BytesIO(obj['Body'].read()),
-        columns=['iata_code', 'latitude_deg', 'longitude_deg'],
-    ).to_pandas()
+    # obj = store.client.get_object(Bucket=staging_bucket, Key='dim_airport/dim_airport.parquet')
+    # airports = pq.read_table(
+    #     io.BytesIO(obj['Body'].read()),
+    #     columns=['iata_code', 'latitude_deg', 'longitude_deg'],
+    # ).to_pandas()
+    catalog = make_catalog()
+    airports = (
+        catalog.load_table('staging.dim_airport')
+        .scan(selected_fields=['iata_code', 'latitude_deg', 'longitude_deg'])
+        .to_arrow()
+        .to_pandas()
+    )
 
     coord_map = airports.set_index('iata_code')[['latitude_deg', 'longitude_deg']].to_dict('index')
 
@@ -107,7 +126,19 @@ def stage_routes(
     )
 
     table = pa.Table.from_pandas(routes, preserve_index=False).cast(DIM_ROUTE_SCHEMA, safe=False)
-    buf = io.BytesIO()
-    pq.write_table(table, buf, compression='zstd')
-    store.put_bytes(staging_bucket, 'dim_route/dim_route.parquet', buf.getvalue())
+
+    # buf = io.BytesIO()
+    # pq.write_table(table, buf, compression='zstd')
+    # store.put_bytes(staging_bucket, 'dim_route/dim_route.parquet', buf.getvalue())
+    # return len(table)
+
+    catalog = make_catalog()
+    iceberg_table = get_or_create_table(
+        catalog,
+        identifier='staging.dim_route',
+        arrow_schema=DIM_ROUTE_SCHEMA,
+        location=f's3://{staging_bucket}/iceberg/dim_route',
+        partition_column=None,
+    )
+    iceberg_table.overwrite(table)
     return len(table)

@@ -10,7 +10,11 @@ from dotenv import load_dotenv
 
 load_dotenv()  # loads .env from cwd — no-op if already set in environment
 
-from dagster import Definitions, MonthlyPartitionsDefinition, define_asset_job  # noqa: E402
+from dagster import (  # noqa: E402 (import top of file exception)
+    Definitions,
+    MonthlyPartitionsDefinition,
+    define_asset_job,
+)
 
 from dagster_project.asset_checks.schema_checks import (  # noqa: E402
     check_dim_airport,

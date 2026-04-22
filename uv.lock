@@ -316,7 +316,7 @@ feast = [
     { name = "feast", extra = ["redis"] },
 ]
 iceberg = [
-    { name = "pyiceberg", extra = ["duckdb", "s3fs"] },
+    { name = "pyiceberg", extra = ["duckdb", "s3fs", "sql-postgres"] },
 ]
 monitoring = [
     { name = "evidently" },
@@ -383,7 +383,7 @@ dev = [
     { name = "ruff", specifier = ">=0.5" },
 ]
 feast = [{ name = "feast", extras = ["redis"], specifier = ">=0.40" }]
-iceberg = [{ name = "pyiceberg", extras = ["s3fs", "duckdb"], specifier = ">=0.7" }]
+iceberg = [{ name = "pyiceberg", extras = ["sql-postgres", "s3fs", "duckdb"], specifier = ">=0.7" }]
 monitoring = [{ name = "evidently", specifier = ">=0.4" }]
 serving = [
     { name = "fastapi", specifier = ">=0.111" },
@@ -3180,6 +3180,10 @@ duckdb = [
 ]
 s3fs = [
     { name = "s3fs" },
+]
+sql-postgres = [
+    { name = "psycopg2-binary" },
+    { name = "sqlalchemy" },
 ]
 
 [[package]]
