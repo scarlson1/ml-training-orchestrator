@@ -19,7 +19,7 @@ class WeatherStagingResult:
     month: int
     valid_count: int
     rejected_count: int
-    target_url: str
+    target_uri: str
 
 
 STAGED_WEATHER_SCHEMA = pa.schema(
@@ -58,7 +58,7 @@ def stage_weather(
 
     # Domain rules: temp must be plausible (-100 to 150 °F), wind >= 0
     invalid_temp = pc.or_(
-        pc.less(pc.cast(table['temp_f'], pa.float32()), pa.scaler(-100.0, pa.float32())),
+        pc.less(pc.cast(table['temp_f'], pa.float32()), pa.scalar(-100.0, pa.float32())),
         pc.greater(pc.cast(table['temp_f'], pa.float32()), pa.scalar(150.0, pa.float32())),
     )
     invalid_wind = pc.less(
@@ -87,5 +87,5 @@ def stage_weather(
         month=month,
         valid_count=len(valid),
         rejected_count=len(rejected),
-        target_url=f's3://{staging_bucket}/{target_key}',
+        target_uri=f's3://{staging_bucket}/{target_key}',
     )

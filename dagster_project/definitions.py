@@ -12,6 +12,13 @@ load_dotenv()  # loads .env from cwd — no-op if already set in environment
 
 from dagster import Definitions, MonthlyPartitionsDefinition, define_asset_job  # noqa: E402
 
+from dagster_project.asset_checks.schema_checks import (  # noqa: E402
+    check_dim_airport,
+    check_dim_route,
+    check_staged_flights_nulls,
+    check_staged_flights_schema_evolution,
+    check_staged_weather_nulls,
+)
 from dagster_project.assets.raw import (  # noqa: E402
     raw_bts_flights,
     raw_faa_airports,
@@ -49,6 +56,13 @@ defs = Definitions(
         dim_route,
         staged_flights,
         staged_weather,
+    ],
+    asset_checks=[
+        check_staged_flights_nulls,
+        check_staged_flights_schema_evolution,
+        check_staged_weather_nulls,
+        check_dim_airport,
+        check_dim_route,
     ],
     jobs=[ingest_bts_month_job],
     sensors=[bts_new_month_sensor],
