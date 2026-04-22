@@ -15,6 +15,7 @@ from dagster import (  # noqa: E402 (import top of file exception)
     MonthlyPartitionsDefinition,
     define_asset_job,
 )
+from dagster_dbt import DbtCliResource  # noqa E402
 
 from dagster_project.asset_checks.schema_checks import (  # noqa: E402
     check_dim_airport,
@@ -23,6 +24,8 @@ from dagster_project.asset_checks.schema_checks import (  # noqa: E402
     check_staged_flights_schema_evolution,
     check_staged_weather_nulls,
 )
+from dagster_project.assets.features_dbt import DBT_PROJECT_DIR, bmo_dbt_assets  # noqa: E402
+from dagster_project.assets.features_python import feat_cascading_delay  # noqa: E402
 from dagster_project.assets.raw import (  # noqa: E402
     raw_bts_flights,
     raw_faa_airports,
@@ -60,6 +63,8 @@ defs = Definitions(
         dim_route,
         staged_flights,
         staged_weather,
+        feat_cascading_delay,
+        bmo_dbt_assets,
     ],
     asset_checks=[
         check_staged_flights_nulls,
@@ -70,4 +75,8 @@ defs = Definitions(
     ],
     jobs=[ingest_bts_month_job],
     sensors=[bts_new_month_sensor],
+    resources={
+        # Key ('dbt') must match the parameter name in bmo_dbt_assets(context, dbt: DbtCliResource)
+        'dbt': DbtCliResource(project_dir=str(DBT_PROJECT_DIR))
+    },
 )

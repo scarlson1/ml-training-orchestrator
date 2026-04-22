@@ -128,3 +128,52 @@ Rough estimates per monthly partition:
 - Total: ~4 GB, comfortable for a local MinIO instance
 
 One caveat: the raw NOAA layer stores all data that came out of LCD parsing (already filtered to FM-15 + target month), not the full annual CSVs, so it won't balloon. The heavy I/O cost is network (downloading those annual files), not storage.
+
+## Development
+
+fresh checkout or after switching branches, run:
+
+```bash
+# 1. Python dependencies
+uv sync --all-groups
+
+# 2. Start infrastructure
+docker compose up -d
+
+# 3. Create S3 buckets and Postgres databases
+./scripts/bootstrap_dev.sh # already run by minio-init in compose.yml
+
+# 4. Ingest raw data (run via Dagster UI or CLI)
+#    — raw_faa_airports, raw_openflights_routes, station_map
+#    — raw_noaa_weather (monthly)
+#    — raw_bts_flights (monthly)
+
+# 5. Materialize staging layer
+#    — dim_airport, dim_route
+#    — staged_flights, staged_weather (all partitions)
+
+# 6. PySpark cascading delay
+#    — feat_cascading_delay (or materialize via Dagster)
+
+# 7. dbt setup — must run before dagster dev
+make dbt-bootstrap
+
+# 8. Launch Dagster
+make dagster-dev
+
+# 9. In Dagster UI: materialize bmo_dbt_assets
+#    Or from CLI:
+cd dbt_project && uv run dbt build --profiles-dir .
+```
+
+#### Verify PIT correctness:
+
+runs test_no_future_leakage on origin_obs_time_utc and the singular assert_pit_correct.sql. Both should report 0 failures.
+
+```bash
+cd dbt_project && uv run dbt test --select int_flights_enriched --profiles-dir .
+```
+
+## Deployment
+
+TODO

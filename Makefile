@@ -1,4 +1,4 @@
-.PHONY: setup lint type test test-int test-det leakage dagster-dev serving-dev dbt dbt-docs feast-apply reproduce
+.PHONY: setup lint type test test-int test-det leakage dagster-dev serving-dev dbt dbt-docs dbt-deps dbt-parse feast-apply reproduce
 
 setup:
 	uv sync --all-groups
@@ -34,6 +34,18 @@ dbt:
 
 dbt-docs:
 	cd dbt_project && uv run dbt docs generate --profiles-dir . && uv run dbt docs serve --profiles-dir .
+
+# run before dbt parse (parse validates {{ ref() }} and {{ source() }} references including macros from dbt_utils) => run `make dbt-bootstrap`
+dbt-deps:
+	cd dbt_project && uv run dbt deps --profiles-dir .
+
+dbt-parse:
+	cd dbt_project && uv run dbt parse --profiles-dir .
+
+# dbt-bootstrap must run before `dagster dev` — it generates target/manifest.json
+# which @dbt_assets reads at import time. If manifest.json doesn't exist,
+# dagster dev will fail with a FileNotFoundError.
+dbt-bootstrap: dbt-deps dbt-parse
 
 feast-apply:
 	cd feature_repo && uv run feast apply

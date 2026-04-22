@@ -161,7 +161,8 @@ module = [
   "dagster.*",
   "airportsdata",
   "pyiceberg",
-  "pyiceberg.*"
+  "pyiceberg.*",
+  "pyspark.sql"
 ]
 ignore_missing_imports = true
 
