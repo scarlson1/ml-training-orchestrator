@@ -1,0 +1,71 @@
+version: 2
+
+models:
+  - name: feat_origin_airport_windowed
+    columns:
+      - name: flight_id
+        tests: [not_null]
+      - name: event_ts
+        tests: [not_null]
+      - name: origin_pct_delayed_1h
+        tests:
+          - dbt_utils.accepted_range:
+              { min_value: 0.0, max_value: 1.0, inclusive: true }
+      - name: origin_pct_delayed_7d
+        tests:
+          - dbt_utils.accepted_range:
+              { min_value: 0.0, max_value: 1.0, inclusive: true }
+      - name: origin_flight_count_1h
+        tests:
+          - dbt_utils.accepted_range: { min_value: 0, inclusive: true }
+      - name: origin_congestion_score_1h
+        tests:
+          - dbt_utils.accepted_range:
+              { min_value: 0.0, max_value: 50.0, inclusive: true }
+
+  - name: feat_dest_airport_windowed
+    columns:
+      - name: flight_id
+        tests: [not_null]
+      - name: dest_pct_delayed_1h
+        tests:
+          - dbt_utils.accepted_range:
+              { min_value: 0.0, max_value: 1.0, inclusive: true }
+
+  - name: feat_carrier_rolling
+    columns:
+      - name: flight_id
+        tests: [not_null]
+      - name: carrier_on_time_pct_7d
+        tests:
+          - dbt_utils.accepted_range:
+              { min_value: 0.0, max_value: 1.0, inclusive: true }
+      - name: carrier_flight_count_7d
+        tests:
+          - dbt_utils.accepted_range: { min_value: 0, inclusive: true }
+
+  - name: feat_airport_static
+    columns:
+      - name: flight_id
+        tests: [not_null]
+      - name: origin_hub_size
+        tests:
+          - accepted_values:
+              values: ['major_hub', 'mid_size', 'small_regional']
+
+  - name: feat_calendar
+    columns:
+      - name: flight_id
+        tests: [not_null]
+      - name: day_of_week
+        tests:
+          - dbt_utils.accepted_range:
+              { min_value: 1, max_value: 7, inclusive: true }
+      - name: month_of_year
+        tests:
+          - dbt_utils.accepted_range:
+              { min_value: 1, max_value: 12, inclusive: true }
+      - name: quarter
+        tests:
+          - dbt_utils.accepted_range:
+              { min_value: 1, max_value: 4, inclusive: true }

@@ -1,0 +1,15 @@
+version: 2
+
+models:
+  - name: mart_training_dataset
+    columns:
+      - name: flight_id
+        tests: [not_null, unique]
+      - name: scheduled_departure_utc
+        tests: [not_null]
+      - name: carrier
+        tests: [not_null]
+      - name: origin
+        tests: [not_null]
+      - name: dest
+        tests: [not_null]
