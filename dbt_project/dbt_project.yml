@@ -1,0 +1,22 @@
+name: bmo
+version: '1.0.0'
+config-version: 2
+profile: bmo
+
+model-paths: ['models']
+test-paths: ['tests']
+seed-paths: ['seeds']
+macro-paths: ['macros']
+target-path: 'target'
+clean-targets: [target, dbt_packages]
+
+models:
+  bmo:
+    staging:
+      +materialized: view # no storage cost; always fresh
+    intermediate:
+      +materialized: view # same - thin transformations
+    features:
+      +materialized: table # computed once and stored; window functions = expensive ==> don't want to recompute window fns over millions of rows every time training code queries a feature
+    marts:
+      +materialized: table # final training dataset - queried by training job

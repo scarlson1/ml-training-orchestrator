@@ -87,7 +87,7 @@ def check_staged_flights_schema_evolution(context) -> AssetCheckResult:
     Iceberg table schema means BTS upstream changed. WARN so the pipeline keeps
     running; the Iceberg table itself handles the evolution gracefully.
     """
-    year, month, *_ = (int(x) for x in context.partition_key.split('-'))
+    # year, month, *_ = (int(x) for x in context.partition_key.split('-'))
     # store = make_object_store()
 
     # key = f'bts/year={year}/month={month:02d}/flights.parquet'

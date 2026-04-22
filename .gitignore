@@ -83,3 +83,10 @@ mlruns/
 
 
 .tmp_*
+# dbt build artifacts
+dbt_project/target/
+dbt_project/.user.yml
+dbt_project/logs/
+# dbt_project/profiles.yml
+dbt_project/package-lock.yml
+dbt_project/dbt_packages/

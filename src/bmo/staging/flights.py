@@ -39,11 +39,17 @@ class StagingResult:
     snapshot_id: str
 
 
-def _load_airport_tz(store: ObjectStore) -> dict[str, str]:
+def _load_airport_tz() -> dict[str, str]:
     """Return {iata_code: tz_name} from the staged dim_airport."""
-    obj = store.client.get_object(Bucket='staging', Key='dim_airport/dim_airport.parquet')
-    tbl = pq.read_table(
-        io.BytesIO(obj['Body'].read()), columns=['iata_code', 'tz_database_timezone']
+
+    # obj = store.client.get_object(Bucket='staging', Key='dim_airport/dim_airport.parquet')
+    # tbl = pq.read_table(io.BytesIO(obj['Body'].read()), columns=['iata_code', 'tz_database_timezone'])
+
+    catalog = make_catalog()
+    tbl = (
+        catalog.load_table('staging.dim_airport')
+        .scan(selected_fields=['iata_code', 'tz_database_timezone'])
+        .to_arrow()
     )
     return dict(zip(tbl['iata_code'].to_pylist(), tbl['tz_database_timezone'].to_pylist()))
 
@@ -117,7 +123,7 @@ def stage_flights(
     raw_obj = store.client.get_object(Bucket=raw_bucket, Key=raw_key)
     raw_table = pq.read_table(io.BytesIO(raw_obj['Body'].read()))
 
-    tz_map = _load_airport_tz(store)
+    tz_map = _load_airport_tz()
     unknown_tz = set(raw_table['origin'].to_pylist()) | set(raw_table['dest'].to_pylist())
     unknown_tz = {a for a in unknown_tz if a and a not in tz_map}
     if unknown_tz:

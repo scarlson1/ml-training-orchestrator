@@ -1,0 +1,36 @@
+bmo:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('DUCKDB_PATH', '/tmp/bmo_features.duckdb') }}"
+      extensions:
+        - name: httpfs # s3 connectivity
+        - name: iceberg # direct iceberg_scan() fallback
+      settings:
+        s3_endpoint: "{{ env_var('DUCKDB_S3_ENDPOINT', 'localhost:9000') }}"
+        s3_access_key_id: "{{ env_var('S3_ACCESS_KEY_ID') }}"
+        s3_secret_access_key: "{{ env_var('S3_SECRET_ACCESS_KEY') }}"
+        s3_url_style: path # required for MinIO path-style access
+        s3_use_ssl: 'false' # MinIO dev has no TLS
+        s3_region: us-east-1
+      plugins:
+        - module: dbt_duckdb.plugins.pyiceberg
+          alias: iceberg_staging
+          config:
+            catalog:
+              type: sql
+              uri: "{{ env_var('ICEBERG_CATALOG_URI') }}"
+              s3.endpoint: "{{ env_var('S3_ENDPOINT_URL') }}"
+              s3.access-key-id: "{{ env_var('S3_ACCESS_KEY_ID') }}"
+              s3.secret-access-key: "{{ env_var('S3_SECRET_ACCESS_KEY') }}"
+              s3.region: auto
+              s3.path-style-access: 'true'
+
+# dbt_duckdb.plugins.pyiceberg is a thin bridge. When dbt encounters {{ source('iceberg_staging', 'staged_flights') }}, it calls the plugin, which uses the PyIceberg catalog to look up the table's current snapshot location, then hands DuckDB a path it can read with its native Iceberg extension. You get the same ACID guarantees and time-travel as in Python staging code.
+
+# Fallback if the plugin doesn't resolve: Replace {{ source('iceberg_staging', 'staged_flights') }} with:
+
+# iceberg_scan('s3://staging/iceberg/staged_flights/', allow_moved_paths=true)
+
+# This bypasses the catalog and reads the Iceberg metadata directly from MinIO.

@@ -1,0 +1,41 @@
+version: 2
+
+models:
+  - name: stg_flights
+    columns:
+      - name: flight_id
+        tests: [not_null, unique]
+      - name: carrier
+        tests: [not_null]
+      - name: origin
+        tests: [not_null]
+      - name: dest
+        tests: [not_null]
+      - name: scheduled_departure_utc
+        tests: [not_null]
+      - name: dep_delay_min
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: -60
+              max_value: 1440 # 24-hour max delay
+              inclusive: true
+
+  - name: stg_weather
+    columns:
+      - name: station_id
+        tests: [not_null]
+      - name: iata_code
+        tests: [not_null]
+      - name: obs_time_utc
+        tests: [not_null]
+      - name: temp_f
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: -100
+              max_value: 150
+              inclusive: true
+      - name: wind_speed_kts
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: true
