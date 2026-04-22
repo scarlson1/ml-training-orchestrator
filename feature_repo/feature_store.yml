@@ -1,0 +1,14 @@
+# feast config - feast apply and feast materialize use config to know where to write the registry, offline store, and online store
+
+project: bmo # namespace
+registry: data/registry.db # sqlite file storing entity/feature view definitions
+provider: local # infra primitives - local uses file offline store + whatever online store is specified. alternates: aws, gcp
+
+offline_store:
+  type: file # use Parquet files (local or S3) for historical features (used when calling get_historical_features)
+
+online_store:
+  type: redis # used for inference
+  connection_string: '${REDIS_URL}'
+
+entity_key_serialization_version: 2 # feast protocol buffer format. set explicitly to avoid registry corruption (when upgrading)

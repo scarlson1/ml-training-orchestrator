@@ -882,6 +882,27 @@ Each phase ends with a verifiable deliverable. Build in order — later phases a
 
 **Interview gold:** be able to explain why `get_historical_features` is not just a `SELECT` — draw the PIT join on a whiteboard.
 
+```
+raw_bts_flights   raw_noaa_weather   raw_faa_airports
+      │                 │                  │
+      ▼                 ▼                  ▼
+staged_flights    staged_weather      dim_airport
+      │                 │
+      └────────┬─────────┘
+               │
+      ┌────────┴─────────────────┐
+      │                          │
+   bmo_dbt_assets         feat_cascading_delay
+   (all dbt models)         (PySpark / Iceberg)
+      │                          │
+      └────────┬─────────────────┘
+               │
+       feast_feature_export         ← NEW
+               │
+       feast_materialized_features  ← NEW
+       (+ hourly schedule)
+```
+
 ### Phase 5 — Training dataset builder with PIT correctness (Week 4)
 
 **Goals**

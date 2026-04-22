@@ -11,7 +11,7 @@ select
     origin || '-' || dest               as route_key,
     scheduled_departure_utc             as event_ts,
 
-    avg(dep_delay_mins) over w_7d       as route_avg_dep_delay_7d,
+    avg(dep_delay_min) over w_7d       as route_avg_dep_delay_7d,
     avg(arr_delay_min) over w_7d        as route_avg_arr_delay_7d,
     avg(dep_del15::double) over w_7d    as route_pct_delayed_7d,
     avg(cancelled::double) over w_7d    as route_cancellation_rate_7d,

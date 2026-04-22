@@ -8,6 +8,8 @@ the UI won't show it and the daemon won't run it.
 
 from dotenv import load_dotenv
 
+from dagster_project.schedules.feast_hourly import feast_hourly_schedule, feast_materialize_job
+
 load_dotenv()  # loads .env from cwd — no-op if already set in environment
 
 from dagster import (  # noqa: E402 (import top of file exception)
@@ -23,6 +25,10 @@ from dagster_project.asset_checks.schema_checks import (  # noqa: E402
     check_staged_flights_nulls,
     check_staged_flights_schema_evolution,
     check_staged_weather_nulls,
+)
+from dagster_project.assets.feast_materialization import (  # noqa: E402
+    feast_feature_export,
+    feast_materialized_features,
 )
 from dagster_project.assets.features_dbt import DBT_PROJECT_DIR, bmo_dbt_assets  # noqa: E402
 from dagster_project.assets.features_python import feat_cascading_delay  # noqa: E402
@@ -65,6 +71,8 @@ defs = Definitions(
         staged_weather,
         feat_cascading_delay,
         bmo_dbt_assets,
+        feast_feature_export,
+        feast_materialized_features,
     ],
     asset_checks=[
         check_staged_flights_nulls,
@@ -73,7 +81,8 @@ defs = Definitions(
         check_dim_airport,
         check_dim_route,
     ],
-    jobs=[ingest_bts_month_job],
+    jobs=[ingest_bts_month_job, feast_materialize_job],
+    schedules=[feast_hourly_schedule],
     sensors=[bts_new_month_sensor],
     resources={
         # Key ('dbt') must match the parameter name in bmo_dbt_assets(context, dbt: DbtCliResource)

@@ -47,8 +47,15 @@ dbt-parse:
 # dagster dev will fail with a FileNotFoundError.
 dbt-bootstrap: dbt-deps dbt-parse
 
+# feast-apply:
+# 	cd feature_repo && uv run feast apply
+
+# After (runs from project root, passes config explicitly):
 feast-apply:
-	cd feature_repo && uv run feast apply
+	uv run feast -c feature_repo/feature_store.yaml apply
+
+feast-teardown:
+	uv run feast -c feature_repo/feature_store.yaml teardown
 
 reproduce:
 	uv run python -m bmo.training.reproduce $(RUN_ID)

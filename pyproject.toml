@@ -69,7 +69,8 @@ spark = [
 ]
 
 feast = [
-  "feast[redis]>=0.40",
+  "feast[redis,aws]>=0.40",
+  "s3fs>=2024.6",
 ]
 
 serving = [
@@ -162,7 +163,9 @@ module = [
   "airportsdata",
   "pyiceberg",
   "pyiceberg.*",
-  "pyspark.sql"
+  "pyspark.sql",
+  "feast",
+  "feast.*",
 ]
 ignore_missing_imports = true
 
