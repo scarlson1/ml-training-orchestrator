@@ -137,33 +137,106 @@ fresh checkout or after switching branches, run:
 # 1. Python dependencies
 uv sync --all-groups
 
-# 2. Start infrastructure
+# 2. dbt setup — must run before dagster dev
+make dbt-bootstrap
+
+# 3. Start infrastructure
 docker compose up -d
 
-# 3. Create S3 buckets and Postgres databases
+# 4. Create S3 buckets and Postgres databases
 ./scripts/bootstrap_dev.sh # already run by minio-init in compose.yml
 
-# 4. Ingest raw data (run via Dagster UI or CLI)
+# 5. Launch Dagster (requires target/manifest.json to exist - make dbt-bootstrap)
+make dagster-dev
+
+# 6. Ingest raw data (run via Dagster UI or CLI)
 #    — raw_faa_airports, raw_openflights_routes, station_map
 #    — raw_noaa_weather (monthly)
 #    — raw_bts_flights (monthly)
 
-# 5. Materialize staging layer
+# 7. Materialize staging layer
 #    — dim_airport, dim_route
 #    — staged_flights, staged_weather (all partitions)
 
-# 6. PySpark cascading delay
+# 8. PySpark cascading delay
 #    — feat_cascading_delay (or materialize via Dagster)
-
-# 7. dbt setup — must run before dagster dev
-make dbt-bootstrap
-
-# 8. Launch Dagster
-make dagster-dev
 
 # 9. In Dagster UI: materialize bmo_dbt_assets
 #    Or from CLI:
 cd dbt_project && uv run dbt build --profiles-dir .
+```
+
+### Ingestion from Dagster UI
+
+1. Run make dagster-dev → open http://localhost:3000
+2. Go to Assets tab → you'll see the full asset graph
+3. To run ingestion in the right order, use the Asset Jobs approach or materialize assets manually:
+
+#### Dimensions (no partition):
+
+- Click `raw_faa_airports` → Materialize → confirm
+- Click `station_map` → Materialize
+- Click `raw_openflights_routes` → Materialize
+- Click `dim_airport` → Materialize ← depends on `raw_faa_airports` + `station_map`
+- Click `dim_route` → Materialize ← depends on `raw_openflights_routes` + `dim_airport`
+
+#### Monthly partitioned assets (flights + weather):
+
+- Click `raw_bts_flights` → Materialize selected partitions → pick the months you want (e.g. `2024-01-01`)
+- Click `staged_flights` → Materialize selected partitions → same month(s)
+- Repeat for `raw_noaa_weather` → `staged_weather`
+
+#### Feature layer (run after all staging is complete):
+
+- Click `feat_cascading_delay` → Materialize
+- Click any `bmo_dbt_assets` model → Materialize all (or the whole group)
+
+#### Backfill all partitions at once
+
+##### Dagster UI
+
+For bulk historical ingestion, use Backfills rather than materializing one partition at a time:
+
+1. Go to Assets → select `staged_flights` → **Backfill**
+2. Select partition range: `2018-01` through `2024-12`
+3. Dagster queues a run per partition and executes them concurrently (up to your `max_concurrent_runs` setting)
+
+##### CLI
+
+```bash
+uv run dg launch --assets staged_flights --all-partitions
+```
+
+### From the CLI using `dg launch`
+
+```bash
+# Dimensions
+uv run dg launch --assets raw_faa_airports
+uv run dg launch --assets station_map
+uv run dg launch --assets raw_openflights_routes
+uv run dg launch --assets dim_airport
+uv run dg launch --assets dim_route
+
+# Monthly partitioned — specify partition key (format: YYYY-MM-DD)
+uv run dg launch --assets raw_bts_flights --partition 2024-01-01
+uv run dg launch --assets staged_flights --partition 2024-01-01
+uv run dg launch --assets raw_noaa_weather --partition 2024-01-01
+uv run dg launch --assets staged_weather --partition 2024-01-01
+
+# Run a range of months (no native range flag — loop in bash)
+for month in 2018-01-01 2018-02-01 2018-03-01; do
+  uv run dg launch --assets raw_bts_flights --partition $month
+  uv run dg launch --assets staged_flights --partition $month
+done
+
+# Features
+uv run dg launch --assets feat_cascading_delay
+
+# All dbt assets at once
+uv run dg launch --assets 'group:dbt'   # if dbt_assets are in a group
+# or by asset key pattern
+uv run dg launch --assets 'bmo_dbt_assets*'
+
 ```
 
 #### Verify PIT correctness:

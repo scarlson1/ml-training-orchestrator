@@ -28,7 +28,7 @@ def compute_cascading_delay(spark: SparkSession) -> int:
             F.concat(
                 F.col('flight_date').cast('string'),
                 F.col('reporting_airline'),
-                F.col('fight_number').cast('string'),
+                F.col('flight_number').cast('string'),
                 F.col('origin'),
                 F.col('dest'),
             )

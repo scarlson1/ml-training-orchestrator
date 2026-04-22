@@ -65,7 +65,8 @@ select
     e.dest_is_low_vis,
 
     -- Static airport type
-    s.origin_hub_size,
+    -- s.origin_hub_size,
+    coalesce(h.hub_size, 'small_regional') as origin_hub_size,
 
     -- Calendar
     cal.scheduled_hour_utc,
@@ -85,6 +86,7 @@ left join {{ ref('feat_origin_airport_windowed') }} o using (flight_id)
 left join {{ ref('feat_dest_airport_windowed') }}   d using (flight_id)
 left join {{ ref('feat_carrier_rolling') }}         c using (flight_id)
 left join {{ ref('feat_route_rolling') }}           r using (flight_id)
-left join {{ ref('feat_airport_static') }}          s using (flight_id)
+-- left join {{ ref('feat_airport_static') }}          s using (flight_id)
+left join {{ ref('hub_airports') }} h on h.iata_code = e.origin
 left join {{ ref('feat_calendar') }}                cal using (flight_id)
 left join {{ ref('stg_feat_cascading_delay') }}     cd using (flight_id)

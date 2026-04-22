@@ -44,14 +44,15 @@ models:
         tests:
           - dbt_utils.accepted_range: { min_value: 0, inclusive: true }
 
-  - name: feat_airport_static
-    columns:
-      - name: flight_id
-        tests: [not_null]
-      - name: origin_hub_size
-        tests:
-          - accepted_values:
-              values: ['major_hub', 'mid_size', 'small_regional']
+  # DELETE - silly claude idea. Join directly in marts from seed
+  # - name: feat_airport_static
+  #   columns:
+  #     - name: flight_id
+  #       tests: [not_null]
+  #     - name: origin_hub_size
+  #       tests:
+  #         - accepted_values:
+  #             values: ['major_hub', 'mid_size', 'small_regional']
 
   - name: feat_calendar
     columns:
