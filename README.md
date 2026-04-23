@@ -483,3 +483,58 @@ It's an as-of join. For each row in your entity dataframe — which has an entit
 **"How do you keep training and serving features consistent?"**
 
 One feature view definition → one Parquet source → materialized to both the offline store (for get_historical_features during training) and the online store (Redis, for inference). The same field names, same TTLs, same types. There's no separate "training features" codebase — the Feast schema is the contract.
+
+### Training Dataset
+
+- inputs
+  - label_df: who + when + what happened
+    - entity keys, event ts, target values
+  - feature_refs: which features to include
+    - ("origin_airport_features:origin_avg_dep_delay_1h", ...)
+- outputs
+  - parquet file where every row = 1 flight
+  - every column = 1 feature or label
+  - every feature = the value that was _KNOWN_ at that flight's scheduled departure time (PIT correctness - do not want to train on information that was not available at prediction time)
+
+Feast's `get_historical_features` handles PIT for features it manages. Training dataset builder adds safeguards:
+
+- **event timestamp validation**: ensures no training label uses a `scheduled_departure_utc` in the future relative to `as_of`
+- **TTL guard**: verifies retrieved feature values aren't older than TTL allows (Feast's TTL only applies to online serving; offline can return old values)
+- **target leakage guard**: checks none of the feature column names match known target/label column names
+- **immutable handle**: produces hash of dataset config to prove the same features and labels for a given training run were used
+
+#### Content addressing and immutability
+
+A **content-addressed dataset** is like a Git commit hash for your training data. The SHA-256 hash is computed from:
+
+- The sorted list of feature references
+- The `as_of` timestamp
+- A hash of the label data (the actual flight IDs and targets)
+- The feature registry version
+- The code version (git SHA)
+
+Two training runs with identical inputs produce the same hash. This means:
+
+- You can reproduce any historical training run byte-for-byte (given the same data in the offline store).
+- MLflow stores the `version_hash` as a run parameter — you can always trace back from a model to exactly what data built it.
+- A "dataset card" JSON file lives next to the Parquet — any downstream consumer can inspect it without running anything.
+
+Docs: [DVC's content-addressed storage](https://dvc.org/doc/user-guide/data-management/data-versioning) is the reference design. Ours is simpler but identical in principle.
+
+#### DuckDB ASOF JOIN
+
+Feast implements PIT join internally (it's documented but opaque). We also implement it explicitly in DuckDB so the algorithm is auditable and testable:
+
+DuckDB ASOF JOIN semantics:
+
+For every row in LEFT table (label event at time T),
+find the LATEST row in RIGHT table (feature snapshot at time F)
+where F.entity_key = L.entity_key AND F.event_ts <= L.event_timestamp.
+
+This is exactly PIT join:
+
+- The join respects time ordering.
+- It always uses the most recent known value.
+- It never reaches forward in time.
+
+[DuckDB ASOF JOIN docs](https://duckdb.org/docs/sql/query_syntax/from.html#as-of-joins)

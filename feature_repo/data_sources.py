@@ -17,7 +17,7 @@ origin_airport_source = FileSource(
 
 dest_airport_source = FileSource(
     name='dest_airport_source',
-    path=f'{_FEAST_BASE}/origin_airport/',
+    path=f'{_FEAST_BASE}/dest_airport/',
     file_format=ParquetFormat(),
     timestamp_field='event_ts',
     description='Hourly rolling departure delay stats per origin airport - written by feast_feature_export asset',

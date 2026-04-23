@@ -46,7 +46,7 @@ class BmoDbtTranslator(DagsterDbtTranslator):
             asset_key = _SOURCE_TO_ASSET_KEY.get((source_name, name))
             if asset_key is not None:
                 return asset_key
-            return super().get_aset_key(dbt_resource_props)
+            return super().get_asset_key(dbt_resource_props)
 
 
 @dbt_assets(

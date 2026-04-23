@@ -49,20 +49,20 @@ with_origin_wx as (
 with_dest_wx as (
     select
         f.*,
-        dw.obs_time_utc         as dest_obs_time_utc,
-        dw.dest_temp_f,
-        dw.dest_wind_kts,
-        dw.origin_precip_1h_in,
-        dw.dest_visibility_mi,
-        dw.dest_present_weather
+        wd.obs_time_utc         as dest_obs_time_utc,
+        wd.dest_temp_f,
+        wd.dest_wind_kts,
+        wd.origin_precip_1h_in,
+        wd.dest_visibility_mi,
+        wd.dest_present_weather
     from with_origin_wx f
     left join dest_weather wd
-        on dw.iata_code = f.dest
-        and dw.obs_time_utc <= f.scheduled_departure_utc
-        and dw.obs_time_utc >= f.scheduled_departure_utc - interval '6 hours'
+        on wd.iata_code = f.dest
+        and wd.obs_time_utc <= f.scheduled_departure_utc
+        and wd.obs_time_utc >= f.scheduled_departure_utc - interval '6 hours'
     qualify row_number() over (
         partition by f.flight_id
-        order by dw.obs_time_utc desc nulls last
+        order by wd.obs_time_utc desc nulls last
     ) = 1
 )
 
