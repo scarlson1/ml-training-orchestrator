@@ -53,10 +53,10 @@ def check_staged_flights_nulls(context) -> AssetCheckResult:
 
     table = iceberg_table.scan(
         row_filter=And(
-            GreaterThanOrEqual('flight_date', start),
-            LessThan('flight_date', end),
+            GreaterThanOrEqual('flight_date', start),  # type: ignore[call-arg]
+            LessThan('flight_date', end),  # type: ignore[call-arg]
         ),
-        selected_fields=['scheduled_departure_utc', 'origin', 'dest', 'flight_date'],
+        selected_fields=('scheduled_departure_utc', 'origin', 'dest', 'flight_date'),
     ).to_arrow()
 
     critical = ['scheduled_departure_utc', 'origin', 'dest', 'flight_date']

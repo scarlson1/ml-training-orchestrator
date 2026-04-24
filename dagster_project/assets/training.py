@@ -1,0 +1,171 @@
+"""
+Dagster asset: training_dataset.
+
+Reads labels from the dbt mart, calls build_dataset() for PIT-correct features,
+and surfaces the DatasetHandle as structured asset metadata.
+
+The training_dataset asset is a thin orchestration wrapper. All business logic
+lives in bmo.training_dataset_builder, which is testable without Dagster.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+import duckdb
+import pandas as pd
+from dagster import (
+    AssetExecutionContext,
+    MaterializeResult,
+    MetadataValue,
+    asset,
+)
+
+from bmo.common.config import settings
+from bmo.training_dataset_builder import DatasetHandle, LeakageError, build_dataset
+from bmo.training_dataset_builder.pit_join import default_feature_view_configs
+
+# all features available from the 5 feature views
+# remove a feature group, retrain, compare AUC
+ALL_FEATURE_REFS = [
+    # origin airport (1h and 24h windows)
+    'origin_airport_features:origin_flight_count_1h',
+    'origin_airport_features:origin_avg_dep_delay_1h',
+    'origin_airport_features:origin_pct_delayed_1h',
+    'origin_airport_features:origin_avg_dep_delay_24h',
+    'origin_airport_features:origin_pct_cancelled_24h',
+    'origin_airport_features:origin_avg_dep_delay_7d',
+    'origin_airport_features:origin_pct_delayed_7d',
+    'origin_airport_features:origin_congestion_score_1h',
+    # destination airport
+    'dest_airport_features:dest_avg_arr_delay_1h',
+    'dest_airport_features:dest_pct_delayed_1h',
+    'dest_airport_features:dest_avg_arr_delay_24h',
+    'dest_airport_features:dest_pct_diverted_24h',
+    # carrier (7d rolling)
+    'carrier_features:carrier_on_time_pct_7d',
+    'carrier_features:carrier_cancellation_rate_7d',
+    'carrier_features:carrier_avg_delay_7d',
+    'carrier_features:carrier_flight_count_7d',
+    # route (7d rolling)
+    'route_features:route_avg_dep_delay_7d',
+    'route_features:route_avg_arr_delay_7d',
+    'route_features:route_pct_delayed_7d',
+    'route_features:route_cancellation_rate_7d',
+    'route_features:route_avg_elapsed_7d',
+    'route_features:route_distance_mi',
+    # cascading delay (aircraft-level, 12h TTL)
+    'aircraft_features:cascading_delay_min',
+    'aircraft_features:turnaround_min',
+]
+
+# label columns in mart_training_dataset that are training targets
+# calendar features from dbt mark are excluded - to be recomputed by builder
+_LABEL_COLUMNS = [
+    'dep_delay_min',
+    'arr_delay_min',
+    'is_dep_delayed',
+    'is_arr_delayed',
+    'cancelled',
+    'diverted',
+]
+
+_ENTITY_COLUMNS = [
+    'flight_id',
+    'event_timestamp',
+    'origin',
+    'dest',
+    'carrier',
+    'tail_number',
+    'route_key',
+]
+
+
+@asset(
+    group_name='training',
+    deps=['feast_materialized_features'],
+    description=(
+        'Point-in-time correct training dataset. '
+        'Reads labels from mar_training_dataset, joins features via DuckDB ASOF JOIN, '
+        'runs leakage guards, and writes a content-addressed Parquet to S3. '
+        'The DatasetHandle version_hash is emitted as asset metadata and should be '
+        'logged as an MLflow parameter on every downstream training run.'
+    ),
+)
+def training_dataset(context: AssetExecutionContext) -> MaterializeResult:
+    """
+    Build a PIT-correct training dataset from dbt mart labels + Feast features.
+
+    Dependency chain:
+      feast_materialized_features
+        → (depends on) feast_feature_export
+          → (depends on) bmo_dbt_assets (feat_* models)
+            → (depends on) staged_flights, staged_weather, dim_airport
+
+    The asset declares dep on feast_materialized_features (not directly on
+    bmo_dbt_assets) because we need features in the Feast offline store (S3),
+    not just the DuckDB tables. The feast_feature_export asset bridges DuckDB → S3.
+    """
+    con = duckdb.connect(settings.duckdb_path, read_only=True)
+
+    # read label columns from dbt mart
+    # strip feature cols from mart to let build_dataset retrieve via PIT join to ensure same temporal correctness logic as in production serving
+    select_cols = (
+        ', '.join(_entity_col_sql(col) for col in _ENTITY_COLUMNS)
+        + ', '
+        + ', '.join(_LABEL_COLUMNS)
+    )
+
+    raw = con.execute(f'SELECT {select_cols} FROM mart_training_dataset').df()  # noqa S608
+    con.close()
+
+    # event_timestamp must be tz aware for PIT join and leakage guards
+    raw['event_timestamp'] = pd.to_datetime(raw['event_timestamp'], utc=True)
+
+    context.log.info(f'loaded {len(raw)} label rows from mart_training_dataset')
+
+    # as_of is pipeline run timestamp
+    as_of = datetime.now(timezone.utc)
+
+    try:
+        handle: DatasetHandle = build_dataset(
+            label_df=raw,
+            feature_refs=ALL_FEATURE_REFS,
+            as_of=as_of,
+            output_base_path=settings.dataset_s3_base,
+            feature_views=default_feature_view_configs(settings.feast_s3_base),
+            skip_if_exists=True,
+        )
+    except LeakageError as exc:
+        context.log.error(f'Leakage guard failure: {exc}')
+        raise
+
+    context.log.info(f'Dataset built: {handle.row_count} rows, hash={handle.version_hash[:12]}...')
+
+    return MaterializeResult(
+        metadata={
+            'version_hash': MetadataValue.text(handle.version_hash),
+            'row_count': MetadataValue.int(handle.row_count),
+            'storage_path': MetadataValue.url(handle.storage_path),
+            'schema_fingerprint': MetadataValue.text(handle.schema_fingerprint),
+            'as_of': MetadataValue.text(as_of.isoformat()),
+            'feature_views': MetadataValue.int(
+                len({ref.split(':')[0] for ref in ALL_FEATURE_REFS})
+            ),
+            'feature_count': MetadataValue.int(len(ALL_FEATURE_REFS)),
+            # Embed label distributions so they're visible in the Dagster UI
+            # without opening MLflow. Useful for quick sanity checks.
+            **{
+                f'label_dist/{name}': MetadataValue.float(dist.positive_rate or dist.mean)
+                for name, dist in handle.label_distribution.items()
+            },
+        }
+    )
+
+
+def _entity_col_sql(col: str) -> str:
+    """Map entity column names to their SQL equivalents in mart_training_dataset."""
+    # scheduled_departure_utc is stored as event_timestamp in the mart
+    if col == 'event_timestamp':
+        return 'scheduled_departure_utc AS event_timestamp'
+    return col

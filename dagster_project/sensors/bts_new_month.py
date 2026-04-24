@@ -38,7 +38,7 @@ def _available_bts_months() -> list[str]:
     soup = BeautifulSoup(res.text, 'lxml')
     keys: list[str] = []
     for link in soup.find_all('a', href=True):
-        m = _BTS_FILENAME_RE.search(link['href'])
+        m = _BTS_FILENAME_RE.search(str(link['href']))
         if m:
             year, month = int(m.group(1)), int(m.group(2))
             keys.append(f'{year}-{month:02d}-01')

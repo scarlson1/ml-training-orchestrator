@@ -17,13 +17,14 @@ Relevant env vars:
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import dataclass
 from typing import Any
 
 import boto3
 from botocore.client import Config
 from botocore.exceptions import ClientError
+
+from bmo.common.config import settings
 
 
 @dataclass
@@ -53,15 +54,12 @@ class ObjectStore:
         self.client.put_object(Bucket=bucket, Key=key, Body=data)
 
 
-# TODO: use pydantic env vars ??
 def make_object_store() -> ObjectStore:
-    endpoint = os.environ.get('S3_ENDPOINT_URL')  # MinIO / R2
-    region = os.environ.get('AWS_REGION', 'auto')
     return ObjectStore(
         client=boto3.client(
             's3',
-            endpoint_url=endpoint,
-            region_name=region,
+            endpoint_url=settings.s3_endpoint_url,
+            region_name=settings.s3_region,
             config=Config(signature_version='s3v4'),
         )
     )

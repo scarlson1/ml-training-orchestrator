@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any, Iterator  # , Mapping
 
 from dagster import AssetExecutionContext, AssetKey
 from dagster_dbt import (
@@ -39,7 +41,7 @@ class BmoDbtTranslator(DagsterDbtTranslator):
     through to the default behavior (model name → asset key).
     """
 
-    def get_asset_key(self, dbt_resource_props: dict) -> AssetKey:
+    def get_asset_key(self, dbt_resource_props: Mapping[str, Any]) -> AssetKey:
         if dbt_resource_props.get('resource_type') == 'source':
             source_name = dbt_resource_props['source_name']
             name = dbt_resource_props['name']
@@ -48,6 +50,8 @@ class BmoDbtTranslator(DagsterDbtTranslator):
                 return asset_key
             return super().get_asset_key(dbt_resource_props)
 
+        return super().get_asset_key(dbt_resource_props)  # models, seeds, tests, etc.
+
 
 @dbt_assets(
     manifest=dbt_project.manifest_path,
@@ -55,7 +59,7 @@ class BmoDbtTranslator(DagsterDbtTranslator):
         settings=DagsterDbtTranslatorSettings(enable_asset_checks=True)
     ),
 )
-def bmo_dbt_assets(context: AssetExecutionContext, dbt: DbtCliResource) -> None:
+def bmo_dbt_assets(context: AssetExecutionContext, dbt: DbtCliResource) -> Iterator:
     # `dbt build` runs models + tests + seeds in DAG order
     # yields Dagster events (AssetMaterialization, AssetCheckResult) as dbt progresses
     yield from dbt.cli(['build'], context=context).stream()

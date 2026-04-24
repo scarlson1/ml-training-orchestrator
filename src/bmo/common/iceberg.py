@@ -10,7 +10,6 @@ must be true in the catalog properties.
 
 from __future__ import annotations
 
-import os
 from datetime import date, datetime, timezone
 
 import pyarrow as pa
@@ -21,22 +20,18 @@ from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.table import Table
 from pyiceberg.transforms import MonthTransform
 
+from bmo.common.config import settings
+
 
 def make_catalog() -> SqlCatalog:
     """Return a SqlCatalog wired to the MinIO endpoint from environment variables."""
-    # TODO: use pydantic to get env vars ??
-    catalog_uri = os.environ.get('ICEBERG_CATALOG_URI', 'sqlite:////tmp/bmo_iceberg.db')
-    endpoint = os.environ['S3_ENDPOINT_URL']
-    access_key = os.environ['S3_ACCESS_KEY_ID']
-    secret_key = os.environ['S3_SECRET_ACCESS_KEY']
-
     return SqlCatalog(
         'bmo',
         **{
-            'uri': catalog_uri,
-            's3.endpoint': endpoint,
-            's3.access-key-id': access_key,
-            's3.secret-access-key': secret_key,
+            'uri': settings.iceberg_catalog_uri,
+            's3.endpoint': settings.s3_endpoint_url,
+            's3.access-key-id': settings.s3_access_key_id,
+            's3.secret-access-key': settings.s3_secret_access_key,
             's3.region': 'auto',
             's3.path-style-access': 'true',  # required for MinIO
         },
@@ -92,7 +87,7 @@ def overwrite_month_flights(table: Table, arrow_data: pa.Table, year: int, month
     end = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
 
     # filter to flights only within start and end dates
-    row_filter = And(GreaterThanOrEqual('flight_date', start), LessThan('flight_date', end))
+    row_filter = And(GreaterThanOrEqual('flight_date', start), LessThan('flight_date', end))  # type: ignore[misc,call-arg]
 
     table.overwrite(arrow_data, overwrite_filter=row_filter)
 
@@ -107,8 +102,8 @@ def overwrite_month_weather(table: Table, arrow_data: pa.Table, year: int, month
     )
 
     row_filter = And(
-        GreaterThanOrEqual('obs_time_utc', start),
-        LessThan('obs_time_utc', end),
+        GreaterThanOrEqual('obs_time_utc', start),  # type: ignore[misc,call-arg]
+        LessThan('obs_time_utc', end),  # type: ignore[misc,call-arg]
     )
 
     table.overwrite(arrow_data, overwrite_filter=row_filter)

@@ -1,3 +1,7 @@
 {
-  "typeCheckingMode": "basic"
+  "typeCheckingMode": "standard",
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonPath": ".venv/bin/python",
+  "reportAttributeAccessIssue": "warning"
 }

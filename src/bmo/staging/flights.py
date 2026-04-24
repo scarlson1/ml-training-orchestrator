@@ -36,7 +36,7 @@ class StagingResult:
     unknown_tz_count: int  # airports without a timezone in dim_airport
     target_uri: str
     rejected_uri: str
-    snapshot_id: str
+    snapshot_id: int
 
 
 def _load_airport_tz() -> dict[str, str]:
@@ -48,7 +48,7 @@ def _load_airport_tz() -> dict[str, str]:
     catalog = make_catalog()
     tbl = (
         catalog.load_table('staging.dim_airport')
-        .scan(selected_fields=['iata_code', 'tz_database_timezone'])
+        .scan(selected_fields=('iata_code', 'tz_database_timezone'))
         .to_arrow()
     )
     return dict(zip(tbl['iata_code'].to_pylist(), tbl['tz_database_timezone'].to_pylist()))
@@ -158,7 +158,9 @@ def stage_flights(
         partition_column='flight_date',
     )
     overwrite_month_flights(iceberg_table, valid, year, month)
-    snapshot_id = iceberg_table.current_snapshot().snapshot_id
+    snapshot = iceberg_table.current_snapshot()
+    assert snapshot is not None, 'no snapshot after overwrite'
+    snapshot_id = snapshot.snapshot_id
 
     # write rejected -> Parquet instead of iceberg - not meant to be queried
     if len(rejected) > 0:

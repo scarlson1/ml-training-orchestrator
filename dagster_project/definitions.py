@@ -45,6 +45,7 @@ from dagster_project.assets.staging import (  # noqa: E402
     staged_flights,
     staged_weather,
 )
+from dagster_project.assets.training import training_dataset  # noqa: E402
 from dagster_project.sensors.bts_new_month import bts_new_month_sensor  # noqa: E402
 
 # A job is a named, executable subset of the asset graph.
@@ -73,6 +74,7 @@ defs = Definitions(
         bmo_dbt_assets,
         feast_feature_export,
         feast_materialized_features,
+        training_dataset,
     ],
     asset_checks=[
         check_staged_flights_nulls,

@@ -451,6 +451,208 @@ BTS / NOAA / FAA  ──────►  raw Parquet on S3
                          FastAPI inference API
 ```
 
+Through stage 5:
+
+```
+╔══════════════════════════════════════════════════════════════════════════════════════╗
+║                         DATA SOURCES                                                 ║
+║  BTS transtats.bts.gov    NOAA ncei.noaa.gov    FAA/OurAirports    OpenFlights      ║
+╚══════════════╤══════════════════════╤════════════════════╤═══════════╤═══════════════╝
+               │                      │                    │           │
+               ▼                      ▼                    ▼           ▼
+╔══════════════════════════════════════════════════════════════════════════════════════╗
+║  PHASE 1 — RAW INGESTION                         [group: raw]                        ║
+║                                                                                      ║
+║  raw_bts_flights          raw_noaa_weather        raw_faa_airports   station_map     ║
+║  (monthly partitioned)    (monthly partitioned)   (dimension)        (JSON on S3)    ║
+║                                                                                      ║
+║  MinIO: raw/bts/year=YYYY/month=MM/data.parquet                                     ║
+║         raw/noaa/year=YYYY/month=MM/data.parquet                                    ║
+║         raw/faa/airports.parquet                                                     ║
+║         raw/openflights/routes.parquet                                               ║
+╚══════════════╤══════════════════════╤════════════════════╤═══════════╤═══════════════╝
+               │                      │                    │           │
+               ▼                      ▼                    ▼           ▼
+╔══════════════════════════════════════════════════════════════════════════════════════╗
+║  PHASE 2 — STAGING + SCHEMA CONTRACTS            [group: staging]                    ║
+║                                                                                      ║
+║  staged_flights           staged_weather           dim_airport        dim_route      ║
+║  (monthly partitioned)                             (UTC tz map,       (haversine     ║
+║  UTC timestamps added                              station join)       distances)    ║
+║  4 invalid-row guards                                                               ║
+║                                                                                      ║
+║  Iceberg: staging.staged_flights (month-partitioned)                                 ║
+║           staging.staged_weather                                                     ║
+║           staging.dim_airport                                                        ║
+║           staging.dim_route                                                          ║
+║                                                                                      ║
+║  ┌──── ASSET CHECKS (5) ────────────────────────────────────────────────────┐       ║
+║  │ check_staged_flights_nulls       check_staged_flights_schema_evolution   │       ║
+║  │ check_staged_weather_nulls       check_dim_airport    check_dim_route    │       ║
+║  └──────────────────────────────────────────────────────────────────────────┘       ║
+║                                                                                      ║
+║  MinIO: rejected/bts/...  rejected/noaa/...  (invalid rows with reason codes)       ║
+╚══════════════╤═══════════════════════════════════════════════════════════════════════╝
+               │
+       ┌───────┴───────────────────────────────────────┐
+       │                                               │
+       ▼                                               ▼
+╔══════════════════════════════════╗   ╔═══════════════════════════════════════════════╗
+║  PHASE 3a — PYSPARK              ║   ║  PHASE 3b — dbt-DuckDB                       ║
+║  [group: features_python]        ║   ║  [group: features_dbt via @dbt_assets]        ║
+║                                  ║   ║                                               ║
+║  feat_cascading_delay            ║   ║  STAGING VIEWS (DuckDB views over Iceberg):   ║
+║  ─────────────────               ║   ║    stg_flights  stg_weather                   ║
+║  Spark LAG window per            ║   ║    stg_dim_airport  stg_dim_route             ║
+║  tail_number:                    ║   ║    stg_feat_cascading_delay                   ║
+║    prev_arr_delay_min            ║   ║                                               ║
+║    turnaround_min                ║   ║  INTERMEDIATE (PIT weather join):             ║
+║                                  ║   ║    int_flights_enriched                       ║
+║  Iceberg:                        ║   ║      ↳ ASOF weather for origin (≤3h)          ║
+║    staging.feat_cascading_delay  ║   ║      ↳ ASOF weather for dest (≤6h)            ║
+╚════════════╤═════════════════════╝   ║                                               ║
+             │                         ║  FEATURE TABLES (materialized):              ║
+             │                         ║    feat_origin_airport_windowed              ║
+             │                         ║      (1h/24h/7d rolling windows per origin)  ║
+             │                         ║    feat_dest_airport_windowed                ║
+             │                         ║      (1h/24h rolling per dest)               ║
+             │                         ║    feat_carrier_rolling  (7d per carrier)    ║
+             │                         ║    feat_route_rolling    (7d per OD pair)    ║
+             │                         ║    feat_calendar         (hour/dow/holiday)  ║
+             │                         ║                                               ║
+             │                         ║  MART (wide training table):                 ║
+             │                         ║    mart_training_dataset                     ║
+             │                         ║      ↳ all features + labels per flight      ║
+             └───────────────────┬─────╚═══════════════════════════════════════════════╝
+                                 │
+                                 ▼
+╔══════════════════════════════════════════════════════════════════════════════════════╗
+║  PHASE 4 — FEATURE STORE                         [group: feast]                      ║
+║                                                                                      ║
+║  feast_feature_export                                                                ║
+║  ──────────────────────────────────────────────────────────────────────              ║
+║  DuckDB (feat_* tables) ──► S3 Parquet (per entity type, with event_ts)             ║
+║                                                                                      ║
+║  MinIO staging/feast/                                                                ║
+║    origin_airport/data.parquet  [entity: origin,      event_ts, 8 features]         ║
+║    dest_airport/data.parquet    [entity: dest,         event_ts, 4 features]         ║
+║    carrier/data.parquet         [entity: carrier,      event_ts, 4 features]         ║
+║    route/data.parquet           [entity: route_key,    event_ts, 6 features]         ║
+║    aircraft/data.parquet        [entity: tail_number,  event_ts, 2 features]         ║
+║                                         ↑                                            ║
+║                               (from Iceberg feat_cascading_delay via PyArrow)        ║
+║                                                                                      ║
+║  feast_materialized_features                                                         ║
+║  ──────────────────────────────────────────────────────────────────────              ║
+║  S3 Parquet ──► Redis online store  (hourly, materialize_incremental)                ║
+║                                                                                      ║
+║  TTLs enforced at online serving time:                                               ║
+║    origin/dest airport: 26h  │  carrier/route: 8d  │  aircraft: 12h                ║
+╚══════════════════════════════════════╤═══════════════════════════════════════════════╝
+                                       │
+                 ┌─────────────────────┘
+                 │   (labels from mart_training_dataset)
+                 │   (features from staging/feast/ S3 Parquet)
+                 ▼
+╔══════════════════════════════════════════════════════════════════════════════════════╗
+║  PHASE 5 — TRAINING DATASET BUILDER (NEW)        [group: training]                   ║
+║                                                                                      ║
+║  training_dataset asset                                                              ║
+║  ──────────────────────────────────────────────────────────────────────              ║
+║                                                                                      ║
+║  INPUT A: label_df (from mart_training_dataset, label columns only)                  ║
+║    flight_id, event_timestamp (=scheduled_departure_utc), origin, dest,              ║
+║    carrier, tail_number, route_key, dep_delay_min, is_dep_delayed, ...              ║
+║                                                                                      ║
+║  INPUT B: feature Parquets (from staging/feast/ S3)                                  ║
+║    5 entity types × their feature columns                                            ║
+║                                                                                      ║
+║  STEP 1: compute version_hash (SHA-256 of feature_refs + as_of + label_hash)        ║
+║          └─► check S3 cache; return immediately if hash already exists              ║
+║                                                                                      ║
+║  STEP 2: PITJoiner — DuckDB ASOF JOIN (5 feature views × 1 ASOF JOIN each)          ║
+║                                                                                      ║
+║    For each flight at event_timestamp T:                                             ║
+║      origin features  = latest snapshot WHERE event_ts ≤ T, age ≤ 26h             ║
+║      dest features    = latest snapshot WHERE event_ts ≤ T, age ≤ 26h             ║
+║      carrier features = latest snapshot WHERE event_ts ≤ T, age ≤ 8d             ║
+║      route features   = latest snapshot WHERE event_ts ≤ T, age ≤ 8d             ║
+║      aircraft features= latest snapshot WHERE event_ts ≤ T, age ≤ 12h            ║
+║                                                                                      ║
+║  STEP 3: Leakage Guards (4 checks)                                                   ║
+║    ✓ guard_event_timestamps_bounded   — no label events after as_of               ║
+║    ✓ guard_no_future_features         — no feature_ts > event_timestamp           ║
+║    ✓ guard_ttl_compliance             — warn if age > TTL (already nulled)         ║
+║    ✓ guard_no_target_leakage          — no label columns in feature_refs           ║
+║    └─► LeakageError raised if any ERROR-severity violation found                    ║
+║                                                                                      ║
+║  STEP 4: Write content-addressed output                                              ║
+║    staging/datasets/{version_hash}/data.parquet   (24 feature cols + labels)        ║
+║    staging/datasets/{version_hash}/card.json      (DatasetHandle metadata card)     ║
+║                                                                                      ║
+║  OUTPUT: DatasetHandle                                                               ║
+║    version_hash      (SHA-256, 64 hex chars)                                         ║
+║    feature_set_version  (git tree hash of feature_repo/)                             ║
+║    feature_ttls      (per feature view, in seconds)                                  ║
+║    row_count         (number of training examples)                                   ║
+║    label_distribution   (mean, std, positive_rate per target column)                 ║
+║    schema_fingerprint   (SHA-256 of column names + dtypes)                           ║
+║    storage_path      (s3://staging/datasets/{hash}/data.parquet)                     ║
+╚══════════════════════════════════════════════════════════════════════════════════════╝
+```
+
+```mermaid
+graph TD
+    subgraph raw["Phase 1: Raw Ingestion"]
+        R1[raw_bts_flights]
+        R2[raw_noaa_weather]
+        R3[raw_faa_airports]
+    end
+
+    subgraph staging["Phase 2: Staging + Contracts"]
+        S1[staged_flights]
+        S2[staged_weather]
+        S3[dim_airport]
+        S4[dim_route]
+        AC1{5 asset_checks}
+    end
+
+    subgraph features["Phase 3: Feature Engineering"]
+        F1[feat_cascading_delay\nPySpark LAG window]
+        F2[bmo_dbt_assets\nfeat_origin • feat_dest\nfeat_carrier • feat_route\nfeat_calendar\nmart_training_dataset]
+    end
+
+    subgraph feast_group["Phase 4: Feature Store"]
+        FE[feast_feature_export\nDuckDB → S3 Parquet\n5 entity Parquets]
+        FM[feast_materialized_features\nS3 → Redis\nhourly schedule]
+    end
+
+    subgraph training_group["Phase 5: Training Dataset Builder"]
+        TD[training_dataset\nPIT Join + Leakage Guards\ncontent-addressed Parquet]
+    end
+
+    R1 --> S1
+    R2 --> S2
+    R3 --> S3
+    S3 --> S4
+    S1 --> AC1
+    S2 --> AC1
+    S3 --> AC1
+    S4 --> AC1
+    S1 --> F1
+    S1 --> F2
+    S2 --> F2
+    S3 --> F2
+    S4 --> F2
+    F1 --> FE
+    F2 --> FE
+    FE --> FM
+    FM --> TD
+
+    style TD fill:#2d6a4f,color:#fff,stroke:#1b4332
+    style AC1 fill:#e9c46a,stroke:#f4a261
+```
+
 ---
 
 ## Key Architectural Pattern: Point-in-Time Correctness

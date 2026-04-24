@@ -21,7 +21,7 @@ class WeatherStagingResult:
     valid_count: int
     rejected_count: int
     target_uri: str
-    snapshot_id: str
+    snapshot_id: int
 
 
 STAGED_WEATHER_SCHEMA = pa.schema(
@@ -90,7 +90,9 @@ def stage_weather(
         partition_column='obs_time_utc',
     )
     overwrite_month_weather(iceberg_table, valid, year, month)
-    snapshot_id = iceberg_table.current_snapshot().snapshot_id
+    snapshot = iceberg_table.current_snapshot()
+    assert snapshot is not None, 'no snapshot after overwrite'
+    snapshot_id = snapshot.snapshot_id
 
     # rejected -> parquet
     if len(rejected) > 0:

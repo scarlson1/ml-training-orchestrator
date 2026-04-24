@@ -102,7 +102,7 @@ def stage_routes(
     catalog = make_catalog()
     airports = (
         catalog.load_table('staging.dim_airport')
-        .scan(selected_fields=['iata_code', 'latitude_deg', 'longitude_deg'])
+        .scan(selected_fields=('iata_code', 'latitude_deg', 'longitude_deg'))
         .to_arrow()
         .to_pandas()
     )

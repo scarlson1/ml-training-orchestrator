@@ -166,8 +166,18 @@ module = [
   "pyspark.sql",
   "feast",
   "feast.*",
+  "s3fs",
+  "structlog",
+  "duckdb"
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# pyiceberg ships real type stubs locally but is absent in the pre-commit mypy
+# environment, so the type: ignore[call-arg] comments on expression constructors
+# would be flagged as unused there. Disable that warning for this file only.
+module = ["bmo.common.iceberg"]
+warn_unused_ignores = false
 
 [[tool.mypy.overrides]]
 # dagster decorators (@asset, @sensor) are not typed upstream — strict mode

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -12,22 +11,22 @@ import s3fs
 from dagster import AssetExecutionContext, MaterializeResult, MetadataValue, asset
 from feast import FeatureStore
 
+from bmo.common.config import settings
+
 # dbt models produce DuckDB tables. Feast needs Parquet on S3. This asset bridges the two.
 
 
 FEATURE_REPO_DIR = Path(__file__).parent.parent.parent / 'feature_repo'
-DUCKDB_PATH = os.environ.get('DUCKDB_PATH', '/tmp/bmo_features.duckdb')
-FEAST_S3_BASE = os.environ.get('FEAST_S3_BASE', 's3://staging/feast')
 
 
 # // TODO: use pydantic for env vars ??
 def _get_s3fs() -> s3fs.S3FileSystem:
     """Build an s3fs client using project env vars (MinIO or R2 compatible)."""
     return s3fs.S3FileSystem(
-        key=os.environ['S3_ACCESS_KEY_ID'],
-        secret=os.environ['S3_SECRET_ACCESS_KEY'],
-        endpoint_url=os.environ.get('S3_ENDPOINT_URL', 'http://localhost:9000'),
-        client_kwargs={'region_name': os.environ.get('S3_REGION', 'us-east-1')},
+        key=settings.s3_access_key_id,
+        secret=settings.s3_secret_access_key,
+        endpoint_url=settings.s3_endpoint_url,
+        client_kwargs={'region_name': settings.s3_region},
     )
 
 
@@ -70,10 +69,10 @@ def _export_cascading_delay(s3: s3fs.S3FileSystem, row_counts: dict) -> None:
         'default',
         **{
             'type': 'sql',
-            'uri': os.environ.get('ICEBERG_CATALOG_URI', 'sqlite:////tmp/bmo_iceberg.db'),
-            's3.endpoint': os.environ.get('S3_ENDPOINT_URL', 'http://localhost:9000'),
-            's3.access-key-id': os.environ['S3_ACCESS_KEY_ID'],
-            's3.secret-access-key': os.environ['S3_SECRET_ACCESS_KEY'],
+            'uri': settings.iceberg_catalog_uri,
+            's3.endpoint': settings.s3_endpoint_url,
+            's3.access-key-id': settings.s3_access_key_id,
+            's3.secret-access-key': settings.s3_secret_access_key,
             's3.region': 'auto',
             's3.path-style-access': 'true',
         },
@@ -94,7 +93,7 @@ def _export_cascading_delay(s3: s3fs.S3FileSystem, row_counts: dict) -> None:
         }
     )
 
-    dest_path = f'{FEAST_S3_BASE}/aircraft'
+    dest_path = f'{settings.feast_s3_base}/aircraft'
     arrow_table = pa.Table.from_pandas(df, preserve_index=False)
     with s3.open(f'{dest_path}/data.parquet', 'wb') as f:
         pq.write_table(arrow_table, f, compression='zstd')
@@ -111,9 +110,9 @@ def _export_cascading_delay(s3: s3fs.S3FileSystem, row_counts: dict) -> None:
     ),
 )
 def feast_feature_export(context: AssetExecutionContext) -> MaterializeResult:
-    con = duckdb.connect(DUCKDB_PATH, read_only=True)
+    con = duckdb.connect(settings.duckdb_path, read_only=True)
     s3 = _get_s3fs()
-    row_counts: dict[str, str] = {}
+    row_counts: dict[str, int] = {}
 
     exports = [
         {
@@ -129,7 +128,7 @@ def feast_feature_export(context: AssetExecutionContext) -> MaterializeResult:
                 'origin_pct_delayed_7d',
                 'origin_congestion_score_1h',
             ],
-            's3_path': f'{FEAST_S3_BASE}/origin_airport',
+            's3_path': f'{settings.feast_s3_base}/origin_airport',
         },
         {
             'table': 'feat_dest_airport_windowed',
@@ -140,7 +139,7 @@ def feast_feature_export(context: AssetExecutionContext) -> MaterializeResult:
                 'dest_avg_arr_delay_24h',
                 'dest_pct_diverted_24h',
             ],
-            's3_path': f'{FEAST_S3_BASE}/dest_airport',
+            's3_path': f'{settings.feast_s3_base}/dest_airport',
         },
         {
             'table': 'feat_carrier_rolling',
@@ -151,7 +150,7 @@ def feast_feature_export(context: AssetExecutionContext) -> MaterializeResult:
                 'carrier_avg_delay_7d',
                 'carrier_flight_count_7d',
             ],
-            's3_path': f'{FEAST_S3_BASE}/carrier',
+            's3_path': f'{settings.feast_s3_base}/carrier',
         },
         {
             'table': 'feat_route_rolling',
@@ -164,7 +163,7 @@ def feast_feature_export(context: AssetExecutionContext) -> MaterializeResult:
                 'route_avg_elapsed_7d',
                 'route_distance_mi',
             ],
-            's3_path': f'{FEAST_S3_BASE}/route',
+            's3_path': f'{settings.feast_s3_base}/route',
         },
     ]
 

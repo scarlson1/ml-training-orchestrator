@@ -15,9 +15,9 @@
 
 from __future__ import annotations
 
-import os
-
 from pyspark.sql import SparkSession
+
+from bmo.common.config import settings
 
 
 def make_spark_session(app_name: str) -> SparkSession:
@@ -30,13 +30,6 @@ def make_spark_session(app_name: str) -> SparkSession:
     (which set location=s3://staging/iceberg/<table_name>) are readable without
     any metastore — Spark finds metadata at s3a://staging/iceberg/<table_name>/metadata/.
     """
-    endpoint = os.environ['S3_ENDPOINT_URL']
-    access_key = os.environ['S3_ACCESS_KEY_ID']
-    secret_key = os.environ['S3_SECRET_ACCESS_KEY']
-
-    # strip http:// - s3a hadoop client expects host:port
-    # or use the other environment var (DUCKDB_S3_ENDPOINT) ??
-    endpoint_host = endpoint.replace('http://', '').replace('https://', '')
 
     return (
         SparkSession.builder.appName(app_name)
@@ -55,9 +48,9 @@ def make_spark_session(app_name: str) -> SparkSession:
         .config('spark.sql.catalog.iceberg.type', 'hadoop')
         .config('spark.sql.catalog.iceberg.warehouse', 's3a://staging/iceberg')
         # S3 / MinIO connections
-        .config('spark.hadoop.fs.s3a.endpoint', endpoint_host)
-        .config('spark.hadoop.fs.s3a.access.key', access_key)
-        .config('spark.hadoop.fs.s3a.secret.key', secret_key)
+        .config('spark.hadoop.fs.s3a.endpoint', settings.s3_endpoint)
+        .config('spark.hadoop.fs.s3a.access.key', settings.s3_access_key_id)
+        .config('spark.hadoop.fs.s3a.secret.key', settings.s3_secret_access_key)
         .config('spark.hadoop.fs.s3a.path.style.access', 'true')
         .config('spark.hadoop.fs.s3a.connection.ssl.enabled', 'false')
         .config('spark.hadoop.fs.s3a.impl', 'org.apache.hadoop.fs.s3a.S3AFileSystem')
