@@ -56,7 +56,13 @@ def get_or_create_table(
     if catalog.table_exists(identifier):
         return catalog.load_table(identifier)
 
-    iceberg_schema = pyarrow_to_schema(arrow_schema)
+    schema_with_ids = pa.schema(
+        [
+            field.with_metadata({b'PARQUET:field_id': str(i + 1).encode()})
+            for i, field in enumerate(arrow_schema)
+        ]
+    )
+    iceberg_schema = pyarrow_to_schema(schema_with_ids)
 
     if partition_column is not None:
         source_id = iceberg_schema.find_field(partition_column).field_id

@@ -32,7 +32,7 @@ serving-dev:
 	$(ENV)uv run uvicorn bmo.serving.api:app --reload --port 8080
 
 dbt-build:
-	$(ENV)uv run dbt build --profiles-dir .
+	$(ENV)cd dbt_project && uv run dbt build --profiles-dir .
 
 dbt:
 	$(ENV)cd dbt_project && uv run dbt build --profiles-dir .
@@ -64,3 +64,7 @@ feast-teardown:
 
 reproduce:
 	$(ENV)uv run python -m bmo.training.reproduce $(RUN_ID)
+
+# The steps to run this feel clunky/numerous. lots of "run this" then "start dbt", then run dbt build, then "run this". How do I make it so that this "just works", as simple as possible?
+
+# review plan and look for improvements. Even if unchanged, output the final plan in the chat

@@ -8,7 +8,7 @@ The training_dataset asset is a thin orchestration wrapper. All business logic
 lives in bmo.training_dataset_builder, which is testable without Dagster.
 """
 
-from __future__ import annotations
+# from __future__ import annotations
 
 from datetime import datetime, timezone
 

@@ -247,6 +247,100 @@ runs test_no_future_leakage on origin_obs_time_utc and the singular assert_pit_c
 cd dbt_project && uv run dbt test --select int_flights_enriched --profiles-dir .
 ```
 
+Run instructions after stage 5:
+
+1. One-time setup
+
+```bash
+make setup
+make feast-apply
+make dbt-bootstrap
+```
+
+2. Start Dagster
+
+```bash
+make dagster-dev
+```
+
+Open [http://localhost:3000](http://localhost:3000)
+
+3. In the Dagster UI — materialize in order:
+
+Go to Assets, find `raw_faa_airports` → click Materialize
+Find `raw_openflights_routes` → Materialize
+Find `raw_bts_flights` → Materialize (pick a partition, e.g. 2024-01-01)
+Find `raw_noaa_weather` → Materialize (same partition)
+Find `dim_airport`, `dim_route` → Materialize
+Find `staged_flights`, `staged_weather` → Materialize (same partition)
+Find `feat_cascading_delay` → Materialize
+
+4. Run dbt (in a separate terminal)
+
+```bash
+make dbt-build
+```
+
+5. Back in Dagster UI:
+
+- Find `feast_feature_export` → Materialize
+- Find `feast_materialized_features` → Materialize
+- Find `training_dataset` → Materialize
+
+The BTS sensor will automatically trigger raw_bts_flights for new months going forward — you only need to manually kick off step 3 for backfills.
+
+### Note on Postgres, Iceberg, S3, DuckDB
+
+#### S3 (MinIO) — the actual storage
+
+All data lives here as Parquet files. Iceberg just adds a metadata layer on top:
+
+```
+s3://staging/iceberg/dim_airport/
+  metadata/
+    v1.metadata.json      ← table schema, partition spec, snapshot history
+    snap-123.avro         ← manifest list (which files belong to this snapshot)
+  data/
+    00000.parquet         ← actual rows
+```
+
+Without Iceberg, you'd just have raw Parquet files with no schema tracking, no ACID writes, and no way to do partial overwrites.
+
+#### Iceberg
+
+Iceberg is a table format, not a database. It's a spec for how to organize Parquet files on S3 into something that behaves like a database table — with ACID writes, schema evolution, and time travel.
+
+It uses Postgres (or sqlite) to store metadata. (e.g. `staging.dim_airport → s3://staging/iceberg/dim_airport/`)
+
+#### DuckDB - query engine
+
+DuckDB doesn't store anything. It reads Iceberg tables at query time via two paths in this project:
+
+- **PyIceberg plugin** (for dbt) — the plugin asks the Postgres catalog for the table location, then hands DuckDB the S3 path to read
+- **PySpark** — uses its own HadoopCatalog to do the same thing independently
+
+#### Data flow summary
+
+Python staging code
+→ writes Parquet files to S3 via PyIceberg
+→ registers snapshot in Postgres catalog
+
+dbt (DuckDB)
+→ asks Postgres catalog (via Iceberg): "where is staging.staged_flights?"
+→ gets back S3 path
+→ DuckDB reads Parquet directly from S3
+→ computes feature tables in memory
+→ (optionally) writes results back to S3
+
+#### Why not just use Parquet files directly?
+
+The old code (the commented-out lines in dimensions.py) did exactly that — wrote to dim_airport/dim_airport.parquet and read it back with boto3. The migration to Iceberg adds:
+
+- Atomic overwrites — a failed write doesn't corrupt the table
+- Schema enforcement — Iceberg rejects data that doesn't match the schema
+- Partition pruning — DuckDB only reads the months it needs for a query
+- A single source of truth — both Python and DuckDB query the same table via the catalog, instead of hardcoded S3 paths scattered across the code
+
 ## Deployment
 
 TODO

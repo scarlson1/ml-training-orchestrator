@@ -15,15 +15,15 @@ Dagster concept — cursor:
     historically available months (harmless due to run_key dedup, but noisy).
 """
 
-from __future__ import annotations
+# from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterator
 
 import httpx
 from bs4 import BeautifulSoup  # type: ignore[import-untyped]
 from dagster import RunRequest, SensorEvaluationContext, SkipReason, sensor
-from collections.abc import Iterator
 
 BTS_PREZIP_URL = 'https://transtats.bts.gov/PREZIP/'
 _BTS_FILENAME_RE = re.compile(

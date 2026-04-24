@@ -18,7 +18,7 @@ def compute_cascading_delay(spark: SparkSession) -> int:
     The HadoopCatalog maps `iceberg.staged_flights` to
     s3a://staging/iceberg/staged_flights — same location as PyIceberg writes.
     """
-    flights = spark.table('iceberg.staged_flights')
+    flights = spark.table('staging.staged_flights')
 
     # compute same surrogate key as stg_flights.sql for clean joins on flight_id without mapping table
     # TODO: test to ensure key is the same ??
@@ -60,7 +60,7 @@ def compute_cascading_delay(spark: SparkSession) -> int:
     )  # turnaround: previous arrival - schedule departure
 
     # write result to iceberg, replacing previous (idempotent)
-    result.writeTo('iceberg.feat_cascading_delay').createOrReplace()
+    result.writeTo('staging.feat_cascading_delay').createOrReplace()
     # For very large datasets: partition by month and use overwritePartitions() instead.
 
     return int(result.count())

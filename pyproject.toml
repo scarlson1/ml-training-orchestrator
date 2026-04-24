@@ -86,7 +86,7 @@ monitoring = [
 ]
 
 iceberg = [
-  "pyiceberg[sql-postgres,s3fs,duckdb]>=0.7",
+  "pyiceberg[sql-postgres,s3fs,duckdb,pyiceberg-core]>=0.7",
 ]
 
 [tool.uv]
@@ -184,6 +184,12 @@ warn_unused_ignores = false
 # would flag every decorated function. The real logic lives in src/bmo/ and
 # is fully checked; dagster_project/ is orchestration wiring only.
 module = ["dagster_project.*"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+# feature_repo uses local relative imports (data_sources, entities) that are
+# only resolvable when running inside the Feast repo directory, not via mypy.
+module = ["feature_repo.*", "data_sources", "entities"]
 ignore_errors = true
 
 [tool.pytest.ini_options]

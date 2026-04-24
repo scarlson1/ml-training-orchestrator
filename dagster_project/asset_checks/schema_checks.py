@@ -5,10 +5,8 @@ These run after materialization as separate Dagster checks. Two types:
     - Schema evolution check — detects new/missing BTS columns (WARN severity, not ERROR)
 """
 
-import io
-from datetime import date
+from datetime import date, datetime, timezone
 
-import pyarrow.parquet as pq
 from dagster import (
     AssetCheckExecutionContext,
     AssetCheckResult,
@@ -19,7 +17,6 @@ from dagster import (
 from pyiceberg.expressions import And, GreaterThanOrEqual, LessThan
 
 from bmo.common.iceberg import make_catalog
-from bmo.common.storage import make_object_store
 from bmo.staging.contracts import STAGED_FLIGHTS_SCHEMA
 
 _MONTHLY = MonthlyPartitionsDefinition(start_date='2018-01-01')
@@ -122,11 +119,23 @@ def check_staged_flights_schema_evolution(context) -> AssetCheckResult:
 def check_staged_weather_nulls(context: AssetCheckExecutionContext) -> AssetCheckResult:
     year_str, month_str, *_ = context.partition_key.split('-')
     year, month = int(year_str), int(month_str)
-    store = make_object_store()
 
-    key = f'noaa/year={year}/month={month:02d}/weather.parquet'
-    obj = store.client.get_object(Bucket='staging', Key=key)
-    table = pq.read_table(io.BytesIO(obj['Body'].read()))
+    start = datetime(year, month, 1, tzinfo=timezone.utc).isoformat()
+    end = (
+        datetime(year + 1, 1, 1, tzinfo=timezone.utc)
+        if month == 12
+        else datetime(year, month + 1, 1, tzinfo=timezone.utc)
+    ).isoformat()
+
+    catalog = make_catalog()
+    iceberg_table = catalog.load_table('staging.staged_weather')
+    table = iceberg_table.scan(
+        row_filter=And(
+            GreaterThanOrEqual('obs_time_utc', start),  # type: ignore[call-arg]
+            LessThan('obs_time_utc', end),  # type: ignore[call-arg]
+        ),
+        selected_fields=('station_id', 'iata_code', 'obs_time_utc'),
+    ).to_arrow()
 
     failures = {}
 
@@ -163,9 +172,10 @@ def check_staged_weather_nulls(context: AssetCheckExecutionContext) -> AssetChec
 
 @asset_check(asset='dim_airport', description='Airport dimension must have tz for all rows')
 def check_dim_airport(context: AssetCheckExecutionContext) -> AssetCheckResult:
-    store = make_object_store()
-    obj = store.client.get_object(Bucket='staging', Key='dim_airport/dim_airport.parquet')
-    table = pq.read_table(io.BytesIO(obj['Body'].read()))
+    # store = make_object_store()
+    # obj = store.client.get_object(Bucket='staging', Key='dim_airport/dim_airport.parquet')
+    # table = pq.read_table(io.BytesIO(obj['Body'].read()))
+    table = make_catalog().load_table('staging.dim_airport').scan().to_arrow()
 
     failures = {}
 
@@ -196,9 +206,10 @@ def check_dim_airport(context: AssetCheckExecutionContext) -> AssetCheckResult:
 
 @asset_check(asset='dim_route', description='Route dimension must have valid distances')
 def check_dim_route(context: AssetCheckExecutionContext) -> AssetCheckResult:
-    store = make_object_store()
-    obj = store.client.get_object(Bucket='staging', Key='dim_route/dim_route.parquet')
-    table = pq.read_table(io.BytesIO(obj['Body'].read()))
+    # store = make_object_store()
+    # obj = store.client.get_object(Bucket='staging', Key='dim_route/dim_route.parquet')
+    # table = pq.read_table(io.BytesIO(obj['Body'].read()))
+    table = make_catalog().load_table('staging.dim_route').scan().to_arrow()
 
     failures = {}
 

@@ -1,6 +1,7 @@
 services:
   # dragster DB: run history, asset materialization records, schedules, sensors, event logs
   # bmo: MLflow data - experiment runs, metric param logs, model registry entries
+  # iceberg: table created by init script. Store Iceberg metadata pointing to S3 locations (e.g. staging.dim_airport → s3://staging/iceberg/dim_airport/)
   postgres:
     image: postgres:17
     container_name: postgres
