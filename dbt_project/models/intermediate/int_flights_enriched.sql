@@ -20,7 +20,7 @@ dest_weather as (
         visibility_mi   as dest_visibility_mi,
         present_weather as dest_present_weather
     from {{ ref('stg_weather') }}
-)
+),
 
 -- join origin weather. QUALIFY reduces to 1 row per flight
 with_origin_wx as (
@@ -32,7 +32,7 @@ with_origin_wx as (
         ow.origin_precip_1h_in,
         ow.origin_visibility_mi,
         ow.origin_present_weather
-    from {{ ref('stg_flights') }}
+    from {{ ref('stg_flights') }} f
     left join origin_weather ow
         on ow.iata_code = f.origin
         -- within 3 hours BEFORE scheduled departure
@@ -42,7 +42,7 @@ with_origin_wx as (
         partition by f.flight_id
         order by ow.obs_time_utc desc nulls last
     ) = 1
-)
+),
 
 -- join destination weather using same PIT anchor
 -- with_origin_wx already has 1 row per flight ==> just join
@@ -52,7 +52,7 @@ with_dest_wx as (
         wd.obs_time_utc         as dest_obs_time_utc,
         wd.dest_temp_f,
         wd.dest_wind_kts,
-        wd.origin_precip_1h_in,
+        wd.dest_precip_1h_in,
         wd.dest_visibility_mi,
         wd.dest_present_weather
     from with_origin_wx f

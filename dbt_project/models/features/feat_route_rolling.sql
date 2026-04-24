@@ -1,7 +1,8 @@
 -- distance_mi is already in stg_flights (from STAGED_FLIGHTS_SCHEMA). No join to dim_route needed — use max(distance_mi) within the partition to get the route's static distance.
 
--- TODO: where is distance_mi getting added to flights ??
+-- TODO: where is distance_mi getting added to flights --> added in dimensions.py.stageRoutes
 -- it should be joined from route table to avoid recomputing ??
+-- distance_mi is included in data from bts
 
 select
 

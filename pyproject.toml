@@ -56,11 +56,14 @@ dbt = [
 ]
 
 training = [
-  "xgboost>=2.1",
-  "scikit-learn>=1.5",
-  "optuna>=3.6",
-  "mlflow>=2.14",
-  "numpy>=1.26",
+  "xgboost>=3.2",
+  "scikit-learn>=1.8",
+  "optuna-integration[xgboost]>=4.8",
+  "optuna>=4.8",
+  "mlflow>=3.11",
+  "numpy>=2.4",
+  "matplotlib>=3.10",
+  "s3fs>=2026.3",
 ]
 
 spark = [
@@ -69,15 +72,15 @@ spark = [
 ]
 
 feast = [
-  "feast[redis,aws]>=0.40",
+  "feast[redis,aws]>=0.50",
   "s3fs>=2024.6",
 ]
 
 serving = [
-  "fastapi>=0.111",
-  "uvicorn[standard]>=0.30",
-  "feast[redis]>=0.40",
-  "mlflow-skinny>=2.14",  # pulls model without full MLflow stack
+  "fastapi>=0.136",
+  "uvicorn[standard]>=0.46",
+  "feast[redis]>=0.50",
+  "mlflow-skinny>=3.11",  # pulls model without full MLflow stack
   "prometheus-client",
 ]
 
@@ -168,7 +171,8 @@ module = [
   "feast.*",
   "s3fs",
   "structlog",
-  "duckdb"
+  "duckdb",
+  "feature_views"
 ]
 ignore_missing_imports = true
 

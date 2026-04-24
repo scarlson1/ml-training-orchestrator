@@ -27,7 +27,7 @@ def make_spark_session(app_name: str) -> SparkSession:
     fs.s3 is aliased to S3AFileSystem so that metadata_location values stored
     as s3:// by PyIceberg are resolved by the same S3A config as s3a:// paths.
     """
-    jdbc_url = f'jdbc:postgresql://{settings.postgres_host}:{settings.postgres_port}/bmo'
+    jdbc_url = f'jdbc:postgresql://{settings.postgres_host}:{settings.postgres_port}/iceberg'
 
     return (
         SparkSession.builder.appName(app_name)
@@ -48,6 +48,7 @@ def make_spark_session(app_name: str) -> SparkSession:
         .config('spark.sql.catalog.bmo.uri', jdbc_url)
         .config('spark.sql.catalog.bmo.jdbc.user', settings.postgres_user)
         .config('spark.sql.catalog.bmo.jdbc.password', settings.postgres_password)
+        .config('spark.sql.catalog.bmo.jdbc.schema-version', 'V1')
         .config('spark.sql.catalog.bmo.warehouse', 's3a://staging/iceberg')
         .config('spark.sql.defaultCatalog', 'bmo')
         # S3A / MinIO — for s3a:// paths

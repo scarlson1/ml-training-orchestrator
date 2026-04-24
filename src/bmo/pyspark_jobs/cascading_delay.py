@@ -60,8 +60,21 @@ def compute_cascading_delay(spark: SparkSession) -> int:
         / 60,
     )  # turnaround: previous arrival - schedule departure
 
-    # write result to iceberg, replacing previous (idempotent)
-    result.writeTo('staging.feat_cascading_delay').createOrReplace()
-    # For very large datasets: partition by month and use overwritePartitions() instead.
+    row_count = result.count()
 
-    return int(result.count())
+    # Create at the canonical flat path on first run so it matches the PyIceberg
+    # convention (s3://staging/iceberg/<table>, not s3://staging/iceberg/staging/<table>).
+    # createOrReplace() uses warehouse/{namespace}/{table} by default — wrong when
+    # namespace is already 'staging'. Pre-create with explicit LOCATION, then overwrite.
+    if not spark.catalog.tableExists('staging.feat_cascading_delay'):
+        result.createOrReplaceTempView('_feat_cascading_delay_tmp')
+        spark.sql(
+            'CREATE TABLE staging.feat_cascading_delay '
+            'USING iceberg '
+            "LOCATION 's3a://staging/iceberg/feat_cascading_delay' "
+            'AS SELECT * FROM _feat_cascading_delay_tmp WHERE 1=0'
+        )
+
+    result.writeTo('staging.feat_cascading_delay').overwrite(F.lit(True))
+
+    return int(row_count)

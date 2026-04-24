@@ -506,7 +506,6 @@ batch-ml-orchestrator/
 │   │   │   ├── feat_destination_airport_windowed.sql
 │   │   │   ├── feat_carrier_rolling.sql
 │   │   │   ├── feat_route_rolling.sql
-│   │   │   ├── feat_airport_static.sql
 │   │   │   ├── feat_calendar.sql
 │   │   │   └── _features_schema.yml
 │   │   └── marts/

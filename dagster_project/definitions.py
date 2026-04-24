@@ -14,7 +14,6 @@ load_dotenv()  # loads .env from cwd — no-op if already set in environment
 
 from dagster import (  # noqa: E402 (import top of file exception)
     Definitions,
-    MonthlyPartitionsDefinition,
     define_asset_job,
 )
 from dagster_dbt import DbtCliResource  # noqa E402
@@ -55,7 +54,7 @@ from dagster_project.sensors.bts_new_month import bts_new_month_sensor  # noqa: 
 ingest_bts_month_job = define_asset_job(
     name='ingest_bts_month',  # match name in sensor decorator
     selection=[raw_bts_flights],
-    partitions_def=MonthlyPartitionsDefinition(start_date='2018-01-01'),
+    # partitions_def=MonthlyPartitionsDefinition(start_date='2018-01-01'),
 )
 
 # registers entities with cli ??

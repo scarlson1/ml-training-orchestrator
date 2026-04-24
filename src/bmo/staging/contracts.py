@@ -46,7 +46,7 @@ STAGED_FLIGHTS_SCHEMA = pa.schema(
         ('diverted', pa.bool_()),
         ('crs_elapsed_min', pa.float32()),
         ('actual_elapsed_min', pa.float32()),
-        ('distance_mi', pa.float32()),
+        ('distance_mi', pa.float32()),  # should be joined from route table ??
         ('carrier_delay_min', pa.float32()),
         ('weather_delay_min', pa.float32()),
         ('nas_delay_min', pa.float32()),

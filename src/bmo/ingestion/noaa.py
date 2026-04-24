@@ -56,6 +56,7 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import cast
 
 import httpx
 import pandas as pd
@@ -214,6 +215,10 @@ def build_station_map(iata_codes: set[str]) -> dict[str, str]:
 # --------------------------------------------------------------------------#
 
 
+_ANNUAL_CACHE_BUCKET = 'raw'
+_ANNUAL_CACHE_PREFIX = 'noaa/_annual'
+
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=2, min=2, max=30),
@@ -238,6 +243,25 @@ def _download_lcd_year(station_id: str, year: int) -> bytes:
         for chunk in r.iter_bytes(chunk_size=1 << 20):
             buf.write(chunk)
         return buf.getvalue()
+
+
+def _fetch_lcd_year(station_id: str, year: int, store: ObjectStore) -> bytes:
+    """
+    Return LCD annual CSV bytes for one station-year, using S3 as a cache.
+
+    NCEI publishes annual files — without caching, a 12-month backfill downloads
+    each station file 12 times. The cache key is noaa/_annual/{year}/{station_id}.csv.
+    """
+    cache_key = f'{_ANNUAL_CACHE_PREFIX}/{year}/{station_id}.csv'
+    if store.exists(_ANNUAL_CACHE_BUCKET, cache_key):
+        log.info('LCD cache hit: station=%s year=%d', station_id, year)
+        obj = store.client.get_object(Bucket=_ANNUAL_CACHE_BUCKET, Key=cache_key)
+        return cast(bytes, obj['Body'].read())
+
+    csv_bytes = _download_lcd_year(station_id, year)
+    store.put_bytes(_ANNUAL_CACHE_BUCKET, cache_key, csv_bytes)
+    log.info('LCD cached: station=%s year=%d', station_id, year)
+    return csv_bytes
 
 
 def _strip_quality_flag(series: pd.Series) -> pd.Series:
@@ -344,7 +368,7 @@ def ingest_noaa_month(
     frames: list[pd.DataFrame] = []
     for iata_code, station_id in station_map.items():
         try:
-            csv_bytes = _download_lcd_year(station_id, year)
+            csv_bytes = _fetch_lcd_year(station_id, year, store)
             df = _parse_lcd_csv(csv_bytes, station_id, iata_code, year, month)
             if not df.empty:
                 frames.append(df)

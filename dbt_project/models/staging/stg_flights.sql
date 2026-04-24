@@ -39,8 +39,8 @@ select
 
     -- dates
     day_of_week,  -- BTS day_of_week convention: 1=Mon, 7=Sun
-    adapter.quote("month"),  -- 1-12 month
-    adapter.quote("year")  -- 4 digit year
+    {{ adapter.quote("month") }},  -- 1-12 month
+    {{ adapter.quote("year") }}  -- 4 digit year
 
 -- iceberg source connector
 from {{ source('iceberg_staging', 'staged_flights') }}

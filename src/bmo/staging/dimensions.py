@@ -35,6 +35,7 @@ DIM_ROUTE_SCHEMA = pa.schema(
 )
 
 
+#
 # as the crow flies distance between two coordinates (miles)
 def _haversine_mi(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     R = 3958.8  # earth radius (miles)
@@ -109,6 +110,7 @@ def stage_routes(
 
     coord_map = airports.set_index('iata_code')[['latitude_deg', 'longitude_deg']].to_dict('index')
 
+    # note: flights already include distance_mi from https://transtats.bts.gov
     def dist(row: pd.Series) -> float:
         o = coord_map.get(row['origin'])
         d = coord_map.get(row['dest'])

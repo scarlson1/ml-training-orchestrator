@@ -8,5 +8,6 @@
 select count(*) as leaking_rows
 from {{ model }}
 where {{ column_name }} > {{ event_ts_column }}
+having count(*) > 0
 
 {% endmacro %}

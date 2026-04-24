@@ -16,8 +16,8 @@ models:
       - name: dep_delay_min
         tests:
           - dbt_utils.accepted_range:
-              min_value: -60
-              max_value: 1440 # 24-hour max delay
+              min_value: -120
+              max_value: 3200 # ~53hr; covers worst observed BTS value (3125 min)
               inclusive: true
 
   - name: stg_weather

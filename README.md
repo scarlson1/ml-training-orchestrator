@@ -239,7 +239,7 @@ uv run dg launch --assets 'bmo_dbt_assets*'
 
 ```
 
-#### Verify PIT correctness:
+#### Verify PIT correctness
 
 runs test_no_future_leakage on origin_obs_time_utc and the singular assert_pit_correct.sql. Both should report 0 failures.
 
@@ -247,15 +247,18 @@ runs test_no_future_leakage on origin_obs_time_utc and the singular assert_pit_c
 cd dbt_project && uv run dbt test --select int_flights_enriched --profiles-dir .
 ```
 
-Run instructions after stage 5:
+#### Run instructions after stage 5
 
 1. One-time setup
 
 ```bash
 make setup
 make feast-apply
-make dbt-bootstrap
+make dbt-bootstrap # runs dbt deps --profiles-dir . & dbt parse --profiles-dir .
 ```
+
+- `dbt deps --profiles-dir .` - installs dependencies (like `pnpm install`); checks version compatibility
+- `dbt parse --profiles-dir .` - builds dbt's DAG (dependency graph) & ensures no syntax errors
 
 2. Start Dagster
 
@@ -280,6 +283,14 @@ Find `feat_cascading_delay` → Materialize
 ```bash
 make dbt-build
 ```
+
+The [dbt build](https://docs.getdbt.com/reference/commands/build?version=1.12) command consolidates four primary dbt actions — `run`, `test`, `snapshot`, and `seed—into` a single operation. It executes these resources in the correct order based on your project's dependency graph (DAG).
+
+- Seeds: Loads static CSV files into the database.
+- Models: Materializes SQL transformations into tables or views.
+- Snapshots: Captures historical state changes (SCD Type 2).
+- Tests: Runs both unit tests (before models) and data tests (after models)
+- generates manifests.json
 
 5. Back in Dagster UI:
 
@@ -317,7 +328,7 @@ It uses Postgres (or sqlite) to store metadata. (e.g. `staging.dim_airport → s
 DuckDB doesn't store anything. It reads Iceberg tables at query time via two paths in this project:
 
 - **PyIceberg plugin** (for dbt) — the plugin asks the Postgres catalog for the table location, then hands DuckDB the S3 path to read
-- **PySpark** — uses its own HadoopCatalog to do the same thing independently
+- **PySpark** — uses its own JdbcCatalog to do the same thing independently
 
 #### Data flow summary
 
@@ -835,7 +846,7 @@ This is exactly PIT join:
 
 [DuckDB ASOF JOIN docs](https://duckdb.org/docs/sql/query_syntax/from.html#as-of-joins)
 
-### HadoopCatalog vs JdbcCatalog
+### PyIceberg: HadoopCatalog vs JdbcCatalog
 
 > Note: PyIceberg uses SqlCatalog (stores metadata in Postgres). Spark (used in `feat_cascading_delay`) was using HadoopCatalog, which uses S3 files to track metadata. PyIceberg was switched from HadoopCatalog to JdbcCatalog to align with PyIceberg's SqlCatalog (use same Postgres `iceberg_tables`)
 
@@ -891,3 +902,7 @@ JdbcCatalog wins on the only dimension that actually matters for correctness: **
 The one legitimate concern with JdbcCatalog is that PostgreSQL is a second thing that has to be up for Iceberg to function — but Dagster already has this requirement, so it's not a new dependency.
 
 If you ever wanted to upgrade further, the modern production choice is an **Iceberg REST catalog** (stateless service, any backend), but that's meaningfully more infrastructure. JdbcCatalog is the right level of robustness for this project's scale.
+
+### TODO
+
+- figure out how to parallelize `raw_noaa_weather` data ingestion to run multiple months at a time. Only downloads full year and filters to specific month. CDO API key allows specific month (rate limited)? Cache annual files in S3 ?? What's file size?

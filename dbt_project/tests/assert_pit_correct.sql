@@ -8,3 +8,4 @@ select
 
 from {{ ref('int_flights_enriched') }}
 where origin_obs_time_utc > scheduled_departure_utc
+having count(*) > 0

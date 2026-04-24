@@ -3,7 +3,7 @@ version: 2
 sources:
   - name: iceberg_staging
     meta:
-      plugin: pyiceberg
+      plugin: iceberg_staging
     tables:
       - name: staged_flights
         meta:

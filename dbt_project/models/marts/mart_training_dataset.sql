@@ -44,6 +44,7 @@ select
     c.carrier_flight_count_7d,
 
     -- Route features
+    r.route_key,
     r.route_avg_dep_delay_7d,
     r.route_avg_arr_delay_7d,
     r.route_pct_delayed_7d,
@@ -86,7 +87,6 @@ left join {{ ref('feat_origin_airport_windowed') }} o using (flight_id)
 left join {{ ref('feat_dest_airport_windowed') }}   d using (flight_id)
 left join {{ ref('feat_carrier_rolling') }}         c using (flight_id)
 left join {{ ref('feat_route_rolling') }}           r using (flight_id)
--- left join {{ ref('feat_airport_static') }}          s using (flight_id)
 left join {{ ref('hub_airports') }} h on h.iata_code = e.origin
 left join {{ ref('feat_calendar') }}                cal using (flight_id)
 left join {{ ref('stg_feat_cascading_delay') }}     cd using (flight_id)
