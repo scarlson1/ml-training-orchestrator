@@ -190,7 +190,7 @@ ignore_errors = true
 # feature_repo uses local relative imports (data_sources, entities) that are
 # only resolvable when running inside the Feast repo directory, not via mypy.
 module = ["feature_repo.*", "data_sources", "entities"]
-ignore_errors = true
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

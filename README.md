@@ -834,3 +834,60 @@ This is exactly PIT join:
 - It never reaches forward in time.
 
 [DuckDB ASOF JOIN docs](https://duckdb.org/docs/sql/query_syntax/from.html#as-of-joins)
+
+### HadoopCatalog vs JdbcCatalog
+
+> Note: PyIceberg uses SqlCatalog (stores metadata in Postgres). Spark (used in `feat_cascading_delay`) was using HadoopCatalog, which uses S3 files to track metadata. PyIceberg was switched from HadoopCatalog to JdbcCatalog to align with PyIceberg's SqlCatalog (use same Postgres `iceberg_tables`)
+
+#### How Each Works
+
+**HadoopCatalog** is a filesystem-based catalog. Table state is tracked by two file conventions on the object store:
+
+- `metadata/version-hint.text` — an integer pointing to the current version
+- `metadata/v{n}.metadata.json` — sequentially-named snapshots
+
+To commit a new snapshot, the writer increments `version-hint.text`. "Locking" is done via optimistic filesystem overwrites.
+
+**JdbcCatalog** tracks `metadata_location` (a UUID-named path) in an `iceberg_tables` row in PostgreSQL. Commits are database transactions — a `SELECT ... FOR UPDATE` followed by an `UPDATE` atomically swaps the pointer to the new metadata file.
+
+---
+
+#### Concurrency Safety (the critical difference)
+
+|                          | HadoopCatalog                                                           | JdbcCatalog                              |
+| ------------------------ | ----------------------------------------------------------------------- | ---------------------------------------- |
+| Commit mechanism         | Overwrite `version-hint.text` on object store                           | PostgreSQL `UPDATE` inside a transaction |
+| Atomic compare-and-swap  | **No** — S3/MinIO don't support atomic file rename                      | **Yes** — DB transactions                |
+| Concurrent writer safety | **Unsafe** — two writers can overwrite each other's `version-hint.text` | **Safe** — database serializes commits   |
+| Lost update risk         | Real, not theoretical                                                   | None                                     |
+
+S3 doesn't support atomic rename. MinIO has partial support but it's not reliable enough to trust for production writes. This is a well-documented Iceberg limitation, not a hypothetical — it's why the Iceberg spec warns against using HadoopCatalog with S3-compatible stores in multi-writer scenarios.
+
+Dagster runs assets concurrently. HadoopCatalog on MinIO is a data corruption risk.
+
+---
+
+#### Other Dimensions
+
+|                                     | HadoopCatalog                       | JdbcCatalog                                       |
+| ----------------------------------- | ----------------------------------- | ------------------------------------------------- |
+| External dependency                 | None (catalog is the filesystem)    | PostgreSQL                                        |
+| Infrastructure cost in this project | Zero                                | **Also zero** — Postgres already runs for Dagster |
+| Failure mode if DB is down          | N/A                                 | Catalog operations fail; **data files are safe**  |
+| Catalog portability                 | Moves with the bucket               | Requires migrating PostgreSQL too                 |
+| Namespace/schema management         | Directory-based                     | Full SQL, supports properties/tags                |
+| Catalog discoverability             | `ls s3://staging/iceberg/`          | Query `iceberg_tables` in psql                    |
+| PyIceberg compatibility             | Uses `HadoopCatalog` class          | Uses `SqlCatalog` — same schema as `JdbcCatalog`  |
+| Debugging                           | Read JSON files directly from MinIO | Query PostgreSQL                                  |
+
+---
+
+#### Recommendation: JdbcCatalog
+
+HadoopCatalog would win only if you had no external services available and single-writer access patterns. Neither is true here.
+
+JdbcCatalog wins on the only dimension that actually matters for correctness: **it's safe for concurrent writes**. The fact that this project already runs PostgreSQL for Dagster makes the infrastructure argument for HadoopCatalog moot. You get ACID catalog commits at zero additional operational cost.
+
+The one legitimate concern with JdbcCatalog is that PostgreSQL is a second thing that has to be up for Iceberg to function — but Dagster already has this requirement, so it's not a new dependency.
+
+If you ever wanted to upgrade further, the modern production choice is an **Iceberg REST catalog** (stateless service, any backend), but that's meaningfully more infrastructure. JdbcCatalog is the right level of robustness for this project's scale.

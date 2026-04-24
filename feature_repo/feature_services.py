@@ -28,8 +28,8 @@ flight_delay_prediction_fs = FeatureService(
 early_prediction_fs = FeatureService(
     name='flight_delay_early_prediction',
     features=[
-        origin_airport_fv[['origin_avg_dep_delay_1h', 'origin_congestion_score_1h']],
-        carrier_fv[['carrier_on_time_pct_7d', 'carrier_avg_delay_7d']],
+        origin_airport_fv[['origin_avg_dep_delay_1h', 'origin_congestion_score_1h']],  # pyright: ignore[reportArgumentType]
+        carrier_fv[['carrier_on_time_pct_7d', 'carrier_avg_delay_7d']],  # pyright: ignore[reportArgumentType]
     ],
     tags={'model': 'flight_delay_early', 'version': '1'},
 )

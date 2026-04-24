@@ -15,8 +15,9 @@ def compute_cascading_delay(spark: SparkSession) -> int:
       - turnaround_min: minutes between previous actual arrival and this
                         scheduled departure (a proxy for buffer time)
 
-    The HadoopCatalog maps `iceberg.staged_flights` to
-    s3a://staging/iceberg/staged_flights — same location as PyIceberg writes.
+    The JdbcCatalog (named 'bmo') reads the same PostgreSQL iceberg_tables rows
+    that PyIceberg's SqlCatalog writes. Table refs use 2-part names
+    (staging.staged_flights) with defaultCatalog=bmo.
     """
     flights = spark.table('staging.staged_flights')
 

@@ -1,7 +1,7 @@
 """
 PyIceberg catalog factory and per-partition overwrite helpers.
 
-All staging writers share one catalog (SqlCatalog backed by SQLite). Data
+All staging writers share one catalog (SqlCatalog backed by PostgreSQL). Data
 files land in MinIO under s3://staging/iceberg/<table_name>/.
 
 MinIO requires path-style access (not virtual-hosted), so s3.path-style-access
