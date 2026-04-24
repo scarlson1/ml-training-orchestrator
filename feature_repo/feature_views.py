@@ -3,14 +3,14 @@ from datetime import timedelta
 from feast import FeatureView, Field
 from feast.types import Float32, Int64
 
-from feature_repo.data_sources import (
+from .data_sources import (
     aircraft_source,
     carrier_source,
     dest_airport_source,
     origin_airport_source,
     route_source,
 )
-from feature_repo.entities import (
+from .entities import (
     aircraft_tail,
     carrier,
     dest_airport,

@@ -1,6 +1,6 @@
 from feast import FeatureService
 
-from feature_repo.feature_views import (
+from .feature_views import (
     aircraft_fv,
     carrier_fv,
     dest_airport_fv,

@@ -1,4 +1,6 @@
-.PHONY: setup lint type test test-int test-det leakage dagster-dev serving-dev dbt dbt-docs dbt-deps dbt-parse feast-apply reproduce
+.PHONY: setup lint type test test-int test-det leakage dagster-dev serving-dev dbt dbt-docs dbt-deps dbt-parse feast-apply reproduce dbt-build
+
+ENV := set -a && . .env && set +a &&
 
 setup:
 	uv sync --all-groups
@@ -24,23 +26,26 @@ leakage:  # must pass; runs the planted-future-value test
 	uv run pytest tests/integration/test_leakage_planted_value.py -q
 
 dagster-dev:
-	uv run dagster dev -m dagster_project.definitions
+	$(ENV)uv run dagster dev -m dagster_project.definitions
 
 serving-dev:
-	uv run uvicorn bmo.serving.api:app --reload --port 8080
+	$(ENV)uv run uvicorn bmo.serving.api:app --reload --port 8080
+
+dbt-build:
+	$(ENV)uv run dbt build --profiles-dir .
 
 dbt:
-	cd dbt_project && uv run dbt build --profiles-dir .
+	$(ENV)cd dbt_project && uv run dbt build --profiles-dir .
 
 dbt-docs:
-	cd dbt_project && uv run dbt docs generate --profiles-dir . && uv run dbt docs serve --profiles-dir .
+	$(ENV)cd dbt_project && uv run dbt docs generate --profiles-dir . && uv run dbt docs serve --profiles-dir .
 
 # run before dbt parse (parse validates {{ ref() }} and {{ source() }} references including macros from dbt_utils) => run `make dbt-bootstrap`
 dbt-deps:
-	cd dbt_project && uv run dbt deps --profiles-dir .
+	$(ENV)cd dbt_project && uv run dbt deps --profiles-dir .
 
 dbt-parse:
-	cd dbt_project && uv run dbt parse --profiles-dir .
+	$(ENV)cd dbt_project && uv run dbt parse --profiles-dir .
 
 # dbt-bootstrap must run before `dagster dev` — it generates target/manifest.json
 # which @dbt_assets reads at import time. If manifest.json doesn't exist,
@@ -52,10 +57,10 @@ dbt-bootstrap: dbt-deps dbt-parse
 
 # After (runs from project root, passes config explicitly):
 feast-apply:
-	uv run feast -c feature_repo/feature_store.yaml apply
+	$(ENV)uv run feast -c feature_repo apply
 
 feast-teardown:
-	uv run feast -c feature_repo/feature_store.yaml teardown
+	$(ENV)uv run feast -c feature_repo teardown
 
 reproduce:
-	uv run python -m bmo.training.reproduce $(RUN_ID)
+	$(ENV)uv run python -m bmo.training.reproduce $(RUN_ID)
