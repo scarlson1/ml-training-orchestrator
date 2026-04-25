@@ -8,14 +8,14 @@ Public API:
   TrainingResult    — Pydantic model returned by train_single_run / run_hpo
 """
 
-# from bmo.training.hpo import HPOResult, run_hpo
-# from bmo.training.reproduce import reproduce_run
-# from bmo.training.train import TrainingResult, train_single_run
+from bmo.training.hpo import HPOResult, run_hpo
+from bmo.training.reproduce import reproduce_run
+from bmo.training.train import TrainingResult, train_single_run
 
-# __all__ = [
-#     'TrainingResult',
-#     'HPOResult',
-#     'train_single_run',
-#     'run_hpo',
-#     'reproduce_run',
-# ]
+__all__ = [
+    'TrainingResult',
+    'HPOResult',
+    'train_single_run',
+    'run_hpo',
+    'reproduce_run',
+]

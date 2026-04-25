@@ -166,13 +166,21 @@ module = [
   "airportsdata",
   "pyiceberg",
   "pyiceberg.*",
-  "pyspark.sql",
   "feast",
   "feast.*",
   "s3fs",
   "structlog",
   "duckdb",
-  "feature_views"
+  "feature_views",
+  "xgboost",
+  "sklearn.*",
+  "mlflow",
+  "mlflow.*",
+  "pyspark.*",
+  "matplotlib",
+  "matplotlib.*",
+  "optuna",
+  "optuna.*"
 ]
 ignore_missing_imports = true
 

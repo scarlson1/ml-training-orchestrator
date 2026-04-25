@@ -10,18 +10,23 @@ lives in bmo.training_dataset_builder, which is testable without Dagster.
 
 # from __future__ import annotations
 
+import json
+import os
 from datetime import datetime, timezone
 
 import duckdb
+import mlflow
 import pandas as pd
 from dagster import (
     AssetExecutionContext,
+    AssetKey,
     MaterializeResult,
     MetadataValue,
     asset,
 )
 
 from bmo.common.config import settings
+from bmo.training.hpo import run_hpo
 from bmo.training_dataset_builder import DatasetHandle, LeakageError, build_dataset
 from bmo.training_dataset_builder.pit_join import default_feature_view_configs
 
@@ -80,6 +85,9 @@ _ENTITY_COLUMNS = [
     'route_key',
 ]
 
+# override for fast local runs (DAGSTER_HPO_N_TRIALS=5 make dagster-dev) - TODO: move to pydantic ??
+_HPO_N_TRIALS = int(os.getenv('DAGSTER_HPO_N_TRIALS', '50'))
+
 
 @asset(
     group_name='training',
@@ -121,7 +129,6 @@ def training_dataset(context: AssetExecutionContext) -> MaterializeResult:
 
     # event_timestamp must be tz aware for PIT join and leakage guards
     raw['event_timestamp'] = pd.to_datetime(raw['event_timestamp'], utc=True)
-
     context.log.info(f'loaded {len(raw)} label rows from mart_training_dataset')
 
     # as_of is pipeline run timestamp
@@ -163,9 +170,100 @@ def training_dataset(context: AssetExecutionContext) -> MaterializeResult:
     )
 
 
+@asset(
+    group_name='training',
+    deps=['training_dataset'],
+    description=(
+        'XGBoost model trained via Optuna HPO (50 trials, TPE sampler, MedianPruner). '
+        'Each trial is a nested MLflow child run with XGBoostPruningCallback for mid-trial pruning. '
+        'Best params re-run has full artifact logging.'
+    ),
+)
+def trained_model(context: AssetExecutionContext) -> MaterializeResult:
+    """
+    Run HPO and log the best XGBoost model to MLflow.
+
+    Reads DatasetHandle from the upstream training_dataset materialization's
+    card.json sidecar on S3. This avoids a direct Python object dependency
+    between assets while keeping the DatasetHandle as the authoritative record.
+    """
+    latest_event = context.instance.get_latest_materialization_event(AssetKey(['training_dataset']))
+    if (
+        latest_event is None or latest_event.asset_materialization is None
+    ):  # not already handled by deps ??
+        raise RuntimeError(
+            'No training_dataset materialization found. '
+            'Materialize training_dataset before running trained_model.'
+        )
+
+    metadata = latest_event.asset_materialization.metadata
+    storage_path: str = str(metadata['storage_path'].value)
+    version_hash: str = str(metadata['version_hash'].value)
+
+    card_path = storage_path.replace('data.parquet', 'card.json')
+    handle = _load_dataset_handle(card_path)
+
+    context.log.info(
+        f'Loaded DatasetHandle {version_hash[:12]}...'
+        f'({handle.row_count:,} rows, {len(handle.feature_refs)} features)'
+    )
+
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+
+    context.log.info(f'starting HPO sweep: {_HPO_N_TRIALS} trials')
+    hpo_result = run_hpo(
+        handle=handle,
+        n_trials=_HPO_N_TRIALS,
+        target_column='is_dep_delayed',
+        run_mllib_baseline=True,
+    )
+
+    context.log.info(
+        f'HPO complete. Best AUC: {hpo_result.best_auc:.4f} '
+        f'({hpo_result.n_trials_completed} trials, {hpo_result.n_trials_pruned} pruned)'
+    )
+
+    return MaterializeResult(
+        metadata={
+            'mlflow_run_id': MetadataValue.text(hpo_result.best_run_id),
+            'mlflow_parent_run_id': MetadataValue.text(hpo_result.parent_mlflow_run_id),
+            'best_roc_auc': MetadataValue.float(hpo_result.best_auc),
+            'n_trials_completed': MetadataValue.int(hpo_result.n_trials_completed),
+            'n_trials_pruned': MetadataValue.int(hpo_result.n_trials_pruned),
+            'dataset_version_hash': MetadataValue.text(hpo_result.dataset_version_hash),
+            'hpo_sweep_duration_s': MetadataValue.float(
+                (hpo_result.sweep_ended_at - hpo_result.sweep_started_at).total_seconds()
+            ),
+            **{
+                f'best_param/{k}': (
+                    MetadataValue.float(v) if isinstance(v, float) else MetadataValue.int(int(v))
+                )
+                for k, v in hpo_result.best_params.items()
+                if isinstance(v, (int, float))
+            },
+        }
+    )
+
+
 def _entity_col_sql(col: str) -> str:
     """Map entity column names to their SQL equivalents in mart_training_dataset."""
     # scheduled_departure_utc is stored as event_timestamp in the mart
     if col == 'event_timestamp':
         return 'scheduled_departure_utc AS event_timestamp'
     return col
+
+
+def _load_dataset_handle(card_path: str) -> DatasetHandle:
+    if card_path.startswith('s3://'):
+        import s3fs
+
+        fs = s3fs.S3FileSystem(
+            key=settings.s3_access_key_id,
+            secret=settings.s3_secret_access_key,
+            endpoint_url=settings.s3_endpoint_url,
+        )
+        with fs.open(card_path, 'rb') as f:
+            data = json.loads(f.read())
+    else:
+        data = json.loads(open(card_path).read())  # noqa SIM115
+    return DatasetHandle.model_validate(data)
