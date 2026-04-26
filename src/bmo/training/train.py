@@ -147,7 +147,9 @@ def train_single_run(
                 source=handle.storage_path,
                 name='flight_delay_training',
                 targets=target_column,
-                digest=handle.version_hash,  # skip recomputation — content hash already computed by build_dataset
+                digest=handle.version_hash[
+                    :36
+                ],  # MLflow digest max is 36 chars; full hash is in version_hash metadata
             ),
             context='training',
         )

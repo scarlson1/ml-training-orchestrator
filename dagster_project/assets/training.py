@@ -312,7 +312,7 @@ def registered_model(context: AssetExecutionContext) -> MaterializeResult:
     run_id = str(metadata['mlflow_run_id'].value)
     dataset_version_hash = str(metadata['dataset_version_hash'].value)
 
-    context.log.info(f'Registering model for MLflow run {run_id:[:12]}...')
+    context.log.info(f'Registering model for MLflow run {run_id[:12]}...')
 
     gate_input = load_gate_input(run_id)
     for check_cls in (AUCGateCheck, LeakageSentinelCheck):

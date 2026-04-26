@@ -51,7 +51,7 @@ def generate_classification_report(
     Returns:
         Absolute path to the HTML report file.
     """
-    log.inf('generating evidently report', run_id=mlflow_run_id)
+    log.info('generating evidently report', run_id=mlflow_run_id)
 
     # df = _load_dataset_for_slicing(dataset_storage_path)
     # n = len(df)
@@ -86,23 +86,19 @@ def generate_classification_report(
                 target='target',
                 prediction_labels='prediction',
                 prediction_probas='score',
-                pos_label=1,
+                pos_label=1,  # pyright: ignore
             )
         ]
     )
     dataset = Dataset.from_pandas(eval_df, data_definition=data_definition)
 
     report = Report(metrics=[ClassificationPreset()])
-    report.run(
-        current_data=dataset,
-        reference_data=None,
-    )
+    snapshot = report.run(current_data=dataset, reference_data=None)
 
     out_dir = Path(output_dir) if output_dir else Path(tempfile.mkdtemp())
     out_dir.mkdir(parents=True, exist_ok=True)
     html_path = str(out_dir / 'classification_report.html')
-    # out_path = out_dir / f'eval_report_{mlflow_run_id[:8]}.html'
-    report.save_html(str(html_path))
+    snapshot.save_html(html_path)
 
     log.info('evidently report saved', path=str(html_path))
     return str(html_path)
