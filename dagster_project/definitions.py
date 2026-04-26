@@ -44,7 +44,7 @@ from dagster_project.assets.staging import (  # noqa: E402
     staged_flights,
     staged_weather,
 )
-from dagster_project.assets.training import training_dataset  # noqa: E402
+from dagster_project.assets.training import trained_model, training_dataset  # noqa: E402
 from dagster_project.sensors.bts_new_month import bts_new_month_sensor  # noqa: E402
 
 # A job is a named, executable subset of the asset graph.
@@ -53,7 +53,7 @@ from dagster_project.sensors.bts_new_month import bts_new_month_sensor  # noqa: 
 # which partition to run when the sensor yields a partition_key.
 ingest_bts_month_job = define_asset_job(
     name='ingest_bts_month',  # match name in sensor decorator
-    selection=[raw_bts_flights],
+    selection=[raw_bts_flights, raw_noaa_weather],
     # partitions_def=MonthlyPartitionsDefinition(start_date='2018-01-01'),
 )
 
@@ -74,6 +74,7 @@ defs = Definitions(
         feast_feature_export,
         feast_materialized_features,
         training_dataset,
+        trained_model,
     ],
     asset_checks=[
         check_staged_flights_nulls,

@@ -45,6 +45,7 @@ import pyarrow.csv as pacsv
 import pyarrow.parquet as pq
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from bmo.common.paths import bts
 from bmo.common.storage import ObjectStore, make_object_store
 
 log = logging.getLogger(__name__)
@@ -269,8 +270,10 @@ def ingest_month(
     filename = BTS_FILE_TEMPLATE.format(year=year, month=month)
     url = f'{BTS_BASE_URL}/{filename}'
 
-    target_key = f'{prefix}/year={year}/month={month:02d}/data.parquet'
-    manifest_key = f'{prefix}/_manifests/{year}-{month:02d}.json'
+    # target_key = f'{prefix}/year={year}/month={month:02d}/data.parquet'
+    # manifest_key = f'{prefix}/_manifests/{year}-{month:02d}.json'
+    target_key = bts.raw_key(year, month)
+    manifest_key = bts.manifest_key(year, month)
     target_uri = f's3://{bucket}/{target_key}'
     manifest_uri = f's3://{bucket}/{manifest_key}'
 

@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Iterator  # , Mapping
 
-from dagster import AssetExecutionContext, AssetKey
+from dagster import AssetExecutionContext, AssetKey, AutomationCondition
 from dagster_dbt import (
     DagsterDbtTranslator,
     DagsterDbtTranslatorSettings,
@@ -58,12 +58,15 @@ class BmoDbtTranslator(DagsterDbtTranslator):
     dagster_dbt_translator=BmoDbtTranslator(
         settings=DagsterDbtTranslatorSettings(enable_asset_checks=True)
     ),
+    # automation_condition=AutomationCondition.eager()
 )
 def bmo_dbt_assets(context: AssetExecutionContext, dbt: DbtCliResource) -> Iterator:
     # `dbt build` runs models + tests + seeds in DAG order
     # yields Dagster events (AssetMaterialization, AssetCheckResult) as dbt progresses
     yield from dbt.cli(['build'], context=context).stream()
 
+
+bmo_dbt_assets = bmo_dbt_assets.with_attributes(automation_condition=AutomationCondition.eager())
 
 # dbt: DbtCliResource must exactly match the key used in definitions.py resources dict ('dbt'). If the names don't match, Dagster raises a missing resource error at startup.
 

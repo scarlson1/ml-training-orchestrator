@@ -270,19 +270,27 @@ Open [http://localhost:3000](http://localhost:3000)
 
 3. In the Dagster UI — materialize in order:
 
-Go to Assets, find `raw_faa_airports` → click Materialize
-Find `raw_openflights_routes` → Materialize
-Find `raw_bts_flights` → Materialize (pick a partition, e.g. 2024-01-01)
-Find `raw_noaa_weather` → Materialize (same partition)
-Find `dim_airport`, `dim_route` → Materialize
-Find `staged_flights`, `staged_weather` → Materialize (same partition)
-Find `feat_cascading_delay` → Materialize
+- `raw_faa_airports` → Materialize
+- `raw_openflights_routes` → Materialize
+- `raw_bts_flights` → Materialize (pick a partition, e.g. 2024-01-01)
+- `raw_noaa_weather` → Materialize (same partition)
+- `dim_airport`, `dim_route` → Materialize
+- `staged_flights`, `staged_weather` → Materialize (same partition)
+- `feat_cascading_delay` → Materialize
 
 4. Run dbt (in a separate terminal)
 
 ```bash
 make dbt-build
 ```
+
+> Note: dbt should materialize automatically now:
+>
+> ```python
+> bmo_dbt_assets = bmo_dbt_assets.with_attributes(
+>   automation_condition=AutomationCondition.eager()
+> )
+> ```
 
 The [dbt build](https://docs.getdbt.com/reference/commands/build?version=1.12) command consolidates four primary dbt actions — `run`, `test`, `snapshot`, and `seed—into` a single operation. It executes these resources in the correct order based on your project's dependency graph (DAG).
 
@@ -294,9 +302,10 @@ The [dbt build](https://docs.getdbt.com/reference/commands/build?version=1.12) c
 
 5. Back in Dagster UI:
 
-- Find `feast_feature_export` → Materialize
-- Find `feast_materialized_features` → Materialize
-- Find `training_dataset` → Materialize
+- `feast_feature_export` → Materialize
+- `feast_materialized_features` → Materialize
+- `training_dataset` → Materialize
+- `trained` → Materialize
 
 The BTS sensor will automatically trigger raw_bts_flights for new months going forward — you only need to manually kick off step 3 for backfills.
 
@@ -758,6 +767,88 @@ graph TD
     style AC1 fill:#e9c46a,stroke:#f4a261
 ```
 
+#### Stage 7:
+
+<!-- prettier-ignore-start -->
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  RAW (MinIO/S3 Parquet)                                                         │
+│  raw_bts_flights [MonthlyPartition]  raw_noaa_weather  raw_faa_airports         │
+│  raw_openflights_routes  station_map                                            │
+└───────────────────────────┬─────────────────────────────────────────────────────┘
+                            │  @asset_check: schema_evolution, null checks
+                            ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  STAGING (Iceberg via PyIceberg + JdbcCatalog)                                  │
+│  staged_flights  staged_weather  dim_airport  dim_route                         │
+└───────────────────────────┬─────────────────────────────────────────────────────┘
+                            │
+                  ┌─────────┴──────────┐
+                  ▼                    ▼
+          bmo_dbt_assets          feat_cascading_delay
+          (dbt-duckdb)            (PySpark self-join
+          ├─ stg_flights           on tail_number + time)
+          ├─ stg_weather
+          ├─ int_flights_enriched
+          ├─ feat_origin_airport_windowed
+          ├─ feat_dest_airport_windowed
+          ├─ feat_carrier_rolling
+          ├─ feat_route_rolling
+          ├─ feat_calendar
+          └─ mart_training_dataset
+                  │                    │
+                  └─────────┬──────────┘
+                            ▼
+                    feast_feature_export
+                    (DuckDB → Parquet on S3)
+                            │
+                            ▼
+                  feast_materialized_features
+                  (hourly @schedule → Redis online store)
+                            │
+                            ▼
+                    training_dataset
+                    PIT-correct via ASOF JOIN
+                    content-addressed (version_hash)
+                    LeakageError if future value detected
+                            │
+                            ▼
+                      trained_model
+                      XGBoost + Optuna (50 trials)
+                      champion run logged to MLflow
+                      ┌────┴──────────────────────────────┐
+                      │  @asset_check (blocking=True)      │
+                      │  ┌─────────────────────────────┐  │
+                      │  │ check_auc_gate               │  │
+                      │  │   AUC ≥ 0.70 floor           │  │
+                      │  │   AUC ≥ prod_AUC − 0.01      │  │
+                      │  ├─────────────────────────────┤  │
+                      │  │ check_leakage_sentinel       │  │
+                      │  │   max feature importance     │  │
+                      │  │   ≤ 0.70                     │  │
+                      │  ├─────────────────────────────┤  │
+                      │  │ check_slice_parity           │  │
+                      │  │   per-carrier/hub/hour/      │  │
+                      │  │   weather AUC ≥ 0.60         │  │
+                      │  │   drop vs overall ≤ 0.10     │  │
+                      │  ├─────────────────────────────┤  │
+                      │  │ check_calibration (WARN)     │  │
+                      │  │   brier_score ≤ 0.25         │  │
+                      │  └─────────────────────────────┘  │
+                      └────────────────┬──────────────────┘
+                                       │  all blocking checks pass
+                                       ▼
+                               registered_model
+                               MLflow Model Registry
+                               ┌─────────────────────┐
+                               │ version N            │
+                               │  alias: challenger   │
+                               │  alias: champion ←── │── if AUC ≥ current champion
+                               │                      │   (old champion → archived)
+                               └─────────────────────┘
+                               + Evidently HTML report
+                                 logged as MLflow artifact
+<!-- prettier-ignore-end -->
+
 ---
 
 ## Key Architectural Pattern: Point-in-Time Correctness
@@ -906,3 +997,15 @@ If you ever wanted to upgrade further, the modern production choice is an **Iceb
 ### TODO
 
 - figure out how to parallelize `raw_noaa_weather` data ingestion to run multiple months at a time. Only downloads full year and filters to specific month. CDO API key allows specific month (rate limited)? Cache annual files in S3 ?? What's file size?
+
+- document xgboost params
+
+Param | What it controls | Overfitting risk
+max_depth | Tree depth; deeper = more expressive | High depth → overfit
+learning_rate | Shrinkage per tree; lower = more trees needed | Lower = better generalization
+n_estimators | Number of trees (mitigated by early stopping) | More = overfit without ES
+subsample | Fraction of rows per tree (bagging) | Introduces randomness = regularizes
+colsample_bytree | Fraction of features per tree | Regularizes, like Random Forest
+scale_pos_weight | Upweights positive class | Critical for imbalanced data
+
+- Tag all feature columns with owner, description, expected range, and update frequency in a metadata YAML

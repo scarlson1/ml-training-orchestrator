@@ -64,6 +64,8 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from bmo.common.config import settings
+from bmo.common.paths import noaa
 from bmo.common.storage import ObjectStore
 
 log = logging.getLogger(__name__)
@@ -350,8 +352,8 @@ def ingest_noaa_month(
     month: int,
     station_map: dict[str, str],
     store: ObjectStore,
-    bucket: str = 'raw',
-    prefix: str = 'noaa',
+    bucket: str = settings.s3_bucket_raw,
+    # prefix: str = 'noaa',
 ) -> NoaaIngestResult:
     """
     Download LCD weather for all stations in station_map, filter to the target
@@ -360,8 +362,11 @@ def ingest_noaa_month(
     station_map is {iata_code: lcd_station_id} — build it once with
     build_station_map() and reuse across months.
     """
-    target_key = f'{prefix}/year={year}/month={month:02d}/weather.parquet'
-    manifest_key = f'{prefix}/_manifests/{year}-{month:02d}.json'
+    # target_key = f'{prefix}/year={year}/month={month:02d}/weather.parquet'
+    # manifest_key = f'{prefix}/_manifests/{year}-{month:02d}.json'
+    target_key = noaa.raw_key(year, month)
+    manifest_key = noaa.manifest_key(year, month)
+
     target_uri = f's3://{bucket}/{target_key}'
     manifest_uri = f's3://{bucket}/{manifest_key}'
 

@@ -22,7 +22,7 @@ import pyarrow.parquet as pq
 
 from bmo.common.config import settings
 from bmo.common.iceberg import get_or_create_table, make_catalog, overwrite_month_flights
-from bmo.common.paths import Paths
+from bmo.common.paths import bts
 from bmo.common.storage import ObjectStore
 from bmo.staging.contracts import STAGED_FLIGHTS_SCHEMA, validate_flights
 from bmo.staging.timezone import arrival_day_offset, local_hhmm_to_utc
@@ -122,9 +122,9 @@ def stage_flights(
     # # target_key = f'bts/year={year}/month={month:02d}/flights.parquet'
     # iceberg_location = f's3://{staging_bucket}/iceberg/staged_flights'
     # rejected_key = f'rejected/bts/year={year}/month={month:02d}/rejected.parquet'
-    raw_key = Paths('staged_flights').raw_key(year, month)
-    iceberg_location = Paths('staged_flights').iceberg_location
-    rejected_key = Paths('staged_flights').rejected_key(year, month)
+    raw_key = bts.raw_key(year, month)
+    iceberg_location = bts.iceberg_location()
+    rejected_key = bts.rejected_key(year, month)
 
     raw_obj = store.client.get_object(Bucket=raw_bucket, Key=raw_key)
     raw_table = pq.read_table(io.BytesIO(raw_obj['Body'].read()))
@@ -158,7 +158,7 @@ def stage_flights(
     catalog = make_catalog()
     iceberg_table = get_or_create_table(
         catalog,
-        identifier=Paths('staged_flights').iceberg_identifier,
+        identifier=bts.iceberg_id,
         arrow_schema=STAGED_FLIGHTS_SCHEMA,
         location=iceberg_location,
         partition_column='flight_date',

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Literal
 
 from bmo.common.config import settings
 
-# TODO: generalize into one class ??
-# add descriptions
+# TODO: better system for paths
+# don't use "staged_flights", etc. for constructor
+# confusing b/c same path returned for "raw_key" as staging key (but different manifest_key)
+
+# add dock string descriptions
 
 
 class IcebergId(StrEnum):
@@ -18,6 +21,7 @@ class IcebergId(StrEnum):
     FEAT_CASCADING_DELAY = 'staging.feat_cascading_delay'
 
 
+# DELETE - USE CLASSES BELOW
 @dataclass
 class Paths:
     table: Literal[
@@ -63,83 +67,104 @@ class Paths:
         return IcebergId[self.table.upper()]
 
 
-# class BtsPaths:
-#     """Keys and identifiers for BTS on-time performance data."""
-
-#     prefix = 'bts'
-#     iceberg_identifier = 'staging.staged_flights'
-
-#     @staticmethod
-#     def raw_key(year: int, month: int) -> str:
-#         """S3 path to raw ingestion partitioned parquet data"""
-#         return f'bts/year={year}/month={month:02d}/data.parquet'
-
-#     @staticmethod
-#     def manifest_key(year: int, month: int) -> str:
-#         """"""
-#         return f'bts/_manifests/{year}-{month:02d}.json'
-
-#     @staticmethod
-#     def rejected_key(year: int, month: int) -> str:
-#         """S3 path to rejected parquet data that failed staging validation"""
-#         return f'bts/year={year}/month={month:02d}/rejected.parquet'
-
-#     @staticmethod
-#     def iceberg_location(bucket=settings.s3_bucket_staging) -> str:
-#         return f's3://{bucket}/iceberg/staged_flights'
+# ---------------------------------------------------------------------------
+# Raw bucket: sources with partitioned, time-series data
+# ---------------------------------------------------------------------------
 
 
-# class NoaaPaths:
-#     """Keys and identifiers for NOAA LCD weather data."""
+@dataclass
+class BtsPaths:
+    """BTS on-time performance raw + staging paths."""
 
-#     prefix = 'noaa'
-#     station_map_key = 'noaa/_station_map.json'
-#     iceberg_identifier = 'staging.staged_weather'
+    _prefix = 'bts'
+    iceberg_id: IcebergId = field(default=IcebergId.STAGED_FLIGHTS, init=False)
 
-#     @staticmethod
-#     def raw_key(year: int, month: int) -> str:
-#         return f'noaa/year={year}/month={month:02d}/weather.parquet'
+    def raw_key(self, year: int, month: int) -> str:
+        return f'{self._prefix}/year={year}/month={month:02d}/data.parquet'
 
-#     @staticmethod
-#     def manifest_key(year: int, month: int) -> str:
-#         return f'noaa/_manifests/{year}-{month:02d}.json'
+    def manifest_key(self, year: int, month: int) -> str:
+        return f'{self._prefix}/_manifests/{year}-{month:02d}.json'
 
-#     @staticmethod
-#     def rejected_key(year: int, month: int) -> str:
-#         return f'noaa/year={year}/month={month:02d}/reject.parquet'
+    def rejected_key(self, year: int, month: int) -> str:
+        return f'{self._prefix}/year={year}/month={month:02d}/rejected.parquet'
 
-#     @staticmethod
-#     def iceberg_location(bucket=settings.s3_bucket_staging) -> str:
-#         return f's3://{bucket}/iceberg/staged_weather'
+    def iceberg_location(self, bucket: str = settings.s3_bucket_staging) -> str:
+        return f's3://{bucket}/iceberg/staged_flights'
 
 
-# class DimAirportPaths:
-#     """Keys and identifiers for the airport dimension."""
+@dataclass
+class NoaaPaths:
+    """NOAA LCD weather raw + staging paths."""
 
-#     raw_key = 'faa/airports.parquet'
-#     iceberg_identifier = 'staging.dim_airport'
+    _prefix = 'noaa'
+    station_map_key: str = field(default='noaa/_station_map.json', init=False)
+    iceberg_id: IcebergId = field(default=IcebergId.STAGED_WEATHER, init=False)
 
-#     @staticmethod
-#     def iceberg_location(bucket=settings.s3_bucket_staging) -> str:
-#         return f's3://{bucket}/iceberg/dim_airport'
+    def raw_key(self, year: int, month: int) -> str:
+        return f'{self._prefix}/year={year}/month={month:02d}/data.parquet'
+
+    def manifest_key(self, year: int, month: int) -> str:
+        return f'{self._prefix}/_manifests/{year}-{month:02d}.json'
+
+    def rejected_key(self, year: int, month: int) -> str:
+        return f'{self._prefix}/year={year}/month={month:02d}/rejected.parquet'
+
+    def annual_prefix(self, year: int) -> str:
+        return f'{self._prefix}/_annual/{year}/'
+
+    def iceberg_location(self, bucket: str = settings.s3_bucket_staging) -> str:
+        return f's3://{bucket}/iceberg/staged_weather'
 
 
-# class DimRoutePaths:
-#     """Keys and identifiers for the route dimension."""
-
-#     raw_key = 'openflights/routes.parquet'
-#     iceberg_identifier = 'staging.dim_route'
-
-#     @staticmethod
-#     def iceberg_location(bucket=settings.s3_bucket_staging) -> str:
-#         return f's3://{bucket}/iceberg/dim_route'
+# ---------------------------------------------------------------------------
+# Raw bucket: sources with static (non-partitioned) files
+# ---------------------------------------------------------------------------
 
 
-# class FeatCascadingDelayPaths:
-#     """Keys and identifiers for the cascading delay feature table."""
+class FaaPaths:
+    """FAA airport reference data paths."""
 
-#     iceberg_identifier = 'staging.feat_cascading_delay'
+    airports_key: str = 'faa/airports.parquet'
+    iceberg_id: IcebergId = IcebergId.DIM_AIRPORT
 
-#     @staticmethod
-#     def iceberg_location(bucket=settings.s3_bucket_staging) -> str:
-#         return f's3a://{bucket}/iceberg/feat_cascading_delay'
+    @staticmethod
+    def iceberg_location(bucket: str = settings.s3_bucket_staging) -> str:
+        return f's3://{bucket}/iceberg/dim_airport'
+
+
+class OpenflightsPaths:
+    """OpenFlights route reference data paths."""
+
+    routes_key: str = 'openflights/routes.parquet'
+    iceberg_id: IcebergId = IcebergId.DIM_ROUTE
+
+    @staticmethod
+    def iceberg_location(bucket: str = settings.s3_bucket_staging) -> str:
+        return f's3://{bucket}/iceberg/dim_route'
+
+
+# ---------------------------------------------------------------------------
+# Staging bucket: derived feature tables (no raw source)
+# ---------------------------------------------------------------------------
+
+
+class FeatCascadingDelayPaths:
+    """Cascading delay feature table paths."""
+
+    iceberg_id: IcebergId = IcebergId.FEAT_CASCADING_DELAY
+
+    @staticmethod
+    def iceberg_location(bucket: str = settings.s3_bucket_staging) -> str:
+        # s3a:// required for Spark/Hadoop compatibility
+        return f's3a://{bucket}/iceberg/feat_cascading_delay'
+
+
+# ---------------------------------------------------------------------------
+# Convenience singletons
+# ---------------------------------------------------------------------------
+
+bts = BtsPaths()
+noaa = NoaaPaths()
+faa = FaaPaths()
+openflights = OpenflightsPaths()
+feat_cascading_delay = FeatCascadingDelayPaths()

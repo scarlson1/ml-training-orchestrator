@@ -12,6 +12,7 @@ from dagster import AssetExecutionContext, MaterializeResult, MetadataValue, ass
 from feast import FeatureStore
 
 from bmo.common.config import settings
+from bmo.common.iceberg import make_catalog
 
 # dbt models produce DuckDB tables. Feast needs Parquet on S3. This asset bridges the two.
 
@@ -63,20 +64,7 @@ def _export_cascading_delay(s3: s3fs.S3FileSystem, row_counts: dict) -> None:
     The cascading delay feature lives in Iceberg (written by PySpark), not DuckDB.
     Read via PyArrow and re-export to Feast's expected path.
     """
-    import pyiceberg.catalog
-
-    catalog = pyiceberg.catalog.load_catalog(
-        'default',
-        **{
-            'type': 'sql',
-            'uri': settings.iceberg_catalog_uri,
-            's3.endpoint': settings.s3_endpoint_url,
-            's3.access-key-id': settings.s3_access_key_id,
-            's3.secret-access-key': settings.s3_secret_access_key,
-            's3.region': 'auto',
-            's3.path-style-access': 'true',
-        },
-    )
+    catalog = make_catalog()
     table = catalog.load_table('staging.feat_cascading_delay')
     df = table.scan(
         selected_fields=(

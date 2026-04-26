@@ -10,7 +10,7 @@ import pyarrow.parquet as pq
 
 from bmo.common.config import settings
 from bmo.common.iceberg import get_or_create_table, make_catalog, overwrite_month_weather
-from bmo.common.paths import Paths
+from bmo.common.paths import noaa
 from bmo.common.storage import ObjectStore
 
 log = logging.getLogger(__name__)
@@ -53,10 +53,10 @@ def stage_weather(
     staging_bucket: str = 'staging',
 ) -> WeatherStagingResult:
     # raw_key = f'noaa/year={year}/month={month:02d}/weather.parquet'
-    # # target_key = f'noaa/year={year}/month={month:02d}/weather.parquet'
+    # target_key = f'noaa/year={year}/month={month:02d}/weather.parquet'
     # rejected_key = f'noaa/year={year}/month={month:02d}/reject.parquet'
-    raw_key = Paths('staged_weather').raw_key(year, month)
-    rejected_key = Paths('staged_weather').rejected_key(year, month)
+    raw_key = noaa.raw_key(year, month)
+    rejected_key = noaa.raw_key(year, month)
 
     # get raw table from S3 storage (read parquet file with pyarrow)
     obj = store.client.get_object(Bucket=raw_bucket, Key=raw_key)
@@ -88,7 +88,7 @@ def stage_weather(
     iceberg_location = f's3://{staging_bucket}/iceberg/staged_weather'
     iceberg_table = get_or_create_table(
         catalog,
-        identifier=Paths('staged_weather').iceberg_identifier,
+        identifier=noaa.iceberg_id,
         arrow_schema=STAGED_WEATHER_SCHEMA,
         location=iceberg_location,
         partition_column='obs_time_utc',

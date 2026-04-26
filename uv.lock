@@ -313,7 +313,7 @@ dev = [
     { name = "ruff" },
 ]
 feast = [
-    { name = "feast", extra = ["aws", "redis"] },
+    { name = "feast", extra = ["redis"] },
     { name = "s3fs" },
 ]
 iceberg = [
@@ -327,16 +327,18 @@ serving = [
     { name = "feast", extra = ["redis"] },
     { name = "mlflow-skinny" },
     { name = "prometheus-client" },
-    { name = "uvicorn", extra = ["standard"] },
 ]
 spark = [
     { name = "delta-spark" },
     { name = "pyspark" },
 ]
 training = [
+    { name = "matplotlib" },
     { name = "mlflow" },
     { name = "numpy" },
     { name = "optuna" },
+    { name = "optuna-integration", extra = ["xgboost"] },
+    { name = "s3fs" },
     { name = "scikit-learn" },
     { name = "xgboost" },
 ]
@@ -384,28 +386,30 @@ dev = [
     { name = "ruff", specifier = ">=0.5" },
 ]
 feast = [
-    { name = "feast", extras = ["redis", "aws"], specifier = ">=0.50" },
+    { name = "feast", extras = ["redis"], specifier = ">=0.50" },
     { name = "s3fs", specifier = ">=2024.6" },
 ]
 iceberg = [{ name = "pyiceberg", extras = ["sql-postgres", "s3fs", "duckdb", "pyiceberg-core"], specifier = ">=0.7" }]
 monitoring = [{ name = "evidently", specifier = ">=0.4" }]
 serving = [
-    { name = "fastapi", specifier = ">=0.111" },
+    { name = "fastapi", specifier = ">=0.136" },
     { name = "feast", extras = ["redis"], specifier = ">=0.50" },
-    { name = "mlflow-skinny", specifier = ">=2.14" },
+    { name = "mlflow-skinny", specifier = ">=3.11" },
     { name = "prometheus-client" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
 spark = [
     { name = "delta-spark", specifier = ">=3.2" },
     { name = "pyspark", specifier = ">=3.5" },
 ]
 training = [
-    { name = "mlflow", specifier = ">=2.14" },
-    { name = "numpy", specifier = ">=1.26" },
-    { name = "optuna", specifier = ">=3.6" },
-    { name = "scikit-learn", specifier = ">=1.5" },
-    { name = "xgboost", specifier = ">=2.1" },
+    { name = "matplotlib", specifier = ">=3.10" },
+    { name = "mlflow", specifier = ">=3.11" },
+    { name = "numpy", specifier = ">=2.4" },
+    { name = "optuna", specifier = ">=4.8" },
+    { name = "optuna-integration", extras = ["xgboost"], specifier = ">=4.8" },
+    { name = "s3fs", specifier = ">=2026.3" },
+    { name = "scikit-learn", specifier = ">=1.8" },
+    { name = "xgboost", specifier = ">=3.2" },
 ]
 
 [[package]]
@@ -1334,11 +1338,6 @@ wheels = [
 ]
 
 [package.optional-dependencies]
-aws = [
-    { name = "aiobotocore" },
-    { name = "boto3" },
-    { name = "fsspec" },
-]
 redis = [
     { name = "hiredis" },
     { name = "redis" },
@@ -1451,11 +1450,11 @@ wheels = [
 
 [[package]]
 name = "fsspec"
-version = "2024.9.0"
+version = "2026.3.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/62/7c/12b0943011daaaa9c35c2a2e22e5eb929ac90002f08f1259d69aedad84de/fsspec-2024.9.0.tar.gz", hash = "sha256:4b0afb90c2f21832df142f292649035d80b421f60a9e1c027802e5a0da2b04e8", size = 286206, upload-time = "2024-09-04T15:06:57.91Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e1/cf/b50ddf667c15276a9ab15a70ef5f257564de271957933ffea49d2cdbcdfb/fsspec-2026.3.0.tar.gz", hash = "sha256:1ee6a0e28677557f8c2f994e3eea77db6392b4de9cd1f5d7a9e87a0ae9d01b41", size = 313547, upload-time = "2026-03-27T19:11:14.892Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1d/a0/6aaea0c2fbea2f89bfd5db25fb1e3481896a423002ebe4e55288907a97a3/fsspec-2024.9.0-py3-none-any.whl", hash = "sha256:a0947d552d8a6efa72cc2c730b12c41d043509156966cca4fb157b0f2a0c574b", size = 179253, upload-time = "2024-09-04T15:06:55.908Z" },
+    { url = "https://files.pythonhosted.org/packages/d5/1f/5f4a3cd9e4440e9d9bc78ad0a91a1c8d46b4d429d5239ebe6793c9fe5c41/fsspec-2026.3.0-py3-none-any.whl", hash = "sha256:d2ceafaad1b3457968ed14efa28798162f1638dbb5d2a6868a2db002a5ee39a4", size = 202595, upload-time = "2026-03-27T19:11:13.595Z" },
 ]
 
 [[package]]
@@ -2624,6 +2623,23 @@ wheels = [
 ]
 
 [[package]]
+name = "optuna-integration"
+version = "4.8.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "optuna" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8f/d9/bdfd6ac94dd733a4df90e9e5b59273e18978132320949c0ca111a1d579db/optuna_integration-4.8.0.tar.gz", hash = "sha256:9f1e3053500a5a6a23f302cbd7ac371f6dd1010372b4b4374c538b8988bd0603", size = 89695, upload-time = "2026-03-16T04:48:05.535Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/57/cb/c209dbb41829dc856b2bdd5b58e877a6480752bd595d4b55f4a8c514efd5/optuna_integration-4.8.0-py3-none-any.whl", hash = "sha256:bb5c038702f744386b9032b12b993779b02e39e6893c324637178df68998f33d", size = 103151, upload-time = "2026-03-16T04:48:04.232Z" },
+]
+
+[package.optional-dependencies]
+xgboost = [
+    { name = "xgboost" },
+]
+
+[[package]]
 name = "orderly-set"
 version = "5.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3649,16 +3665,16 @@ wheels = [
 
 [[package]]
 name = "s3fs"
-version = "2024.9.0"
+version = "2026.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiobotocore" },
     { name = "aiohttp" },
     { name = "fsspec" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e3/de/1dbadd86b81a587d9d6cce18512ab130062d386edf0e368a1ff7c2e2f462/s3fs-2024.9.0.tar.gz", hash = "sha256:6493705abb50374d6b7994f9616d27adbdd8a219c8635100bdc286382efd91f5", size = 74925, upload-time = "2024-09-04T15:14:23.106Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0b/93/093972862fb9c2fdc24ecf8d6d2212853df1945eddf26ba2625e8eaeee66/s3fs-2026.3.0.tar.gz", hash = "sha256:ce8b30a9dc5e01c5127c96cb7377290243a689a251ef9257336ac29d72d7b0d8", size = 85986, upload-time = "2026-03-27T19:28:20.963Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d7/af/add60ba3a0bb78d900f6d9365000c1b0e06c97284154e20f0bda02dbb717/s3fs-2024.9.0-py3-none-any.whl", hash = "sha256:3a7dc7acae4358af8e8dfb693e82a8477f9f2c847de5d44cf65fee75752eaca3", size = 29463, upload-time = "2024-09-04T15:14:21.388Z" },
+    { url = "https://files.pythonhosted.org/packages/6a/52/5ccdc01f7a8a61357d15a66b5d8a6580aa8529cb33f32e6cbb71c52622c5/s3fs-2026.3.0-py3-none-any.whl", hash = "sha256:2fa40a64c03003cfa5ae0e352788d97aa78ae8f9e25ea98b28ce9d21ba10c1b8", size = 32399, upload-time = "2026-03-27T19:28:19.702Z" },
 ]
 
 [[package]]

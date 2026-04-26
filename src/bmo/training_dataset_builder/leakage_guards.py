@@ -70,7 +70,8 @@ def guard_event_timestamps_bounded(
             )
         ]
 
-    as_of_ts = pd.Timestamp(as_of, tz='UTC')
+    as_of_ts = pd.Timestamp(as_of)
+    as_of_ts = as_of_ts.tz_convert('UTC') if as_of_ts.tzinfo else as_of_ts.tz_localize('UTC')
     event_ts = pd.to_datetime(label_df['event_timestamp'], utc=True)
     future_mask = event_ts > as_of_ts
     future_count = int(future_mask.sum())

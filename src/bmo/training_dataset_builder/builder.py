@@ -64,6 +64,13 @@ class LeakageError(ValueError):
     """Raised when leakage guards detect critical violations."""
 
 
+def _to_utc_timestamp(as_of: datetime | None) -> pd.Timestamp | None:
+    if as_of is None:
+        return None
+    ts = pd.Timestamp(as_of)
+    return ts.tz_convert('UTC') if ts.tzinfo else ts.tz_localize('UTC')
+
+
 def build_dataset(
     label_df: pd.DataFrame,
     feature_refs: list[str],
@@ -156,7 +163,7 @@ def build_dataset(
     # PIT join
     joiner = PITJoiner(
         feature_views=requested_views,
-        as_of=pd.Timestamp(as_of, tz='UTC') if as_of else None,
+        as_of=_to_utc_timestamp(as_of),
         use_s3=output_base_path.startswith('s3'),
     )
     dataset_df = joiner.join(label_df)

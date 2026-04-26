@@ -25,6 +25,8 @@ import pandas as pd
 
 from bmo.common.config import settings
 
+_FEATURE_TS_SUFFIX = '__feature_ts'
+
 
 @dataclass(frozen=True)
 class FeatureViewConfig:
@@ -63,7 +65,7 @@ def _configure_duckdb_s3(con: duckdb.DuckDBPyConnection) -> None:
     con.execute('INSTALL httpfs; LOAD httpfs;')
     con.execute(f"""
         SET s3_region='{settings.s3_region}';
-        SET s3_access_key='{settings.s3_access_key_id}';
+        SET s3_access_key_id='{settings.s3_access_key_id}';
         SET s3_secret_access_key='{settings.s3_secret_access_key}';
         set s3_endpoint='{settings.s3_endpoint}';
         set s3_use_ssl=false;
@@ -121,7 +123,7 @@ class PITJoiner:
             feature_cols_present = [c for c in fv.feature_cols if c in fv_df.columns]
             # left merge: rows in label_df that have no matching entity get NULLs
             result_df = result_df.merge(
-                fv_df[['flight_id'] + feature_cols_present + [f'{fv.name}_feature_ts']],
+                fv_df[['flight_id'] + feature_cols_present + [f'{fv.name}{_FEATURE_TS_SUFFIX}']],
                 on='flight_id',
                 how='left',
             )
@@ -155,7 +157,7 @@ class PITJoiner:
             as_of_str = pd.Timestamp(self.as_of).isoformat()
             as_of_filter = f"WHERE event_ts <= TIMESTAMPTZ '{as_of_str}'"
 
-        feature_select = ', '.join(f'pit.{col}' for col in fv.feature_cols)
+        feature_select = ', '.join(f'features.{col}' for col in fv.feature_cols)
 
         # Build TTL-masked feature select:
         # If age (seconds between feature snapshot and event) > TTL, return NULL.
@@ -190,18 +192,18 @@ class PITJoiner:
             SELECT
                 labels.flight_id,
                 labels.event_timestamp,
-                features.event_ts as __feature_ts,
+                features.event_ts as {_FEATURE_TS_SUFFIX},
                 epoch(labels.event_timestamp::TIMESTAMP)
                     - epoch(features.event_ts::TIMESTAMP) AS age_seconds,
                 {feature_select}
-            FROM
+            FROM labels
             ASOF LEFT JOIN features
                 ON labels.{fv.label_entity_col} = features.__entity_key
                 AND labels.event_timestamp >= features.event_ts
         )
         SELECT
             flight_id,
-            __feature_ts AS {fv.name}__feature_ts,
+            {_FEATURE_TS_SUFFIX} AS {fv.name}{_FEATURE_TS_SUFFIX},
             {ttl_masked_select}
         FROM pit
         """
@@ -226,7 +228,7 @@ def default_feature_view_configs(feast_s3_base: str) -> list[FeatureViewConfig]:
     return [
         FeatureViewConfig(
             name='origin_airport_features',
-            parquet_path=f'{feast_s3_base}/origin_airport/data/parquet',
+            parquet_path=f'{feast_s3_base}/origin_airport/data.parquet',
             entity_col='origin',
             label_entity_col='origin',
             ttl=timedelta(hours=26),
@@ -236,7 +238,7 @@ def default_feature_view_configs(feast_s3_base: str) -> list[FeatureViewConfig]:
                 'origin_pct_delayed_1h',
                 'origin_avg_dep_delay_24h',
                 'origin_pct_cancelled_24h',
-                'origin_acg_dep_delay_7h',
+                'origin_avg_dep_delay_7d',
                 'origin_pct_delayed_7d',
                 'origin_congestion_score_1h',
             ],
