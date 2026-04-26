@@ -1009,3 +1009,5 @@ colsample_bytree | Fraction of features per tree | Regularizes, like Random Fore
 scale_pos_weight | Upweights positive class | Critical for imbalanced data
 
 - Tag all feature columns with owner, description, expected range, and update frequency in a metadata YAML
+
+- Resource constraints - memory, storage per partition/month,

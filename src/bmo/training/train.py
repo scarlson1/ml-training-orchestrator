@@ -25,6 +25,7 @@ from typing import Any, cast
 import matplotlib
 import matplotlib.pyplot as plt
 import mlflow
+import mlflow.data
 import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
@@ -139,6 +140,17 @@ def train_single_run(
     training_result: TrainingResult | None = None
     with mlflow.start_run(**run_kwargs) as run:
         _log_provenance(handle, merged_params, git_sha, target_column)
+
+        mlflow.log_input(
+            mlflow.data.from_pandas(
+                df,
+                source=handle.storage_path,
+                name='flight_delay_training',
+                targets=target_column,
+                digest=handle.version_hash,  # skip recomputation — content hash already computed by build_dataset
+            ),
+            context='training',
+        )
 
         fit_result = fit_xgboost(
             X_train=X_train,
@@ -275,6 +287,7 @@ def _time_split(
     39         weather_wind_speed_origin        14.3
     """
     df_sorted = df.sort_values('event_timestamp').reset_index(drop=True)
+    df_sorted = df_sorted.dropna(subset=[target_column]).reset_index(drop=True)
     n = len(df_sorted)
     test_start = int(n * (1 - _TEST_FRACTION))
     val_start = int(test_start * (1 - _VAL_FRACTION))
@@ -329,7 +342,7 @@ def _log_feature_importance(fit_result: XGBFitResult) -> None:
     ax.barh(names[::-1], values[::-1])
     ax.set_xlabel('Normalized Gain')
     ax.set_title('XGBoost Feature Importance (top 20, normalized gain)')
-    ax.tight_layout()
+    fig.tight_layout()
 
     with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
         fig.savefig(f.name, dpi=150, bbox_inches='tight')

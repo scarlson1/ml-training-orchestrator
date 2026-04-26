@@ -89,8 +89,8 @@ services:
         condition: service_healthy
     environment:
       MLFLOW_S3_ENDPOINT_URL: http://minio:9000
-      S3_ACCESS_KEY_ID: admin
-      S3_SECRET_ACCESS_KEY: password123
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: password123
     command: >
       mlflow server
       --backend-store-uri postgresql://user:password@postgres:5432/bmo
@@ -100,7 +100,7 @@ services:
       - '5000:5000'
 
   # mlflow:
-  #   image: ghcr.io/mlflow/mlflow:v2.14.0
+  #   image: ghcr.io/mlflow/mlflow:v3.11.1
   #   container_name: ml_flow
   #   environment:
   #     S3_ACCESS_KEY_ID: admin

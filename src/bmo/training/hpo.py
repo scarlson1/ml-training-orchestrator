@@ -218,8 +218,8 @@ def _make_objective(
             'gamma': trial.suggest_float('gamma', 0.0, 5.0),
         }
 
-        # pruning callback observes 'validation-logloss' - the eval metric XGBoost reports on the validation set after each boosting round
-        pruning_callback = XGBoostPruningCallback(trial, 'validation-logloss')
+        # pruning callback observes 'validation_0-logloss' - XGBoost names unnamed eval_set entries as validation_0, validation_1, ...
+        pruning_callback = XGBoostPruningCallback(trial, 'validation_0-logloss')
 
         result = train_single_run(
             handle=handle,
