@@ -267,3 +267,139 @@ def _load_dataset_handle(card_path: str) -> DatasetHandle:
     else:
         data = json.loads(open(card_path).read())  # noqa SIM115
     return DatasetHandle.model_validate(data)
+
+
+@asset(
+    group_name='training',
+    deps=['trained_model'],
+    description=(
+        'Registers the champion XGBoost model in the MLflow Model Registry. '
+        'Only materializes after all blocking @asset_check functions on trained_model pass. '
+        'Sets the "challenger" alias unconditionally. '
+        'Promotes to "champion" if the new model beats the current champion AUC, '
+        'or if no champion exists. '
+        'Generates an Evidently classification report and logs it as an MLflow artifact.'
+    ),
+)
+def registered_model(context: AssetExecutionContext) -> MaterializeResult:
+    """
+    Register the trained model in the MLflow Model Registry.
+
+    Asset dependency graph:
+      training_dataset → trained_model → [eval gate checks] → registered_model
+
+    The @asset_check(blocking=True) functions on trained_model prevent this
+    asset from being auto-materialized if any blocking check failed.
+    A defensive lightweight re-check here guards against manual forced runs.
+    """
+    from mlflow.tracking import MlflowClient
+
+    from bmo.evaluation_gate.checks import AUCGateCheck, LeakageSentinelCheck
+    from bmo.evaluation_gate.gate import MODEL_NAME, load_gate_input
+    from bmo.evaluation_gate.reports import generate_classification_report
+
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+
+    # get champion run ID logged by trained_model
+    latest_event = context.instance.get_latest_materialization_event(AssetKey(['trained_model']))
+    if latest_event is None or latest_event.asset_materialization is None:
+        raise RuntimeError(
+            'No trained_model materialization found. '
+            'Materialize trained_model before running registered_model.'
+        )
+
+    metadata = latest_event.asset_materialization.metadata
+    run_id = str(metadata['mlflow_run_id'].value)
+    dataset_version_hash = str(metadata['dataset_version_hash'].value)
+
+    context.log.info(f'Registering model for MLflow run {run_id:[:12]}...')
+
+    gate_input = load_gate_input(run_id)
+    for check_cls in (AUCGateCheck, LeakageSentinelCheck):
+        result = check_cls().run(gate_input)
+        if result.blocking:
+            raise RuntimeError(
+                f'Gate check {result.name} failed defensively in registered_model: '
+                f'{result.message}, '
+                'All blocking asset checks must pass before model registration'
+            )
+
+    client = MlflowClient()
+
+    try:
+        client.create_registered_model(
+            name=MODEL_NAME,
+            description='XGBoost flight delay classifier - BTS On-Time Performance data. ',
+            tags={'project': 'bmo', 'target': 'is_dep_delayed'},
+        )
+        context.log.info(f'Created registered model: {MODEL_NAME}')
+    except Exception:
+        context.log.info(f'Registered model already exists: {MODEL_NAME}')
+
+    # register run as a new model version
+    model_version = mlflow.register_model(
+        model_uri=f'runs:/{run_id}/model',
+        name=MODEL_NAME,
+        tags={
+            'dataset_version_hash': dataset_version_hash,
+            'auc': str(round(gate_input.metrics.get('test_roc_auc', 0.0), 4)),
+        },
+    )
+    version_num = model_version.version
+    context.log.info(f'Registered version {version_num} for run {run_id[:12]}...')
+
+    # set challenger alias on the new version
+    client.set_registered_model_alias(MODEL_NAME, 'challenger', version_num)
+    context.log.info(f'set alias: challenger -> version {version_num}')
+
+    # promote champion if better than current champion
+    current_champion_version: str | None = None
+    promoted_to_champion = False
+    new_auc = gate_input.metrics.get('test_roc_auc', 0.0)
+
+    if gate_input.prod_metrics is not None and gate_input.prod_run_id is not None:
+        prod_auc = gate_input.prod_metrics.get('test_roc_auc', 0.0)
+        should_promote = new_auc >= prod_auc
+        context.log.info(
+            f'Champion comparison: new={new_auc:.4f}, prod={prod_auc:.4f}, promote={should_promote}'
+        )
+    else:
+        should_promote = True  # no champion yet
+        context.log.info('No current champion - promoting immediately')
+
+    if should_promote:
+        # remove champion alias from old version before assigning to new one
+        try:
+            old_champion = client.get_model_version_by_alias(MODEL_NAME, 'champion')
+            current_champion_version = old_champion.version
+            client.delete_registered_model_alias(MODEL_NAME, 'champion')
+            client.set_model_version_tag(MODEL_NAME, old_champion.version, 'status', 'archived')
+            context.log.info(f'Archived old champion (version {old_champion.version})')
+        except Exception:
+            pass  # no existing champion alias to remove
+
+    # generate evidently report and log MLflow artifact
+    report_path = generate_classification_report(
+        mlflow_run_id=run_id,
+        dataset_storage_path=gate_input.dataset_storage_path,
+    )
+    with mlflow.start_run(run_id=run_id):
+        mlflow.log_artifact(report_path, artifact_path='reports')
+    context.log.info(f'Evidently report logged: {report_path}')
+
+    return MaterializeResult(
+        metadata={
+            'model_name': MetadataValue.text(MODEL_NAME),
+            'model_version': MetadataValue.text(str(version_num)),
+            'mlflow_run_id': MetadataValue.text(run_id),
+            'promoted_to_champion': MetadataValue.text(str(promoted_to_champion)),
+            'new_auc': MetadataValue.float(round(new_auc, 4)),
+            'dataset_version_hash': MetadataValue.text(dataset_version_hash),
+            'evidently_report': MetadataValue.text(report_path),
+            **(
+                {'archived_champion_version': MetadataValue.text(str(current_champion_version))}
+                if current_champion_version
+                else {}
+            ),
+        }
+    )

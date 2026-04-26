@@ -100,6 +100,10 @@ Feast PIT join rule:
   joined feature = latest feature where feature_ts <= event_ts - ttl
 ```
 
+# References
+
+[XGBoost python examples](https://github.com/dmlc/xgboost/tree/master/demo/guide-python)
+
 ### Storage
 
 Rough estimates per monthly partition:

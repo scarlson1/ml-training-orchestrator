@@ -179,7 +179,9 @@ module = [
   "matplotlib",
   "matplotlib.*",
   "optuna",
-  "optuna.*"
+  "optuna.*",
+  "evidently",
+  "evidently.*"
 ]
 ignore_missing_imports = true
 
