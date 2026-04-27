@@ -69,6 +69,8 @@ graph LR
     N -.sensor.-> A
 ```
 
+![Dagster asset lineage](docs/lineage.svg)
+
 Key Dagster primitives used:
 
 - `@asset` for every node above (dbt models auto-loaded via `dagster-dbt`).

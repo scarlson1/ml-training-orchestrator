@@ -13,8 +13,6 @@ Dagster can display each check independently in the UI and so SliceParityCheck
 (the expensive one) doesn't block the fast checks from completing.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 import mlflow
