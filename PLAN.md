@@ -103,100 +103,14 @@ The right data source is the single biggest determinant of how believable your p
 
 **Senior DE signal: 7/10.** Great scale story, weak domain story. Choose this only if you explicitly want a scale-focused narrative.
 
-### Option E — Yelp Open Dataset
-
-**What it is:** ~9 GB JSON of Yelp business, review, user, check-in, and tip data across ~10 metro areas.
-
-- **Source:** `yelp.com/dataset`
-- **Size:** ~9 GB JSON, ~2 GB Parquet after conversion
-- **Prediction targets:** `review_will_be_useful` (binary), `business_will_close_in_12mo` (binary), `review_rating` (ordinal regression)
-
-**Pros**
-
-- Rich relational structure (businesses, reviews, users, check-ins) — lets you build a real star schema as part of the staging layer.
-- Review timestamps support a PIT demo for user-level and business-level rolling features.
-- Text column opens the door to feature engineering with embeddings if you want to show off.
-
-**Cons**
-
-- JSON-first; first-week cost to convert and enforce schemas.
-- No natural "prediction at serving time" use case — nobody calls an API asking "will this review be useful?" Weakens the online-serving narrative.
-- Dataset is static (one-time release), so you can't demo incremental ingestion of new partitions without faking it.
-- License is non-commercial — fine for portfolio, not fine if you later want to open-source a product.
-
-**Senior DE signal: 7.5/10.** Great relational modeling, weaker ML-in-production story.
-
-### Option F — MovieLens + TMDB
-
-**What it is:** MovieLens ratings (25M or 32M dataset) joined with TMDB metadata API.
-
-- **Source:** `grouplens.org/datasets/movielens/` + `themoviedb.org` API
-- **Size:** ~250 MB–1 GB
-- **Prediction targets:** user rating prediction, watch-propensity
-
-**Pros**
-
-- Smallest ops overhead of any option — you can iterate fast.
-- Rating timestamps enable a PIT story.
-- Accessible prediction target everyone understands.
-
-**Cons**
-
-- Too small to credibly demonstrate DE-at-scale concerns; reviewers will see through it.
-- Extremely well-trodden. Every bootcamp grad has a MovieLens project. You will compete on execution against many others.
-- TMDB API rate limits add complexity without adding signal.
-
-**Senior DE signal: 5/10.** Good for a first pipeline, not good for a senior portfolio headliner.
-
-### Option G — ISO-NE or CAISO Electricity Load + NOAA Weather
-
-**What it is:** 5-minute interval electricity demand from US ISO/RTO operators, paired with weather.
-
-- **Source:** `iso-ne.com/isoexpress/web/reports` or `oasis.caiso.com`
-- **Size:** ~100 MB/year (small but dense)
-- **Prediction target:** `load_1h_ahead` (regression), `load_24h_ahead` (regression)
-
-**Pros**
-
-- High-frequency time series (5-min intervals) — a genuinely different PIT challenge than transactional data.
-- The forecasting use case gives you a legitimate reason to build time-windowed features and demonstrate look-ahead bias prevention more carefully than other options.
-- Weather-joining story is cleaner than TLC because weather directly drives demand.
-- Niche enough that reviewers haven't seen it 100 times.
-
-**Cons**
-
-- Small scale; hard to demonstrate big-data DE chops without artificial augmentation.
-- Single-entity (or few-entity) model — limits Feast/feature-store complexity demo.
-- Time-series forecasting invites questions about sequence models (LSTM, Temporal Fusion Transformer) that are out of scope for a DE portfolio.
-
-**Senior DE signal: 7.5/10.** Best "temporal correctness" story, weakest scale story.
-
 ### Comparison matrix
 
-| Option                  | Scale      | Timestamp quality                | Domain richness   | Novelty  | Dev effort | Senior DE signal        |
-| ----------------------- | ---------- | -------------------------------- | ----------------- | -------- | ---------- | ----------------------- |
-| A — NYC TLC + NOAA      | High       | Excellent                        | Medium            | Medium   | Low        | 9/10                    |
-| B — BTS Flights + NOAA  | Medium     | Excellent (scheduled vs. actual) | High              | High     | Medium     | 8.5/10                  |
-| C — GH Archive          | Very high  | Excellent                        | High              | High     | High       | 9.5 if nailed, 6 if not |
-| D — Criteo              | Very high  | Poor (day-level)                 | Low (anonymized)  | Low      | Medium     | 7/10                    |
-| E — Yelp                | Low–Medium | Good                             | High (relational) | Medium   | Medium     | 7.5/10                  |
-| F — MovieLens + TMDB    | Low        | Good                             | Medium            | Very low | Low        | 5/10                    |
-| G — ISO-NE/CAISO + NOAA | Low        | Excellent (5-min)                | Medium            | High     | Low–Medium | 7.5/10                  |
-
-### Selected primary: Option B — BTS Airline On-Time Performance + NOAA Weather
-
-**Why Option B over Option A:**
-
-- The scheduled-vs-actual timestamp split is the cleanest PIT story of any option. At training time you have both timestamps; at serving time you only have the scheduled time. The code must reflect that gap or it leaks — and you can write a unit test that makes the leak impossible to miss.
-- Less common in portfolios than NYC TLC, so the execution signal is less diluted by "I've reviewed this dataset 50 times" fatigue.
-- Multi-entity model (flight, origin airport, destination airport, carrier, tail number) is a legitimate reason to define multiple entity types in Feast — demonstrates Feast competence you can't fake with a single-entity dataset.
-- Cascading-delay dynamics (a delayed inbound flight delays the next outbound on the same aircraft) give you a genuine reason to build recursive/temporal features and talk about them in interviews.
-
-**Secondary fallback: Option A (NYC TLC + NOAA)** if the BTS CSV ingestion or schema-change handling is eating too much time. The plan transfers cleanly with a source swap.
-
-**Ambitious alternative: Option C (GH Archive)** if you have 12+ weeks and want a real scale story.
-
-**Avoid for this project:** Option F (MovieLens — too well-trodden) and Option D (Criteo — weak PIT + anonymized features gut the domain narrative).
+| Option                 | Scale     | Timestamp quality                | Domain richness  | Novelty | Dev effort | Senior DE signal        |
+| ---------------------- | --------- | -------------------------------- | ---------------- | ------- | ---------- | ----------------------- |
+| A — NYC TLC + NOAA     | High      | Excellent                        | Medium           | Medium  | Low        | 9/10                    |
+| B — BTS Flights + NOAA | Medium    | Excellent (scheduled vs. actual) | High             | High    | Medium     | 8.5/10                  |
+| C — GH Archive         | Very high | Excellent                        | High             | High    | High       | 9.5 if nailed, 6 if not |
+| D — Criteo             | Very high | Poor (day-level)                 | Low (anonymized) | Low     | Medium     | 7/10                    |
 
 **Selected data sources:**
 
@@ -213,7 +127,7 @@ The right data source is the single biggest determinant of how believable your p
 
 ## 2. Tech Stack Decisions
 
-Each row lists the spec's original choice, alternatives, and my recommendation with rationale.
+Each row lists the spec's original choice, alternatives, and recommendation.
 
 ### 2.1 Orchestration
 
@@ -592,7 +506,6 @@ batch-ml-orchestrator/
 │   │   │   ├── feat_destination_airport_windowed.sql
 │   │   │   ├── feat_carrier_rolling.sql
 │   │   │   ├── feat_route_rolling.sql
-│   │   │   ├── feat_airport_static.sql
 │   │   │   ├── feat_calendar.sql
 │   │   │   └── _features_schema.yml
 │   │   └── marts/
@@ -894,6 +807,7 @@ Each phase ends with a verifiable deliverable. Build in order — later phases a
 - `ingestion/` Python package with idempotent download scripts.
 - BTS scraper that programmatically POSTs the download form on `transtats.bts.gov` (the site has no clean API — document the workaround).
 - CSV → Parquet conversion step with explicit schema + type coercion; bad rows routed to `s3://rejected/bts/`.
+  > NOTE: currently keeping bad rows in raw -> handle in move to staging ??
 - Scripts are _checksum-verified_: if the upstream file hash matches the local manifest, skip.
 - Dagster assets `raw_bts_flights`, `raw_noaa_weather`, `raw_faa_airports`, `raw_openflights_routes` with a `MonthlyPartitionsDefinition` on the time-varying sources; a `@sensor` polls the BTS site for new monthly releases (BTS typically publishes with ~2 month lag).
 - Unit tests mocking the HTTP layer.
@@ -966,6 +880,27 @@ Each phase ends with a verifiable deliverable. Build in order — later phases a
 - End-to-end smoke test: write a feature value, retrieve it via `get_online_features`, retrieve it via `get_historical_features`, assert equality.
 
 **Interview gold:** be able to explain why `get_historical_features` is not just a `SELECT` — draw the PIT join on a whiteboard.
+
+```
+raw_bts_flights   raw_noaa_weather   raw_faa_airports
+      │                 │                  │
+      ▼                 ▼                  ▼
+staged_flights    staged_weather      dim_airport
+      │                 │
+      └────────┬─────────┘
+               │
+      ┌────────┴─────────────────┐
+      │                          │
+   bmo_dbt_assets         feat_cascading_delay
+   (all dbt models)         (PySpark / Iceberg)
+      │                          │
+      └────────┬─────────────────┘
+               │
+       feast_feature_export         ← NEW
+               │
+       feast_materialized_features  ← NEW
+       (+ hourly schedule)
+```
 
 ### Phase 5 — Training dataset builder with PIT correctness (Week 4)
 

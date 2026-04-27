@@ -1,0 +1,227 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bmo"
+version = "0.1.0"
+description = "Batch ML training orchestrator — BTS flight delay prediction"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  # used by every service
+  "pydantic>=2.7",
+  "pydantic-settings>=2.3",
+  "pyarrow>=16",
+  "pandas>=2.2",
+  "boto3>=1.34",
+  "structlog>=24",
+  "tenacity>=8",
+  "httpx>=0.27",
+  "requests>=2.32",
+  "beautifulsoup4>=4.12",
+  "lxml>=5.2",
+  "airportsdata>=20240101",
+  "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+# kept empty on purpose — use dependency-groups below
+
+[dependency-groups]
+dev = [
+  "pytest>=8",
+  "pytest-cov",
+  "pytest-mock",
+  "ruff>=0.5",
+  "mypy>=1.10",
+  "pandas-stubs",
+  "pre-commit",
+  "moto[s3]",  # S3 mocking
+  "responses>=0.25",  # HTTP mocking
+  "boto3-stubs[s3]"
+]
+
+dagster = [
+  "dagster>=1.8",
+  "dagster-webserver",
+  "dagster-postgres",
+  "dagster-dbt>=0.24",
+  "dagster-mlflow",
+  "dagster-pyspark",
+  "dagster-duckdb",
+]
+
+dbt = [
+  "dbt-core>=1.8",
+  "dbt-duckdb>=1.8",
+]
+
+training = [
+  "xgboost>=3.2",
+  "scikit-learn>=1.8",
+  "optuna-integration[xgboost]>=4.8",
+  "optuna>=4.8",
+  "mlflow>=3.11",
+  "numpy>=2.4",
+  "matplotlib>=3.10",
+  "s3fs>=2026.3",
+]
+
+spark = [
+  "pyspark>=3.5",
+  "delta-spark>=3.2",  # or pyiceberg
+]
+
+feast = [
+  "feast[redis]>=0.50",
+  "s3fs>=2024.6",
+]
+
+serving = [
+  "fastapi>=0.136",
+  "feast[redis]>=0.50",
+  "mlflow-skinny>=3.11",  # pulls model without full MLflow stack
+  "prometheus-client",
+]
+
+monitoring = [
+  "evidently>=0.4",
+]
+
+iceberg = [
+  "pyiceberg[sql-postgres,s3fs,duckdb,pyiceberg-core]>=0.7",
+]
+
+[tool.uv]
+# reproducible resolution
+resolution = "highest"
+
+[tool.ruff]
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+]
+line-length = 100
+indent-width = 4
+target-version = "py311"
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "single"
+
+[tool.yapf]
+based_on_style = "pep8"
+allow_split_before_dict_value = true
+column_limit = 100
+dedent_closing_brackets = true
+coalesce_brackets = true
+split_before_dot = true
+split_before_logical_operator = true
+indent_dictionary_value = true
+spaces_around_dict_delimiter = true
+spaces_before_comment = '15, 25'
+use_tabs = true
+continuation_indent_width = 2
+indent_width = 4
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = [
+  "boto3",
+  "botocore.*",
+  "pyarrow.*",
+  "pandas",
+  "dagster",
+  "dagster.*",
+  "airportsdata",
+  "pyiceberg",
+  "pyiceberg.*",
+  "feast",
+  "feast.*",
+  "s3fs",
+  "structlog",
+  "duckdb",
+  "feature_views",
+  "xgboost",
+  "sklearn.*",
+  "mlflow",
+  "mlflow.*",
+  "pyspark.*",
+  "matplotlib",
+  "matplotlib.*",
+  "optuna",
+  "optuna.*",
+  "evidently",
+  "evidently.*",
+  "fastapi",
+  "fastapi.*",
+  "prometheus_client"
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# pyiceberg ships real type stubs locally but is absent in the pre-commit mypy
+# environment, so the type: ignore[call-arg] comments on expression constructors
+# would be flagged as unused there. Disable that warning for this file only.
+module = ["bmo.common.iceberg"]
+warn_unused_ignores = false
+
+[[tool.mypy.overrides]]
+# dagster decorators (@asset, @sensor) are not typed upstream — strict mode
+# would flag every decorated function. The real logic lives in src/bmo/ and
+# is fully checked; dagster_project/ is orchestration wiring only.
+module = ["dagster_project.*"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+# FastAPI route decorators (@app.get, @app.post) are untyped when fastapi is
+# absent from the mypy env — suppress [misc] rather than scatter type: ignores.
+module = ["bmo.serving.api"]
+disable_error_code = ["misc"]
+
+[[tool.mypy.overrides]]
+# feature_repo uses local relative imports (data_sources, entities) that are
+# only resolvable when running inside the Feast repo directory, not via mypy.
+module = ["feature_repo.*", "data_sources", "entities"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+  "integration: slower tests requiring docker-compose stack",
+  "determinism: model byte-equality tests",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bmo"]

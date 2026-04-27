@@ -1,0 +1,28 @@
+version: 2
+
+sources:
+  - name: iceberg_staging
+    meta:
+      plugin: iceberg_staging
+    tables:
+      - name: staged_flights
+        meta:
+          iceberg_catalog: bmo
+          iceberg_table: staging.staged_flights
+      - name: staged_weather
+        meta:
+          iceberg_catalog: bmo
+          iceberg_table: staging.staged_weather
+      - name: dim_airport
+        meta:
+          iceberg_catalog: bmo
+          iceberg_table: staging.dim_airport
+      - name: dim_route
+        meta:
+          iceberg_catalog: bmo
+          iceberg_table: staging.dim_route
+      - name: feat_cascading_delay
+        meta:
+          iceberg_catalog: bmo
+          iceberg_table: staging.feat_cascading_delay
+# Note: feat_cascading_delay is written by the PySpark job. This source declaration is created now; the model that reads it (stg_feat_cascading_delay) will simply return no rows until PySpark has run at least once.

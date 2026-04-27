@@ -1,0 +1,11 @@
+version: 2
+
+models:
+  - name: int_flights_enriched
+    columns:
+      - name: flight_id
+        tests: [not_null, unique]
+      - name: origin_obs_time_utc
+        tests:
+          - no_future_leakage:
+              event_ts_column: scheduled_departure_utc

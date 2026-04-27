@@ -1,0 +1,125 @@
+services:
+  # dragster DB: run history, asset materialization records, schedules, sensors, event logs
+  # bmo: MLflow data - experiment runs, metric param logs, model registry entries
+  # iceberg: table created by init script. Store Iceberg metadata pointing to S3 locations (e.g. staging.dim_airport → s3://staging/iceberg/dim_airport/)
+  postgres:
+    image: postgres:17
+    container_name: postgres
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: bmo
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - ./scripts/create_monitoring_tables.sql:/docker-entrypoint-initdb.d/02_monitoring.sql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U user -d bmo']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # file object storage (S3: parquet, json, MLflow model artifacts)
+  minio:
+    image: minio/minio
+    container_name: minio
+    command: server --console-address ":9001" /data
+    restart: unless-stopped
+    ports:
+      - '9000:9000' # API Port
+      - '9001:9001' # Console Port
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password123 # Must be at least 8 characters
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/ready']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  minio-init:
+    image: minio/mc
+    container_name: minio_init
+    depends_on:
+      minio:
+        # condition: service_started
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        until mc alias set local http://minio:9000 admin password123; do
+          echo 'Waiting for MinIO...'; sleep 2;
+        done;
+        for bucket in raw staging rejected mlflow-artifacts; do
+          mc mb --ignore-existing local/$$bucket;
+        done;
+        echo 'Buckets ready.';
+      "
+    restart: 'no'
+
+  redis:
+    image: redis:7-alpine
+    container_name: orchestration_redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    # networks:
+    #   - ml_orchestration
+
+  # dagster:
+  #   image:
+  #   container_name:
+
+  mlflow:
+    build:
+      context: infra/docker/mlflow
+      dockerfile: Dockerfile
+    container_name: ml_flow
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: password123
+    command: >
+      mlflow server
+      --backend-store-uri postgresql://user:password@postgres:5432/bmo
+      --artifacts-destination s3://mlflow-artifacts/
+      --host 0.0.0.0
+    ports:
+      - '5000:5000'
+
+  # mlflow:
+  #   image: ghcr.io/mlflow/mlflow:v3.11.1
+  #   container_name: ml_flow
+  #   environment:
+  #     S3_ACCESS_KEY_ID: admin
+  #     S3_SECRET_ACCESS_KEY: password123
+  #     MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+  #   command: >
+  #     mlflow server
+  #     --backend-store-uri postgresql://user:password@postgres:5432/bmo
+  #     --artifacts-destination s3://mlflow-artifacts/
+  #     --host 0.0.0.0
+  #   ports:
+  #     - '5000:5000'
+
+# networks:
+#   ml_orchestration:
+#     driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

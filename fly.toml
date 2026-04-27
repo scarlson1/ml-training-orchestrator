@@ -1,0 +1,50 @@
+# Fly.io application config for the BMO serving API.
+# Deploy: fly deploy --config fly.toml
+# Docs: https://fly.io/docs/reference/configuration/
+
+app = "bmo-flight-delay"
+primary_region = "iad"   # IAD (Ashburn, VA) — low latency to US-East BTS data users
+
+[build]
+  dockerfile = "infra/docker/serving.Dockerfile"
+
+[env]
+  # Non-secret config. Secrets (MLFLOW_TRACKING_URI, ADMIN_TOKEN, etc.) are
+  # set via: fly secrets set MLFLOW_TRACKING_URI=http://...
+  MODEL_NAME = "bmo_flight_delay"
+  FEATURE_REPO_DIR = "/app/feature_repo"
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # auto_stop_machines: Fly stops the machine after idle_timeout when no
+  # traffic is in-flight. Cold start (from stopped → running) is ~2-3s.
+  # Acceptable for a portfolio project; document this in the README.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  # Fly.io uses /health as the default health check path.
+  [http_service.checks]
+    [http_service.checks.alive]
+      grace_period = "10s"
+      interval = "15s"
+      method = "GET"
+      path = "/health"
+      timeout = "5s"
+
+[[vm]]
+  # Fly.io shared-CPU-1x VM: 1 shared vCPU, 256MB RAM.
+  # XGBoost inference on tabular data is CPU-bound but lightweight.
+  # 256MB is sufficient for the model (~5MB) + feature vectors + uvicorn overhead.
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1
+
+# Metrics: Fly.io can scrape Prometheus endpoints natively.
+# After `fly ext prometheus create`, Fly will scrape /metrics automatically.
+# Docs: https://fly.io/docs/reference/metrics/
+[metrics]
+  port = 8080
+  path = "/metrics"
