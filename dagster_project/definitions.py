@@ -40,6 +40,7 @@ from dagster_project.assets.feast_materialization import (  # noqa: E402
 )
 from dagster_project.assets.features_dbt import DBT_PROJECT_DIR, bmo_dbt_assets  # noqa: E402
 from dagster_project.assets.features_python import feat_cascading_delay  # noqa: E402
+from dagster_project.assets.monitoring import drift_report, ground_truth_backfill  # noqa: E402
 from dagster_project.assets.raw import (  # noqa: E402
     raw_bts_flights,
     raw_faa_airports,
@@ -63,6 +64,10 @@ from dagster_project.resources.duckdb_resource import DuckDBResource  # noqa: E4
 from dagster_project.resources.feast_resource import FeastResource  # noqa: E402
 from dagster_project.resources.mlflow_resource import MLflowResource  # noqa: E402
 from dagster_project.resources.s3_resource import S3Resource  # noqa: E402
+from dagster_project.schedules.daily_drift import (  # noqa: E402
+    daily_drift_report_job,
+    daily_drift_report_schedule,
+)
 from dagster_project.schedules.nightly_retain import (  # noqa: E402
     nightly_retrain_schedule,
     retrain_job,
@@ -108,6 +113,9 @@ defs = Definitions(
         # Serving layer
         batch_predictions,
         deployed_api,
+        # Monitoring layer (group: 'monitoring')
+        drift_report,
+        ground_truth_backfill,
     ],
     asset_checks=[
         # Schema contracts
@@ -127,11 +135,13 @@ defs = Definitions(
         feast_materialize_job,  # schedule-triggered: hourly Feast materialization
         retrain_job,  # schedule + sensor-triggered: full training pipeline
         batch_score_job,
+        daily_drift_report_job,
     ],
     schedules=[
         feast_hourly_schedule,  # top of every hour: push features to Redis
         nightly_retrain_schedule,  # 1am UTC nightly: training_dataset → trained_model → registered_model
         daily_batch_score_schedule,
+        daily_drift_report_schedule,
     ],
     sensors=[
         bts_new_month_sensor,  # polls BTS site for new monthly releases (6h interval)

@@ -1103,6 +1103,88 @@ RESOURCES (wired in Phase 8, available to all assets)
              mart_predictions dbt model which
              queries predictions/ Parquet)
 
+
+stage 10
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                       CONTROL PLANE (Oracle Cloud Free)                      │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────────────────────────┐  │
+│  │ Dagster  │  │  MLflow  │  │  Feast   │  │  Postgres                   │  │
+│  │ webui +  │  │  Server  │  │ Registry │  │  ┌─────────────────────┐    │  │
+│  │ daemon   │  │          │  │          │  │  │ drift_metrics       │◄───┼──┼─ drift_report writes
+│  └──────────┘  └──────────┘  └──────────┘  │  │ live_accuracy       │    │  │
+│                                            │  │ (dagster metadata)  │    │  │
+│                                            │  └─────────────────────┘    │  │
+│                                            └─────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────────────┘
+                │
+                │ triggers / reads
+                ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                          DAGSTER ASSET GRAPH                                 │
+│                                                                              │
+│  [raw_bts_flights] ──► [staged_flights] ──► [bmo_dbt_assets]                │
+│  [raw_noaa_weather] ──► [staged_weather] ──┘    │                            │
+│  [raw_faa_airports] ──► [dim_airport] ──────────┘                            │
+│       │                                         │                            │
+│       │                                         ▼                            │
+│       │               [feast_feature_export] ──► [feast_materialized_features]│
+│       │                                              │                       │
+│       │                                              ▼                       │
+│       │                              [training_dataset] ──► [trained_model]  │
+│       │                                                          │            │
+│       │                                          [eval checks] ──┤            │
+│       │                                                          ▼            │
+│       │                                             [registered_model]        │
+│       │                                                    │                  │
+│       │                              ┌─────────────────────┴──────────┐      │
+│       │                              │                                │      │
+│       │                              ▼                                ▼      │
+│       │                    [batch_predictions]              [deployed_api]    │
+│       │                (DailyPartition, 6am UTC)                     │      │
+│       │                          │                              S3 config    │
+│       │                          │                                   │      │
+│       │                          ▼ ← NEW (Phase 10)                  │      │
+│       │                    [drift_report] ──────────────────────────►┘      │
+│       │                (DailyPartition, 8am UTC)                            │
+│       │                     │        │                                       │
+│       │             HTML to S3   PSI to Postgres                            │
+│       │                     │        │                                       │
+│       │                     │        └──► drift_retrain_sensor (polls 1h)   │
+│       │                     │                        │                       │
+│       │                     ▼                        │ PSI > 0.2             │
+│       │             GitHub Pages                     ▼                       │
+│       │             (CI workflow)             retrain_job triggers           │
+│       │                                              │                       │
+│       │              (mart_predictions)              │ (nightly OR triggered)│
+│       └──► [bmo_dbt_assets] ──► [ground_truth_backfill] ← NEW (Phase 10)   │
+│                                            │                                 │
+│                                   live_accuracy (Postgres)                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+                │
+                ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         SERVING (Fly.io + Upstash)                           │
+│  ┌──────────────────┐       ┌──────────────────────────────────────────┐    │
+│  │  FastAPI         │──────►│  Upstash Redis (Feast online store)      │    │
+│  │  /predict        │       └──────────────────────────────────────────┘    │
+│  │  /health         │                                                        │
+│  │  /metrics        │                                                        │
+│  │  /admin/reload   │◄── model_config.json from deployed_api                 │
+│  └──────────────────┘                                                        │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Auto-retrain loop (Phase 10 closes this):
+  batch_predictions → drift_report → drift_metrics (Postgres)
+                                          ↑
+                                  drift_retrain_sensor polls hourly
+                                          │ PSI > 0.2 on any top-10 feature
+                                          ▼
+                                    retrain_job
+                                    (training_dataset → trained_model
+                                     → evaluation_gate checks
+                                     → registered_model → deployed_api)
+
 <!-- prettier-ignore-end -->
 
 ---

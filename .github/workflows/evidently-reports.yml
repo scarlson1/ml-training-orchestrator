@@ -1,0 +1,103 @@
+name: Publish Evidently Drift Reports to GitHub Pages
+
+on:
+  schedule:
+    - cron: '0 10 * * *'
+  workflow_dispatch:
+    # Allow manual trigger (e.g., to publish a backfill of historical reports).
+    inputs:
+      date_prefix:
+        description: 'Sync only reports with this date prefix (e.g. date=2024-06). Leave empty for all.'
+        required: false
+        default: ''
+
+jobs:
+  sync-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # required by peaceiris/actions-gh-pages to push to gh-pages
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          # Fetch full history so the gh-pages push doesn't clobber previous deploys
+          fetch-depth: 0
+
+      - name: Configure AWS CLI for MinIO/R2
+        # The AWS CLI uses standard AWS environment variables.
+        # For Cloudflare R2, set --endpoint-url to https://<account>.r2.cloudflarestorage.com
+        # For MinIO, set to http://localhost:9000 (or your Oracle VM address).
+        run: |
+          aws configure set aws_access_key_id ${{ secrets.S3_ACCESS_KEY_ID }}
+          aws configure set aws_secret_access_key ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          aws configure set default.region us-east-1
+        # ${{ vars.S3_REGION || "us-east-1" }}
+
+      - name: Sync Evidently HTML reports from S3
+        env:
+          S3_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT_URL }}
+          DATE_PREFIX: ${{ github.event.inputs.date_prefix }}
+        run: |
+          mkdir -p docs/evidently-reports
+
+          # Sync all HTML reports from the monitoring prefix.
+          # --delete removes local reports that were deleted from S3 (cleanup).
+          # --include / --exclude ordering: AWS CLI processes them left-to-right.
+          aws s3 sync \
+            s3://staging/monitoring/reports/ \
+            docs/evidently-reports/ \
+            --exclude "*" \
+            --include "*/drift_report.html" \
+            --endpoint-url "${S3_ENDPOINT_URL}" \
+            --delete
+
+          echo "Synced reports:"
+          find docs/evidently-reports -name "*.html" | sort | tail -20
+
+      - name: Generate index page
+        # Creates a simple HTML index listing all drift reports with links,
+        # sorted newest first. This becomes the landing page at:
+        # https://<user>.github.io/<repo>/evidently-reports/
+        run: |
+          python - <<'EOF'
+          import os
+          from pathlib import Path
+          from datetime import datetime
+
+          reports_dir = Path('docs/evidently-reports')
+          reports = sorted(reports_dir.glob('**/drift_report.html'), reverse=True)
+
+          lines = [
+              '<!DOCTYPE html>',
+              '<html><head><meta charset="utf-8">',
+              '<title>BMO Drift Reports</title>',
+              '<style>body{font-family:monospace;max-width:800px;margin:40px auto;padding:0 20px}</style>',
+              '</head><body>',
+              '<h1>BMO Flight Delay — Daily Drift Reports</h1>',
+              f'<p>Last synced: {datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")}</p>',
+              '<ul>',
+          ]
+          for report_path in reports:
+              # report_path is like docs/evidently-reports/date=2024-06-15/drift_report.html
+              # The relative URL from index.html is date=2024-06-15/drift_report.html
+              rel = report_path.relative_to(reports_dir)
+              date_dir = report_path.parent.name  # e.g. 'date=2024-06-15'
+              date_label = date_dir.replace('date=', '')
+              lines.append(f'  <li><a href="{rel}">{date_label}</a></li>')
+          lines += ['</ul>', '</body></html>']
+
+          (reports_dir / 'index.html').write_text('\n'.join(lines))
+          print(f"Index generated: {len(reports)} reports")
+          EOF
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: docs/evidently-reports
+          destination_dir: evidently-reports
+          # Keep_files=true prevents deleting other GitHub Pages content
+          # if you have multiple workflows publishing to gh-pages.
+          keep_files: true
+          commit_message: 'ci: sync Evidently drift reports ${{ github.run_id }}'

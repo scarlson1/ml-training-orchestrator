@@ -15,6 +15,11 @@ models:
         tests: [not_null]
 
   - name: mart_predictions
+    description: >
+      Batch prediction outputs joined with BTS actuals (LEFT JOIN).
+      Rows where actual_is_delayed IS NULL have not yet had actuals published
+      by BTS (~60 day lag). Used by drift_report for entity retrieval and by
+      ground_truth_backfill for live accuracy computation.
     columns:
       - name: flight_id
         tests: [not_null]
@@ -30,12 +35,35 @@ models:
       - name: scheduled_departure_utc
         tests: [not_null]
       - name: predicted_delay_proba
+        tests: [not_null]
       - name: predicted_is_delayed
+        tests: [not_null]
       - name: model_name
       - name: model_version
+        tests: [not_null]
       - name: score_date
+        tests: [not_null]
       - name: scored_at
       - name: actual_dep_delay_min,
       - name: actual_is_delayed,
+        description: 'NULL until BTS actuals are published (~60 day lag)'
       - name: actual_departure_utc,
       - name: cancelled
+
+  - name: mart_drift_metrics
+    description: >
+      Drift metrics history from the drift_report Dagster asset.
+      One row per (report_date, feature_name). Written as Parquet to S3 by
+      the asset, read here by DuckDB httpfs. The drift_retrain_sensor reads
+      directly from Postgres (faster for the sensor polling path).
+    columns:
+      - name: report_date
+        tests: [not_null]
+      - name: feature_name
+        tests: [not_null]
+      - name: psi_score
+        tests: [not_null]
+      - name: importance_rank
+        tests: [not_null]
+      - name: is_breached
+        tests: [not_null]

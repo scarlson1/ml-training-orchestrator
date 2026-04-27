@@ -28,10 +28,10 @@ actuals as (
         arr_delay_min,
         is_dep_delayed,
         cancelled,
-        actual_departure_utc,
+        actual_departure_utc
     FROM {{ ref('stg_flights') }}
     WHERE actual_departure_utc IS NOT NULL 
-)
+),
 
 joined AS (
     SELECT
