@@ -66,6 +66,7 @@ class Settings(BaseSettings):
     shadow_model_version: str | None = None
 
     discord_webhook_url: str | None = None
+    admin_token: str | None = None
 
     # ===== Computed Properties ===== #
 

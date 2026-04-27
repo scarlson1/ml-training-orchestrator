@@ -13,7 +13,8 @@ services:
       - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - ./scripts/create_monitoring_tables.sql:/docker-entrypoint-initdb.d/02_monitoring.sql
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U user -d bmo']
       interval: 5s

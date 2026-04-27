@@ -16,9 +16,40 @@
     )
 }}
 
+{% set predictions_glob = env_var("PREDICTIONS_S3_GLOB", "s3://staging/predictions/**/data.parquet") %}
+
+{# Check at compile time whether any prediction files exist yet. #}
+{# read_parquet hard-errors on a no-match glob, so we emit an empty typed   #}
+{# SELECT when batch_predictions hasn't run yet.                             #}
+{% if execute %}
+    {% set file_check %}
+        SELECT count(*) AS n FROM glob('{{ predictions_glob }}')
+    {% endset %}
+    {% set n_files = run_query(file_check).columns[0].values()[0] %}
+{% else %}
+    {% set n_files = 1 %}
+{% endif %}
+
 WITH predictions AS (
-    SELECT *
-    FROM read_parquet('{{ env_var("PREDICTIONS_S3_GLOB", "s3://staging/predictions/**/data.parquet") }}')
+    {% if n_files > 0 %}
+        SELECT * FROM read_parquet('{{ predictions_glob }}')
+    {% else %}
+        SELECT
+            NULL::VARCHAR       AS flight_id,
+            NULL::VARCHAR       AS origin,
+            NULL::VARCHAR       AS dest,
+            NULL::VARCHAR       AS carrier,
+            NULL::VARCHAR       AS tail_number,
+            NULL::VARCHAR       AS route_key,
+            NULL::TIMESTAMPTZ   AS scheduled_departure_utc,
+            NULL::FLOAT         AS predicted_delay_proba,
+            NULL::TINYINT       AS predicted_is_delayed,
+            NULL::VARCHAR       AS model_name,
+            NULL::VARCHAR       AS model_version,
+            NULL::VARCHAR       AS score_date,
+            NULL::VARCHAR       AS scored_at
+        WHERE 1=0
+    {% endif %}
 ),
 
 actuals as (
@@ -26,7 +57,7 @@ actuals as (
         flight_id,
         dep_delay_min,
         arr_delay_min,
-        is_dep_delayed,
+        dep_del15       AS is_dep_delayed,
         cancelled,
         actual_departure_utc
     FROM {{ ref('stg_flights') }}

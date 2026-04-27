@@ -20,11 +20,23 @@
 
 {{
     config(
-        materialize='table',
+        materialized='table',
         tags=['monitoring']
     )
 }}
 
+{% set metrics_glob = env_var("MONITORING_METRICS_GLOB", "s3://staging/monitoring/metrics/**/drift_metrics.parquet") %}
+
+{% if execute %}
+    {% set file_check %}
+        SELECT count(*) AS n FROM glob('{{ metrics_glob }}')
+    {% endset %}
+    {% set n_files = run_query(file_check).columns[0].values()[0] %}
+{% else %}
+    {% set n_files = 1 %}
+{% endif %}
+
+{% if n_files > 0 %}
 SELECT
     report_date::DATE                               AS report_date,
     feature_name,
@@ -34,8 +46,18 @@ SELECT
     is_breached::BOOLEAN                            AS is_breached,
     model_version,
     computed_at::TIMESTAMPTZ                        AS computed_at
-FROM read_parquet(
-    '{{ env_var("MONITORING_METRICS_GLOB", "s3://staging/monitoring/metrics/**/drift_metrics.parquet") }}'
-)
+FROM read_parquet('{{ metrics_glob }}')
+{% else %}
+SELECT
+    NULL::DATE          AS report_date,
+    NULL::VARCHAR       AS feature_name,
+    NULL::DOUBLE        AS psi_score,
+    NULL::DOUBLE        AS kl_divergence,
+    NULL::INTEGER       AS importance_rank,
+    NULL::BOOLEAN       AS is_breached,
+    NULL::VARCHAR       AS model_version,
+    NULL::TIMESTAMPTZ   AS computed_at
+WHERE 1=0
+{% endif %}
 
 

@@ -2,6 +2,10 @@
 
 ![CI](https://github.com/scarlson1/ml-training-orchestrator/actions/workflows/ci.yml/badge.svg)
 
+### Problem Statement
+
+TODO
+
 ### Architecture
 
 ```

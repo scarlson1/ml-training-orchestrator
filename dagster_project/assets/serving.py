@@ -30,8 +30,6 @@ Data flow:
                     FastAPI reads on startup + /admin/reload
 """
 
-from __future__ import annotations
-
 import json
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -40,7 +38,14 @@ import duckdb
 import mlflow
 import pandas as pd
 import s3fs
-from dagster import AssetExecutionContext, FreshnessPolicy, MaterializeResult, MetadataValue, asset
+from dagster import (
+    AssetExecutionContext,
+    Failure,
+    FreshnessPolicy,
+    MaterializeResult,
+    MetadataValue,
+    asset,
+)
 from feast import FeatureStore
 from mlflow.tracking import MlflowClient
 
@@ -115,7 +120,13 @@ def batch_predictions(context: AssetExecutionContext) -> MaterializeResult:
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = MlflowClient()
 
-    champion = client.get_model_version_by_alias(MODEL_NAME, 'champion')
+    try:
+        champion = client.get_model_version_by_alias(MODEL_NAME, 'champion')
+    except mlflow.exceptions.RestException as exc:
+        raise Failure(
+            f'No champion alias found for model "{MODEL_NAME}". '
+            'Run the training pipeline to register and promote a champion model first.'
+        ) from exc
     model_uri = f'models:/{MODEL_NAME}/@champion'
     model_version = champion.version
     context.log.info(f'champion model: version={model_version}, uri={model_uri}')
@@ -201,7 +212,13 @@ def deployed_api(context: AssetExecutionContext) -> MaterializeResult:
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = MlflowClient()
 
-    champion = client.get_model_version_by_alias(MODEL_NAME, 'champion')
+    try:
+        champion = client.get_model_version_by_alias(MODEL_NAME, 'champion')
+    except mlflow.exceptions.RestException as exc:
+        raise Failure(
+            f'No champion alias found for model "{MODEL_NAME}". '
+            'Run the training pipeline to register and promote a champion model first.'
+        ) from exc
 
     config = {
         'model_name': MODEL_NAME,

@@ -96,3 +96,5 @@ feature_repo/data/
 
 # Feast offline store local cache
 feature_repo/online_store.db
+
+spark-warehouse/

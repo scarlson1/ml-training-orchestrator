@@ -1,10 +1,8 @@
-# from __future__ import annotations
-
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Iterator  # , Mapping
 
-from dagster import AssetExecutionContext, AssetKey, AutomationCondition
+from dagster import AssetDep, AssetExecutionContext, AssetKey, AutomationCondition
 from dagster_dbt import (
     DagsterDbtTranslator,
     DagsterDbtTranslatorSettings,
@@ -51,6 +49,13 @@ class BmoDbtTranslator(DagsterDbtTranslator):
             return super().get_asset_key(dbt_resource_props)
 
         return super().get_asset_key(dbt_resource_props)  # models, seeds, tests, etc.
+
+    def get_asset_spec(self, manifest: Mapping[str, Any], unique_id: str, project: Any) -> Any:
+        spec = super().get_asset_spec(manifest, unique_id, project)
+        node = manifest.get('nodes', {}).get(unique_id, {})
+        if node.get('name') == 'mart_drift_metrics':
+            spec = spec.replace_attributes(deps=[*spec.deps, AssetDep(AssetKey('drift_report'))])
+        return spec
 
 
 @dbt_assets(

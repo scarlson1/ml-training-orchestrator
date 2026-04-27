@@ -12,7 +12,7 @@ from __future__ import annotations
 from bmo.monitoring.drift import PSI_MODERATE, DriftMetricsRow
 
 
-def should_retain(
+def should_retrain(
     metrics: list[DriftMetricsRow], top_n: int = 10, psi_threshold: float = PSI_MODERATE
 ) -> tuple[bool, list[str]]:
     """

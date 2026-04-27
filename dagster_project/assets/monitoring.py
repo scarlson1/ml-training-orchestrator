@@ -37,8 +37,6 @@ Data flow:
          ground_truth_backfill ──► live_accuracy (Postgres)
 """
 
-from __future__ import annotations
-
 import json
 from datetime import date, timedelta
 from pathlib import Path
@@ -64,8 +62,8 @@ from sklearn.metrics import (
 from bmo.batch_scoring.score import BATCH_FEATURE_REFS, FEATURE_COLUMNS
 from bmo.common.config import settings
 from bmo.evaluation_gate.gate import MODEL_NAME
+from bmo.monitoring import should_retrain
 from bmo.monitoring.drift import PSI_MODERATE, DriftMetricsRow, DriftReportResult, compute_drift
-from bmo.monitoring.retrain_trigger import should_retrain
 from bmo.serving.partitions import DAILY_PARTITIONS
 from dagster_project.resources import DuckDBResource
 from dagster_project.resources.mlflow_resource import MLflowResource

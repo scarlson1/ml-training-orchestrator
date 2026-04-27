@@ -5,6 +5,7 @@ ENV := set -a && . .env && set +a &&
 setup:
 	uv sync --all-groups
 	uv run pre-commit install
+	$(MAKE) monitoring-init
 
 lint:
 	uv run ruff check .
@@ -87,3 +88,7 @@ fly-reload:
 
 test-serving:
 	uv run pytest tests/unit/test_serving_feature_client.py -q
+
+monitoring-init:
+	PGPASSWORD=password psql -h localhost -p 5432 -U user -d bmo \
+	  -f scripts/create_monitoring_tables.sql

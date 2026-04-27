@@ -18,9 +18,9 @@ CREATE TABLE IF NOT EXISTS drift_metrics (
 
     -- drift scores
     psi_score           DOUBLE PRECISION NOT NULL,
-    feature_name        TEXT    NOT NULL,
+    kl_divergence       DOUBLE PRECISION,
 
-    -- feature importance rant (1 most important)
+    -- feature importance rank (1 = most important)
     rank                INTEGER     NOT NULL,
 
     is_breached         BOOLEAN     NOT NULL,

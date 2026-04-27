@@ -347,11 +347,12 @@ class SliceParityCheck(EvalCheck):
         feature_cols = _get_feature_columns(
             test_df
         )  # filter to numeric features only (rolling avg, etc.)
+        test_df = test_df.dropna(subset=['is_dep_delayed'])
         X_test = test_df[feature_cols].fillna(0).values  # xgboost requires numbers
         y_test = test_df['is_dep_delayed'].to_numpy(dtype=float)
 
         log.info('slice_parity: loading model', run_id=gate_input.mlflow_run_id)
-        booster: xgb.Booster = load_model(f'runs://{gate_input.mlflow_run_id}/model')
+        booster: xgb.Booster = load_model(f'runs:/{gate_input.mlflow_run_id}/model')
         # convert to XGBoost data type for booster.predict
         dmatrix = xgb.DMatrix(X_test, feature_names=feature_cols)
         # used trained model to generate probabilities (inference on test set)
@@ -369,11 +370,11 @@ class SliceParityCheck(EvalCheck):
             labels=['late_night', 'morning', 'afternoon', 'evening'],
         )
         # derive bad weather flag from whatever precip/wind columns survived the feature pipeline
-        precip_col = next(  # next() finds first instance where condition is met
-            (c for c in sliced.columns if 'precip' in c.lower() and 'origin' in c.lower())
+        precip_col = next(
+            (c for c in sliced.columns if 'precip' in c.lower() and 'origin' in c.lower()), None
         )
         wind_col = next(
-            (c for c in sliced.columns if 'wind' in c.lower() and 'origin' in c.lower()),
+            (c for c in sliced.columns if 'wind' in c.lower() and 'origin' in c.lower()), None
         )
         bad_weather = pd.Series(False, index=sliced.index)  # initialize series default to False
         if precip_col:
