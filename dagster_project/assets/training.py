@@ -385,6 +385,10 @@ def registered_model(context: AssetExecutionContext) -> MaterializeResult:
         except Exception:
             pass  # no existing champion alias to remove
 
+        client.set_registered_model_alias(MODEL_NAME, 'champion', version_num)
+        promoted_to_champion = True
+        context.log.info(f'set alias: champion -> version {version_num}')
+
     # generate evidently report and log MLflow artifact
     report_path = generate_classification_report(
         mlflow_run_id=run_id,
