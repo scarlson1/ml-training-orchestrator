@@ -11,19 +11,19 @@ from dagster import (
     AssetCheckExecutionContext,
     AssetCheckResult,
     AssetCheckSeverity,
-    MonthlyPartitionsDefinition,
     asset_check,
 )
 from pyiceberg.expressions import And, GreaterThanOrEqual, LessThan
 
 from bmo.common.iceberg import make_catalog
+from bmo.serving.partitions import MONTHLY_PARTITIONS
 from bmo.staging.contracts import STAGED_FLIGHTS_SCHEMA
-
-_MONTHLY = MonthlyPartitionsDefinition(start_date='2018-01-01')
 
 
 @asset_check(
-    asset='staged_flights', description='Critical columns must not be null', partitions_def=_MONTHLY
+    asset='staged_flights',
+    description='Critical columns must not be null',
+    partitions_def=MONTHLY_PARTITIONS,
 )
 def check_staged_flights_nulls(context) -> AssetCheckResult:
     year, month, *_ = (int(x) for x in context.partition_key.split('-'))
@@ -76,7 +76,7 @@ def check_staged_flights_nulls(context) -> AssetCheckResult:
 @asset_check(
     asset='staged_flights',
     description='Detect schema changes vs expected BTS columns',
-    partitions_def=_MONTHLY,
+    partitions_def=MONTHLY_PARTITIONS,
 )
 def check_staged_flights_schema_evolution(context) -> AssetCheckResult:
     """
@@ -114,7 +114,7 @@ def check_staged_flights_schema_evolution(context) -> AssetCheckResult:
 @asset_check(
     asset='staged_weather',
     description='critical columns must not be null; value ranges must be plausible',
-    partitions_def=_MONTHLY,
+    partitions_def=MONTHLY_PARTITIONS,
 )
 def check_staged_weather_nulls(context: AssetCheckExecutionContext) -> AssetCheckResult:
     year_str, month_str, *_ = context.partition_key.split('-')

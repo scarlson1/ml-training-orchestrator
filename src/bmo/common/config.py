@@ -61,6 +61,10 @@ class Settings(BaseSettings):
         validation_alias='ICEBERG_CATALOG_URI',
     )  # 'sqlite:////tmp/bmo_iceberg.db'
 
+    model_name: str = 'bmo_flight_delay'
+    feature_repo_dir: str = 'feature_repo/'
+    shadow_model_version: str | None = None
+
     discord_webhook_url: str | None = None
 
     # ===== Computed Properties ===== #

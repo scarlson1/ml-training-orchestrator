@@ -15,16 +15,14 @@ from dagster import (
     FreshnessPolicy,
     MaterializeResult,
     MetadataValue,
-    MonthlyPartitionsDefinition,
     asset,
 )
 
 from bmo.common.storage import make_object_store
+from bmo.serving.partitions import MONTHLY_PARTITIONS
 from bmo.staging.dimensions import stage_airports, stage_routes
 from bmo.staging.flights import stage_flights
 from bmo.staging.weather import stage_weather
-
-_MONTHLY = MonthlyPartitionsDefinition(start_date='2018-01-01')
 
 
 @asset(
@@ -48,7 +46,7 @@ def dim_route(context: AssetExecutionContext) -> MaterializeResult:
 
 
 @asset(
-    partitions_def=_MONTHLY,
+    partitions_def=MONTHLY_PARTITIONS,
     group_name='staging',
     deps=['raw_bts_flights', 'dim_airport'],
     freshness_policy=FreshnessPolicy.time_window(
@@ -75,7 +73,7 @@ def staged_flights(context: AssetExecutionContext) -> MaterializeResult:
 
 
 @asset(
-    partitions_def=_MONTHLY,
+    partitions_def=MONTHLY_PARTITIONS,
     group_name='staging',
     deps=['raw_noaa_weather'],
     freshness_policy=FreshnessPolicy.time_window(

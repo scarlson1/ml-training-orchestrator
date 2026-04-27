@@ -1052,6 +1052,57 @@ RESOURCES (wired in Phase 8, available to all assets)
   │ mlflow_tracking │  │ MinIO / R2    │  │ feature_repo/│  │ bmo_features   │
   │ _uri            │  │ S3-compatible │  │ feast_store  │  │ .duckdb        │
   └─────────────────┘  └───────────────┘  └──────────────┘  └────────────────┘
+
+
+#### phase 9
+
+                         ┌──────────────────────────────────────────────────┐
+                         │             CONTROL PLANE (Oracle/Local)          │
+                         │  Dagster  ·  MLflow Registry  ·  Feast Registry   │
+                         └────────────────────┬─────────────────────────────┘
+                                              │ triggers
+             ┌────────────────────────────────▼────────────────────────────┐
+             │                    DAGSTER ASSET GRAPH                       │
+             │                                                              │
+ raw_bts_flights                                                            │
+      │                                                                     │
+ staged_flights ──► bmo_dbt_assets ──► feast_feature_export                │
+      │                                        │                           │
+ staged_weather ──────────────────────────────►│                           │
+                                               ▼                           │
+                                  feast_materialized_features               │
+                                               │                           │
+                                         training_dataset                  │
+                                               │                           │
+                                         trained_model ──► [eval checks]   │
+                                               │                           │
+                                         registered_model                  │
+                                          /          \                     │
+                                         /            \                    │
+                         batch_predictions         deployed_api            │
+                    (DailyPartitionsDefinition)   (model_config.json→S3)  │
+             └────────────────────────────────────────────────────────────┘
+                          │                              │
+                          ▼                              ▼
+          ┌───────────────────────────┐    ┌────────────────────────────────┐
+          │  s3://staging/            │    │    Fly.io / FastAPI             │
+          │  predictions/             │    │                                │
+          │  date=YYYY-MM-DD/         │    │  POST /predict                 │
+          │  data.parquet             │    │   └── FeatureClient            │
+          │  (+ model_version,        │    │        └── Feast Redis online  │
+          │    scored_at, etc.)       │    │   └── ModelLoader              │
+          └───────────────────────────┘    │        └── MLflow champion     │
+                          │                │  GET  /health                  │
+                          │                │  GET  /model-info              │
+                          │                │  POST /admin/reload (hot-swap) │
+                          │                │  GET  /metrics (Prometheus)    │
+                          │                └────────────────────────────────┘
+                          │
+                          ▼
+             Phase 10 (drift_report asset reads
+             mart_predictions dbt model which
+             queries predictions/ Parquet)
+
 <!-- prettier-ignore-end -->
 
 ---
@@ -1086,6 +1137,22 @@ It's an as-of join. For each row in your entity dataframe — which has an entit
 **"How do you keep training and serving features consistent?"**
 
 One feature view definition → one Parquet source → materialized to both the offline store (for get_historical_features during training) and the online store (Redis, for inference). The same field names, same TTLs, same types. There's no separate "training features" codebase — the Feast schema is the contract.
+
+**"How do you prevent training/serving skew?"**
+
+There are two separate code paths — bmo.batch_scoring.score (Feast offline, PIT join) and bmo.serving.feature_client (Feast online, latest value) — but both use exactly the same FEATURE_REFS list and the same FEATURE_COLUMNS ordering. The constants are defined once in each module and documented as "must match ALL_FEATURE_REFS in training.py." The integration test test_feast_roundtrip.py from Phase 4 verifies write-then-read equality. The only difference between batch and online is the join strategy, which is intentional.
+
+**"What happens if Redis goes down?"**
+
+FeatureClient.get_features() wraps the Feast call in a try/except and returns None. The FastAPI /predict endpoint checks for None and returns a 503 Service Unavailable with an explanatory message. The \_fail_closed_count Prometheus counter increments, making the degradation visible in Grafana. The /health endpoint returns status: 'degraded' (not unhealthy) so Fly.io doesn't replace the machine — it's still able to serve if Redis recovers.
+
+**"How do you do a zero-downtime model swap?"**
+
+deployed_api Dagster asset writes model_config.json to S3. The FastAPI /admin/reload endpoint calls ModelLoader.reload(), which downloads the new model in an asyncio.Lock block so in-flight requests finish on the old model before the swap. The lock is released as soon as the new model is loaded — subsequent requests use the new model. No container restart required.
+
+**"How does batch scoring prevent data leakage?"**
+
+event_timestamp = min(scheduled_departure_utc, run_time) per entity row. For a flight scheduled at 10am that we're scoring at 6am, event_timestamp = 6am. Feast's offline get_historical_features returns only features where feature_ts <= 6am. For a historical backfill of a flight that departed at 10am last week, event_timestamp = 10am last week — Feast returns features as they existed at 10am, not any data from after the flight.
 
 ### Training Dataset
 

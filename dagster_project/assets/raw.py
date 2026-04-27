@@ -9,7 +9,6 @@ Asset graph:
 
 import io
 import json
-
 from datetime import timedelta
 
 import pyarrow.parquet as pq
@@ -18,7 +17,6 @@ from dagster import (
     FreshnessPolicy,
     MaterializeResult,
     MetadataValue,
-    MonthlyPartitionsDefinition,
     asset,
 )
 
@@ -26,8 +24,7 @@ from bmo.common.storage import make_object_store
 from bmo.ingestion.bts import IngestResult, ingest_month
 from bmo.ingestion.faa import ingest_airports, ingest_routes
 from bmo.ingestion.noaa import NoaaIngestResult, build_station_map, ingest_noaa_month
-
-_MONTHLY = MonthlyPartitionsDefinition(start_date='2018-01-01')
+from bmo.serving.partitions import MONTHLY_PARTITIONS
 
 
 @asset(group_name='raw', metadata={'source': 'https://ourairports.com/data/airports.csv'})
@@ -92,7 +89,7 @@ def station_map(context: AssetExecutionContext) -> MaterializeResult:
 
 
 @asset(
-    partitions_def=_MONTHLY,
+    partitions_def=MONTHLY_PARTITIONS,
     group_name='raw',
     metadata={'source': 'https://transtats.bts.gov/PREZIP/'},
     freshness_policy=FreshnessPolicy.time_window(
@@ -120,7 +117,7 @@ def raw_bts_flights(context: AssetExecutionContext) -> MaterializeResult:
 
 
 @asset(
-    partitions_def=_MONTHLY,
+    partitions_def=MONTHLY_PARTITIONS,
     deps=[station_map],
     group_name='raw',
     metadata={'source': 'https://www.ncei.noaa.gov/data/local-climatological-data'},

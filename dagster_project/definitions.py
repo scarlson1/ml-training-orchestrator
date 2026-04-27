@@ -15,6 +15,7 @@ from dagster_project.asset_checks.evaluation_gate import (
     check_leakage_sentinel,
     check_slice_parity,
 )
+from dagster_project.schedules.daily_score import batch_score_job, daily_batch_score_schedule
 from dagster_project.schedules.feast_hourly import feast_hourly_schedule, feast_materialize_job
 
 load_dotenv()  # loads .env from cwd — no-op if already set in environment
@@ -46,6 +47,7 @@ from dagster_project.assets.raw import (  # noqa: E402
     raw_openflights_routes,
     station_map,
 )
+from dagster_project.assets.serving import batch_predictions, deployed_api  # noqa: E402
 from dagster_project.assets.staging import (  # noqa: E402
     dim_airport,
     dim_route,
@@ -79,6 +81,7 @@ ingest_bts_month_job = define_asset_job(
     # partitions_def=MonthlyPartitionsDefinition(start_date='2018-01-01'),
 )
 
+
 # registers entities with cli ??
 defs = Definitions(
     assets=[
@@ -102,6 +105,9 @@ defs = Definitions(
         training_dataset,
         trained_model,
         registered_model,
+        # Serving layer
+        batch_predictions,
+        deployed_api,
     ],
     asset_checks=[
         # Schema contracts
@@ -120,10 +126,12 @@ defs = Definitions(
         ingest_bts_month_job,  # sensor-triggered: one BTS month at a time
         feast_materialize_job,  # schedule-triggered: hourly Feast materialization
         retrain_job,  # schedule + sensor-triggered: full training pipeline
+        batch_score_job,
     ],
     schedules=[
         feast_hourly_schedule,  # top of every hour: push features to Redis
         nightly_retrain_schedule,  # 1am UTC nightly: training_dataset → trained_model → registered_model
+        daily_batch_score_schedule,
     ],
     sensors=[
         bts_new_month_sensor,  # polls BTS site for new monthly releases (6h interval)

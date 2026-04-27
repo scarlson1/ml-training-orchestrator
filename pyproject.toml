@@ -182,7 +182,10 @@ module = [
   "optuna",
   "optuna.*",
   "evidently",
-  "evidently.*"
+  "evidently.*",
+  "fastapi",
+  "fastapi.*",
+  "prometheus_client"
 ]
 ignore_missing_imports = true
 
@@ -199,6 +202,12 @@ warn_unused_ignores = false
 # is fully checked; dagster_project/ is orchestration wiring only.
 module = ["dagster_project.*"]
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+# FastAPI route decorators (@app.get, @app.post) are untyped when fastapi is
+# absent from the mypy env — suppress [misc] rather than scatter type: ignores.
+module = ["bmo.serving.api"]
+disable_error_code = ["misc"]
 
 [[tool.mypy.overrides]]
 # feature_repo uses local relative imports (data_sources, entities) that are

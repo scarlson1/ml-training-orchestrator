@@ -13,3 +13,29 @@ models:
         tests: [not_null]
       - name: dest
         tests: [not_null]
+
+  - name: mart_predictions
+    columns:
+      - name: flight_id
+        tests: [not_null]
+      - name: origin
+        tests: [not_null]
+      - name: dest
+        tests: [not_null]
+      - name: carrier
+        tests: [not_null]
+      - name: tail_number
+        tests: [not_null]
+      - name: route_key
+      - name: scheduled_departure_utc
+        tests: [not_null]
+      - name: predicted_delay_proba
+      - name: predicted_is_delayed
+      - name: model_name
+      - name: model_version
+      - name: score_date
+      - name: scored_at
+      - name: actual_dep_delay_min,
+      - name: actual_is_delayed,
+      - name: actual_departure_utc,
+      - name: cancelled
