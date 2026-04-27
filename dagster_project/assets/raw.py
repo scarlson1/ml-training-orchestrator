@@ -10,9 +10,12 @@ Asset graph:
 import io
 import json
 
+from datetime import timedelta
+
 import pyarrow.parquet as pq
 from dagster import (
     AssetExecutionContext,
+    FreshnessPolicy,
     MaterializeResult,
     MetadataValue,
     MonthlyPartitionsDefinition,
@@ -84,7 +87,7 @@ def station_map(context: AssetExecutionContext) -> MaterializeResult:
 
 
 # --------------------------------------------------------------------------#
-# Monthly partitioned assets                                                #
+#                       Monthly partitioned assets                          #
 # --------------------------------------------------------------------------#
 
 
@@ -92,6 +95,9 @@ def station_map(context: AssetExecutionContext) -> MaterializeResult:
     partitions_def=_MONTHLY,
     group_name='raw',
     metadata={'source': 'https://transtats.bts.gov/PREZIP/'},
+    freshness_policy=FreshnessPolicy.time_window(
+        fail_window=timedelta(days=35), warn_window=timedelta(days=32)
+    ),
 )
 def raw_bts_flights(context: AssetExecutionContext) -> MaterializeResult:
     """Monthly BTS on-time performance data, converted to Parquet."""

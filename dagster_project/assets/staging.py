@@ -8,8 +8,11 @@ Dependency order:
     staged_weather (monthly) ← raw_noaa_weather
 """
 
+from datetime import timedelta
+
 from dagster import (
     AssetExecutionContext,
+    FreshnessPolicy,
     MaterializeResult,
     MetadataValue,
     MonthlyPartitionsDefinition,
@@ -48,6 +51,10 @@ def dim_route(context: AssetExecutionContext) -> MaterializeResult:
     partitions_def=_MONTHLY,
     group_name='staging',
     deps=['raw_bts_flights', 'dim_airport'],
+    freshness_policy=FreshnessPolicy.time_window(
+        fail_window=timedelta(days=70),  # BTS 2-month publication lag + pipeline buffer
+        warn_window=timedelta(days=40),
+    ),
 )
 def staged_flights(context: AssetExecutionContext) -> MaterializeResult:
     year_str, month_str, *_ = context.partition_key.split('-')
@@ -71,6 +78,10 @@ def staged_flights(context: AssetExecutionContext) -> MaterializeResult:
     partitions_def=_MONTHLY,
     group_name='staging',
     deps=['raw_noaa_weather'],
+    freshness_policy=FreshnessPolicy.time_window(
+        fail_window=timedelta(days=70),
+        warn_window=timedelta(days=40),
+    ),
 )
 def staged_weather(context: AssetExecutionContext) -> MaterializeResult:
     year_str, month_str, *_ = context.partition_key.split('-')

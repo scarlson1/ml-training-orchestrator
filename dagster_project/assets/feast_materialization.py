@@ -1,6 +1,6 @@
 # from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import duckdb
@@ -8,7 +8,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 import s3fs
-from dagster import AssetExecutionContext, MaterializeResult, MetadataValue, asset
+from dagster import AssetExecutionContext, FreshnessPolicy, MaterializeResult, MetadataValue, asset
 from feast import FeatureStore
 
 from bmo.common.config import settings
@@ -95,6 +95,10 @@ def _export_cascading_delay(s3: s3fs.S3FileSystem, row_counts: dict) -> None:
     description=(
         'Export dbt feature model outputs from DuckDB to S3 Parquet for Feast offline store. '
         'Runs after dbt build completes. Each entity type gets its own S3 prefix'
+    ),
+    freshness_policy=FreshnessPolicy.cron(
+        deadline_cron='0 * * * *',
+        lower_bound_delta=timedelta(minutes=55),
     ),
 )
 def feast_feature_export(context: AssetExecutionContext) -> MaterializeResult:
@@ -184,6 +188,9 @@ def feast_feature_export(context: AssetExecutionContext) -> MaterializeResult:
     description=(
         'Run feast materialize-incremental to push latest feature value from S3 Parquet '
         'into the Redis online store. Downstream serving code reads from Redis.'
+    ),
+    freshness_policy=FreshnessPolicy.cron(
+        deadline_cron='0 * * * *', lower_bound_delta=timedelta(minutes=55)
     ),
 )
 def feast_materialized_features(context: AssetExecutionContext) -> MaterializeResult:

@@ -61,6 +61,8 @@ class Settings(BaseSettings):
         validation_alias='ICEBERG_CATALOG_URI',
     )  # 'sqlite:////tmp/bmo_iceberg.db'
 
+    discord_webhook_url: str | None = None
+
     # ===== Computed Properties ===== #
 
     @property
@@ -80,6 +82,15 @@ class Settings(BaseSettings):
             port = quote(self.postgres_port, safe='')
             # always postgresql+psycopg2 ??
             return f'postgresql+psycopg2://{user}:{password}@{host}:{port}/iceberg'
+
+    @property
+    def postgres_url(self) -> str:
+        user = quote(self.postgres_user, safe='')
+        password = quote(self.postgres_password, safe='')
+        host = quote(self.postgres_host, safe='')
+        port = quote(self.postgres_port, safe='')
+
+        return f'postgresql+psycopg2://{user}:{password}@{host}:{port}/{self.postgres_db}'
 
 
 # ===== Singleton Instance =====

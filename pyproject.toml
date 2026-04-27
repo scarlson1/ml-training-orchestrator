@@ -38,6 +38,7 @@ dev = [
   "pre-commit",
   "moto[s3]",  # S3 mocking
   "responses>=0.25",  # HTTP mocking
+  "boto3-stubs[s3]"
 ]
 
 dagster = [

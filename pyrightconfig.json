@@ -3,5 +3,6 @@
   "venvPath": ".",
   "venv": ".venv",
   "pythonPath": ".venv/bin/python",
-  "reportAttributeAccessIssue": "warning"
+  "reportAttributeAccessIssue": "warning",
+  "exclude": ["dagster_project/**"]
 }

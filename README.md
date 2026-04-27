@@ -853,6 +853,205 @@ graph TD
                                  logged as MLflow artifact
 <!-- prettier-ignore-end -->
 
+#### Stage 8
+
+```mermaid
+graph TB
+    %% ─── External triggers ─────────────────────────────────────────────
+    S1([bts_new_month_sensor\npoll BTS PREZIP every 6h])
+    S2([feast_hourly_schedule\ncron: 0 ✱ ✱ ✱ ✱])
+    S3([nightly_retrain_schedule\ncron: 0 1 ✱ ✱ ✱])
+    S4([drift_retrain_sensor\nhourly PSI check — Phase 10 ready])
+    S5([run_failure_discord_sensor\nall jobs → Discord webhook])
+
+    %% ─── raw group ─────────────────────────────────────────────────────
+    subgraph raw["🟫 raw"]
+        A[raw_faa_airports]
+        B[station_map]
+        C[raw_noaa_weather]
+        D[raw_openflights_routes]
+        E[raw_bts_flights\n★ FreshnessPolicy 24h]
+    end
+
+    %% ─── staging group ──────────────────────────────────────────────────
+    subgraph staging["🟦 staging"]
+        F[dim_airport\n✓ check_dim_airport]
+        G[dim_route\n✓ check_dim_route]
+        H[staged_flights\n✓ check_nulls\n✓ check_schema_evolution]
+        I[staged_weather\n✓ check_nulls]
+    end
+
+    %% ─── features group ─────────────────────────────────────────────────
+    subgraph features["🟩 features"]
+        J[feat_cascading_delay\nPySpark LAG window]
+        K[bmo_dbt_assets\ndbt build — 15 models]
+    end
+
+    %% ─── feast group ────────────────────────────────────────────────────
+    subgraph feast_grp["🟪 feast"]
+        L[feast_feature_export\n★ FreshnessPolicy 90min]
+        M[feast_materialized_features\n★ FreshnessPolicy 90min]
+    end
+
+    %% ─── training group ─────────────────────────────────────────────────
+    subgraph training["🟥 training"]
+        N[training_dataset\nPIT join + leakage guards\n★ FreshnessPolicy 3h]
+        O[trained_model\nXGBoost HPO 50 trials\n★ FreshnessPolicy 5h]
+        P{check_auc_gate\nblocking ERROR}
+        Q{check_leakage_sentinel\nblocking ERROR}
+        R{check_slice_parity\nblocking ERROR}
+        T{check_calibration\nnon-blocking WARN}
+        U[registered_model\nMLflow registry + Evidently\n★ FreshnessPolicy 6h]
+    end
+
+    %% ─── future groups (greyed out) ────────────────────────────────────
+    subgraph serving["⬜ serving — Phase 9"]
+        V[batch_predictions]
+        W[deployed_api]
+    end
+
+    subgraph monitoring["⬜ monitoring — Phase 10"]
+        X[drift_report\nEvidently + PSI]
+    end
+
+    %% ─── sensor → job wiring ───────────────────────────────────────────
+    S1 -->|RunRequest partition_key| E
+    S1 -->|RunRequest partition_key| C
+    S2 -->|RunRequest| M
+    S3 -->|RunRequest| N
+    S4 -.->|RunRequest PSI > 0.2| N
+
+    %% ─── data flow ──────────────────────────────────────────────────────
+    A --> B --> C
+    A --> D
+    A --> F
+    B --> F
+    D --> G
+    F --> G
+    E --> H
+    F --> H
+    C --> I
+
+    H --> J
+    H --> K
+    I --> K
+    F --> K
+    G --> K
+    J --> K
+
+    K --> L
+    J --> L
+    L --> M
+
+    M --> N
+    N --> O
+    O --> P
+    O --> Q
+    O --> R
+    O --> T
+    P --> U
+    Q --> U
+    R --> U
+    T --> U
+
+    U -.->|Phase 9| V
+    U -.->|Phase 9| W
+    V -.->|Phase 10| X
+    W -.->|Phase 10| X
+    X -.->|PSI > 0.2| S4
+
+    style serving fill:#f5f5f5,stroke:#ccc,color:#aaa
+    style monitoring fill:#f5f5f5,stroke:#ccc,color:#aaa
+    style V fill:#f5f5f5,stroke:#ccc,color:#aaa
+    style W fill:#f5f5f5,stroke:#ccc,color:#aaa
+    style X fill:#f5f5f5,stroke:#ccc,color:#aaa
+```
+
+<!-- prettier-ignore-start -->
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│ ORCHESTRATION LAYER (Dagster)                                                        │
+│                                                                                      │
+│  SENSORS                          SCHEDULES                                          │
+│  ┌──────────────────────┐         ┌───────────────────────┐                          │
+│  │ bts_new_month_sensor │         │ feast_hourly_schedule  │                          │
+│  │ polls BTS every 6h   │         │ cron: 0 * * * *        │──────────────────────┐  │
+│  └──────────┬───────────┘         └───────────────────────┘                       │  │
+│             │                                                                      │  │
+│             ▼                     ┌───────────────────────┐  ┌──────────────────┐ │  │
+│  ┌──────────────────────┐         │ nightly_retrain_sched  │  │ drift_retrain_   │ │  │
+│  │ ingest_bts_month job │         │ cron: 0 1 * * *        │  │ sensor           │ │  │
+│  └──────────────────────┘         └────────────┬──────────┘  │ polls Postgres   │ │  │
+│                                                │              │ drift_metrics    │ │  │
+│  ┌──────────────────────┐                      │              │ PSI > 0.2?       │ │  │
+│  │ run_failure_sensor   │◄── any run failure   │              └────────┬─────────┘ │  │
+│  │ posts Discord embed  │                      ▼                       │           │  │
+│  └──────────────────────┘         ┌──────────────────────────────────┐ │           │  │
+│                                   │        retrain_job               │◄┘           │  │
+│                                   │  training_dataset → trained_model│             │  │
+│                                   │  → [eval gate checks]            │             │  │
+│                                   │  → registered_model              │             │  │
+│                                   └──────────────────────────────────┘             │  │
+└──────────────────────────────────────────────────────────────────────────────────────┘
+                                                                                     │
+                                                                                     │ feast_materialize_job
+                                                                                     ▼
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│ ASSET DAG                                                                            │
+│                                                                                      │
+│  [raw]                  [staging]              [features]        [feast]             │
+│                                                                                      │
+│  raw_faa_airports ──►  dim_airport ─┐                                               │
+│  station_map      ──►              ─┤                                               │
+│  raw_openflights  ──►  dim_route    │                                               │
+│                                     │                                               │
+│  raw_bts_flights  ──►  staged_flights ─────────────────────────────────────────┐   │
+│   (partitioned)         (partitioned) ─► bmo_dbt_assets ◄──── dim_airport      │   │
+│                                          (15 dbt models:  ◄──── dim_route       │   │
+│  raw_noaa_weather ──►  staged_weather ──► stg_, int_,     ◄──── staged_weather  │   │
+│   (partitioned)         (partitioned)     feat_* models)                        │   │
+│                                                   │                             │   │
+│                         staged_flights ──► feat_cascading_delay (PySpark)       │   │
+│                                                   │                             │   │
+│                                                   ▼                             │   │
+│                                          feast_feature_export ◄─────────────────┘   │
+│                                          (DuckDB → S3 Parquet)                       │
+│                                                   │                                  │
+│                                                   ▼                                  │
+│                                          feast_materialized_features                 │
+│                                          (S3 Parquet → Redis online store)           │
+│                                                   │                                  │
+│  [training]                                       │                                  │
+│                                                   ▼                                  │
+│                                          training_dataset (PIT join, content-hashed) │
+│                                                   │                                  │
+│                                                   ▼                                  │
+│                                          trained_model (XGBoost + Optuna HPO)        │
+│                                                   │                                  │
+│                                          ┌────────┴─────────────────────────┐        │
+│                                          │  @asset_checks (blocking):       │        │
+│                                          │  check_auc_gate                  │        │
+│                                          │  check_leakage_sentinel          │        │
+│                                          │  check_slice_parity              │        │
+│                                          │  check_calibration (warn only)   │        │
+│                                          └────────┬─────────────────────────┘        │
+│                                                   │ pass                             │
+│                                                   ▼                                  │
+│                                          registered_model                            │
+│                                          (MLflow: challenger → champion)             │
+│                                                   │                                  │
+│                                        ┌──────────┴──────────┐                       │
+│  [serving — Phase 9]      batch_predictions           deployed_api (FastAPI)          │
+│  [monitoring — Phase 10]            drift_report ──► drift_retrain_sensor            │
+└──────────────────────────────────────────────────────────────────────────────────────┘
+
+RESOURCES (wired in Phase 8, available to all assets)
+  ┌─────────────────┐  ┌───────────────┐  ┌──────────────┐  ┌────────────────┐
+  │ MLflowResource  │  │  S3Resource   │  │ FeastResource│  │ DuckDBResource │
+  │ mlflow_tracking │  │ MinIO / R2    │  │ feature_repo/│  │ bmo_features   │
+  │ _uri            │  │ S3-compatible │  │ feast_store  │  │ .duckdb        │
+  └─────────────────┘  └───────────────┘  └──────────────┘  └────────────────┘
+<!-- prettier-ignore-end -->
+
 ---
 
 ## Key Architectural Pattern: Point-in-Time Correctness
@@ -1015,3 +1214,7 @@ scale_pos_weight | Upweights positive class | Critical for imbalanced data
 - Tag all feature columns with owner, description, expected range, and update frequency in a metadata YAML
 
 - Resource constraints - memory, storage per partition/month,
+
+- Fix triggers - "materialize all" doesn't wait for partition to finish when data from other partitions exist. options:
+  - Separate the jobs (cleanest): keep raw ingestion and training as separate jobs. Run training only after ingestion is fully complete. The ingest_bts_month_job already exists for this pattern — add a train_job that starts from bmo_dbt_assets downward, triggered by a sensor that fires when all needed staged_weather partitions are materialized.
+  - Drop eager() from bmo_dbt_assets: removes the daemon-triggered cascade, though the step-ordering gap within a mixed run remains.

@@ -12,7 +12,7 @@ lives in bmo.training_dataset_builder, which is testable without Dagster.
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import duckdb
 import mlflow
@@ -20,6 +20,7 @@ import pandas as pd
 from dagster import (
     AssetExecutionContext,
     AssetKey,
+    FreshnessPolicy,
     MaterializeResult,
     MetadataValue,
     asset,
@@ -92,6 +93,9 @@ _HPO_N_TRIALS = int(os.getenv('DAGSTER_HPO_N_TRIALS', '50'))
 @asset(
     group_name='training',
     deps=['feast_materialized_features'],
+    freshness_policy=FreshnessPolicy.cron(
+        deadline_cron='0 3 * * *', lower_bound_delta=timedelta(hours=2)
+    ),
     description=(
         'Point-in-time correct training dataset. '
         'Reads labels from mar_training_dataset, joins features via DuckDB ASOF JOIN, '
@@ -272,6 +276,9 @@ def _load_dataset_handle(card_path: str) -> DatasetHandle:
 @asset(
     group_name='training',
     deps=['trained_model'],
+    freshness_policy=FreshnessPolicy.cron(
+        deadline_cron='0 3 * * *', lower_bound_delta=timedelta(hours=2)
+    ),
     description=(
         'Registers the champion XGBoost model in the MLflow Model Registry. '
         'Only materializes after all blocking @asset_check functions on trained_model pass. '
