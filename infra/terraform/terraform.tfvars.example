@@ -1,0 +1,17 @@
+# Copy to terraform.tfvars and fill in values.
+# terraform.tfvars is gitignored — never commit it.
+
+# Oracle Cloud
+oci_tenancy_ocid     = "ocid1.tenancy.oc1..aaaa..."
+oci_user_ocid        = "ocid1.user.oc1..aaaa..."
+oci_fingerprint      = "aa:bb:cc:dd:..."
+oci_private_key_path = "~/.oci/oci_api_key.pem"
+oci_region           = "us-ashburn-1"
+oci_compartment_id   = "ocid1.tenancy.oc1..aaaa..."   # root = same as tenancy
+
+# Contents of: cat ~/.ssh/id_rsa.pub
+ssh_public_key = "ssh-rsa AAAA..."
+
+# Cloudflare — needs "Workers R2 Storage: Edit" permission scope
+cloudflare_api_token  = "your-token-here"
+cloudflare_account_id = "32-char-hex-id"

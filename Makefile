@@ -1,4 +1,4 @@
-.PHONY: setup lint type test test-int test-det leakage dagster-dev serving-dev dbt dbt-docs dbt-deps dbt-parse feast-apply reproduce dbt-build
+.PHONY: setup compose-dev lint type test test-int test-det leakage dagster-dev serving-dev dbt dbt-docs dbt-deps dbt-parse feast-apply reproduce dbt-build
 
 ENV := set -a && . .env && set +a &&
 
@@ -6,6 +6,9 @@ setup:
 	uv sync --all-groups
 	uv run pre-commit install
 	$(MAKE) monitoring-init
+
+compose-dev:
+	docker compose -f infra/compose/compose.dev.yml --env-file .env up -d
 
 lint:
 	uv run ruff check .
