@@ -15,7 +15,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Copy lockfile and project definition first (layer cache: only re-installs
 # deps when pyproject.toml or uv.lock changes, not on every code change).
-COPY pyproject.toml uv.lock .python-version ./
+COPY pyproject.toml uv.lock ./
 
 # Install only what the serving API needs.
 # --no-dev skips the [dev] group (pytest, ruff, mypy).
@@ -39,7 +39,7 @@ COPY --from=builder /app/feature_repo /app/feature_repo
 
 # Activate the uv-managed venv
 ENV PATH="/app/.venv/bin:$PATH"
-ENV PYTHONPATH="/app/src:$PYTHONPATH"
+ENV PYTHONPATH="/app/src"
 
 # Non-root user: security best practice for container deployments.
 # Fly.io machines run as root by default, but explicit non-root signals
