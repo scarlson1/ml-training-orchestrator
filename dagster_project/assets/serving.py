@@ -47,6 +47,7 @@ from dagster import (
     asset,
 )
 from feast import FeatureStore
+from mlflow.exceptions import RestException
 from mlflow.tracking import MlflowClient
 
 from bmo.batch_scoring.score import score_partition
@@ -56,6 +57,31 @@ from bmo.serving.partitions import DAILY_PARTITIONS
 
 FEATURE_REPO_DIR = Path(__file__).parent.parent.parent / 'feature_repo'
 
+# originally: staged_flights -> added iceberg to debug
+
+"""
+table_schema                   table_name
+iceberg_staging                  dim_airport
+iceberg_staging                    dim_route
+iceberg_staging         feat_cascading_delay
+iceberg_staging               staged_flights
+iceberg_staging               staged_weather
+           main                feat_calendar
+           main         feat_carrier_rolling
+           main   feat_dest_airport_windowed
+           main feat_origin_airport_windowed
+           main           feat_route_rolling
+           main                 hub_airports
+           main         int_flights_enriched
+           main           mart_drift_metrics
+           main             mart_predictions
+           main        mart_training_dataset
+           main              stg_dim_airport
+           main                stg_dim_route
+           main     stg_feat_cascading_delay
+           main                  stg_flights
+           main                  stg_weather
+"""
 # Staged flights query: load all flights scheduled for a given date.
 # event_timestamp = min(scheduled_departure_utc, run_time) implements the
 # PIT-correct scoring rule described in bmo/batch_scoring/score.py.
@@ -66,6 +92,7 @@ FEATURE_REPO_DIR = Path(__file__).parent.parent.parent / 'feature_repo'
 #   • For flights that already departed (historical backfill): use the actual
 #     scheduled departure time so Feast returns features available at that time,
 #     not features that were added by subsequent pipeline runs.
+
 _FLIGHTS_SQL = """
 SELECT
     flight_id,
@@ -73,10 +100,10 @@ SELECT
     dest,
     carrier,
     tail_number,
-    route_key,
+    origin || '-' || dest AS route_key,
     scheduled_departure_utc,
     LEAST(scheduled_departure_utc, TIMESTAMPTZ '{run_time}') AS event_timestamp
-FROM staged_flights
+FROM main.stg_flights
 WHERE flight_date = '{score_date}'
 """
 
@@ -122,7 +149,7 @@ def batch_predictions(context: AssetExecutionContext) -> MaterializeResult:
 
     try:
         champion = client.get_model_version_by_alias(MODEL_NAME, 'champion')
-    except mlflow.exceptions.RestException as exc:
+    except RestException as exc:
         raise Failure(
             f'No champion alias found for model "{MODEL_NAME}". '
             'Run the training pipeline to register and promote a champion model first.'
@@ -214,7 +241,7 @@ def deployed_api(context: AssetExecutionContext) -> MaterializeResult:
 
     try:
         champion = client.get_model_version_by_alias(MODEL_NAME, 'champion')
-    except mlflow.exceptions.RestException as exc:
+    except RestException as exc:
         raise Failure(
             f'No champion alias found for model "{MODEL_NAME}". '
             'Run the training pipeline to register and promote a champion model first.'
@@ -232,7 +259,7 @@ def deployed_api(context: AssetExecutionContext) -> MaterializeResult:
     fs = s3fs.S3FileSystem(
         key=settings.s3_access_key_id,
         secret=settings.s3_secret_access_key,
-        endpoint_url=settings.se_endpoint_url,
+        endpoint_url=settings.s3_endpoint_url,
         client_kwargs={'region_name': settings.s3_region},
     )
 

@@ -1,0 +1,23 @@
+{
+    # Let's Encrypt sends expiry warnings here (optional but good practice)
+    email {$CADDY_EMAIL}
+}
+
+# SERVING_DOMAIN is injected from .env — e.g. 150-136-1-2.sslip.io or bmo-api.duckdns.org
+# Caddy automatically obtains and renews a Let's Encrypt cert for this domain.
+{$SERVING_DOMAIN} {
+    reverse_proxy serving:8080
+
+    encode gzip
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options  "nosniff"
+        X-Frame-Options         "DENY"
+    }
+
+    log {
+        output stderr
+        format console
+    }
+}
