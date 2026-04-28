@@ -1354,6 +1354,8 @@ If you ever wanted to upgrade further, the modern production choice is an **Iceb
 
 ### TODO
 
+- React client to call FastAPI inference endpoint
+
 - figure out how to parallelize `raw_noaa_weather` data ingestion to run multiple months at a time. Only downloads full year and filters to specific month. CDO API key allows specific month (rate limited)? Cache annual files in S3 ?? What's file size?
 
 - document xgboost params
@@ -1373,3 +1375,8 @@ scale_pos_weight | Upweights positive class | Critical for imbalanced data
 - Fix triggers - "materialize all" doesn't wait for partition to finish when data from other partitions exist. options:
   - Separate the jobs (cleanest): keep raw ingestion and training as separate jobs. Run training only after ingestion is fully complete. The ingest_bts_month_job already exists for this pattern — add a train_job that starts from bmo_dbt_assets downward, triggered by a sensor that fires when all needed staged_weather partitions are materialized.
   - Drop eager() from bmo_dbt_assets: removes the daemon-triggered cascade, though the step-ordering gap within a mixed run remains.
+
+- Add explaination for each tech stack item & purpose it serves
+  - Feast: Feast feature views act as a logical mapping layer between raw data sources (like SQL tables or Parquet files) and the Feast feature store. Their primary purpose is to ensure consistent feature data definitions across offline (training) and online (serving) environments, ensuring point-in-time correctness to prevent data leakage
+
+- how duckdb/iceberge queries work
