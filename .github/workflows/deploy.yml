@@ -5,65 +5,115 @@ on:
     workflows: ['Build & Push Docker Images']
     types: [completed]
     branches: [main]
+  # Allow manual trigger — required for first deploy and re-deploys without a code change
+  workflow_dispatch:
 
 jobs:
   deploy-control-plane:
     name: Deploy control plane → Oracle VM
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy via SSH
+      - name: Write .env and deploy via SSH
         uses: appleboy/ssh-action@v1
         with:
-          host: ${{ secrets.ORACLE_VM_IP }}
+          host: ${{ vars.ORACLE_VM_IP }}
           username: ubuntu
           key: ${{ secrets.ORACLE_SSH_PRIVATE_KEY }}
-          # The script runs on the Oracle VM.
-          # It pulls the new images (already pushed to GHCR by the build job),
-          # then does a rolling restart — Postgres/Redis stay up, only Dagster
-          # and MLflow are cycled.
           script: |
             set -euo pipefail
-            cd ~/ml-training-orchestrator
 
-            # Pull latest code (env files are gitignored; they stay on the VM)
+            # Clone on first deploy; pull on all subsequent ones
+            if [ ! -d ~/ml-training-orchestrator ]; then
+              git clone https://github.com/${{ github.repository }}.git ~/ml-training-orchestrator
+            fi
+            cd ~/ml-training-orchestrator
             git pull --ff-only origin main
 
-            # Log in to GHCR so docker can pull the private images
+            # Write .env from GitHub secrets and variables.
+            # GitHub Actions resolves expressions before sending this script over SSH,
+            # so by the time bash sees it the values are already literal strings.
+            # Single-quoted heredoc (<<'EOF') prevents bash from re-interpreting any $ in those values.
+            cat > .env << 'EOF'
+            # Object store — Cloudflare R2
+            AWS_ACCESS_KEY_ID=${{ secrets.S3_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY=${{ secrets.S3_SECRET_ACCESS_KEY }}
+            AWS_ENDPOINT_URL=https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+            AWS_DEFAULT_REGION=auto
+            AWS_REGION=auto
+            DUCKDB_S3_ENDPOINT=${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+            CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+            S3_ACCESS_KEY_ID=${{ secrets.S3_ACCESS_KEY_ID }}
+            S3_SECRET_ACCESS_KEY=${{ secrets.S3_SECRET_ACCESS_KEY }}
+
+            # Buckets (match Terraform-created names)
+            S3_BUCKET_RAW=bmo-raw
+            S3_BUCKET_STAGING=bmo-staging
+            S3_BUCKET_REJECTED=bmo-rejected
+            FEAST_S3_BASE=s3://bmo-staging/feast
+            DATASET_S3_BASE=s3://bmo-staging/datasets
+
+            # Feast online store (Upstash — external, reachable from Fly.io too)
+            REDIS_URL=${{ secrets.UPSTASH_REDIS_URL }}
+
+            # Postgres — uses docker service name, not localhost
+            POSTGRES_HOST=postgres
+            POSTGRES_PORT=5432
+            POSTGRES_DB=${{ vars.POSTGRES_DB }}
+            POSTGRES_USER=${{ vars.POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            ICEBERG_CATALOG_URI=postgresql+psycopg2://${{ vars.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@postgres:5432/iceberg
+
+            # MLflow — uses docker service name
+            MLFLOW_TRACKING_URI=http://mlflow:5000
+
+            # DuckDB scratch path (ephemeral inside container)
+            DUCKDB_PATH=/tmp/bmo_features.duckdb
+            DUCKDB_S3_ENDPOINT=${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+
+            # Serving API
+            ADMIN_TOKEN=${{ secrets.ADMIN_TOKEN }}
+            MODEL_NAME=bmo_flight_delay
+            FEATURE_REPO_DIR=feature_repo/
+
+            # Dagster
+            DAGSTER_HOME=/dagster_home
+            EOF
+            chmod 600 .env
+
+            # Authenticate with GHCR to pull private images
             echo "${{ secrets.GITHUB_TOKEN }}" \
               | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            # Pull new image versions (fast — layers are cached on the VM)
-            docker compose \
-              -f infra/compose/docker-compose.prod.yml \
-              --env-file .env \
-              pull dagster mlflow
+            # Start on first deploy; rolling restart on subsequent ones
+            if systemctl is-active --quiet bmo-compose; then
+              systemctl restart bmo-compose
+            else
+              systemctl start bmo-compose
+            fi
 
-            # Restart only the updated services; --no-deps skips dependency restarts
-            docker compose \
-              -f infra/compose/docker-compose.prod.yml \
-              --env-file .env \
-              up -d --no-deps dagster mlflow
-
-            # Verify Dagster is healthy before marking the deploy done
+            # Poll until Dagster responds (up to 60s)
             for i in $(seq 1 12); do
               if curl -sf http://localhost:3000/server_info > /dev/null; then
-                echo "Dagster healthy after ${i}x5s"
-                break
+                echo "Dagster healthy after $((i * 5))s"
+                exit 0
               fi
               echo "Waiting for Dagster... (${i}/12)"
               sleep 5
             done
-            curl -sf http://localhost:3000/server_info || (echo "Dagster failed to start" && exit 1)
+            echo "Dagster failed to become healthy" && exit 1
 
   deploy-serving:
     name: Deploy serving API → Fly.io
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    # Runs in parallel with control-plane deploy — independent targets
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
 
     steps:
       - uses: actions/checkout@v4
@@ -72,9 +122,8 @@ jobs:
         uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Deploy
+        # --remote-only: Fly builds the image on their infra, not in this runner.
+        # Avoids a ~300MB Docker push from the runner and is faster overall.
         run: fly deploy --config fly.toml --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        # --remote-only: Fly builds the image on their infrastructure,
-        # not in this GitHub Actions runner. This avoids a ~300MB Docker
-        # push from the runner and is faster overall.

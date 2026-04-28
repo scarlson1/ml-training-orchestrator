@@ -1380,3 +1380,38 @@ scale_pos_weight | Upweights positive class | Critical for imbalanced data
   - Feast: Feast feature views act as a logical mapping layer between raw data sources (like SQL tables or Parquet files) and the Feast feature store. Their primary purpose is to ensure consistent feature data definitions across offline (training) and online (serving) environments, ensuring point-in-time correctness to prevent data leakage
 
 - how duckdb/iceberge queries work
+
+## deployment notes (add to DEPLOYMENT.md)
+
+Useful commands to check service on VM:
+
+```bash
+systemctl status bmo-compose      # is it running?
+journalctl -u bmo-compose -f      # live logs (all containers)
+systemctl restart bmo-compose     # rolling restart
+```
+
+Terraform deploy steps:
+
+```bash
+terraform init # run once to install providers
+
+# optional output file to apply directly from plan
+terraform plan -var-file="terraform.tfvars" -out=tfplan
+
+terraform apply tfplan
+```
+
+terraform apply output:
+
+```
+oracle_vm_public_ip = "207.211.176.98"
+oracle_vm_ssh = "ssh ubuntu@207.211.176.98"
+r2_bucket_names = {
+  "mlflow-artifacts" = "bmo-mlflow-artifacts"
+  "raw" = "bmo-raw"
+  "rejected" = "bmo-rejected"
+  "staging" = "bmo-staging"
+}
+r2_endpoint_url = "https://2662189f53004928cc8e89c79f095db9.r2.cloudflarestorage.com"
+```

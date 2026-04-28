@@ -38,6 +38,7 @@ if TYPE_CHECKING:
 
 import structlog
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from prometheus_client import (
     CONTENT_TYPE_LATEST,
@@ -154,6 +155,13 @@ app = FastAPI(
     description='Online inference service for BMO batch ML training orchestrator.',
     version='1.0.0',
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=['*'],  # ["https://my-app.com"],  # or ["*"] for open access
+    allow_methods=['POST', 'GET'],
+    allow_headers=['Content-Type', 'Authorization'],
 )
 
 # ----- Dependency injection helpers ----- #
