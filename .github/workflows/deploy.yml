@@ -98,15 +98,24 @@ jobs:
             EOF
             chmod 600 .env
 
-            # Authenticate with GHCR to pull private images
+            # On first provision, cloud-init may still be installing Docker.
+            # Wait up to 5 minutes before giving up.
+            if ! command -v docker &> /dev/null; then
+              echo "Docker not found — waiting for cloud-init to finish..."
+              sudo cloud-init status --wait
+            fi
+
+            # Authenticate with GHCR to pull private images.
+            # sudo is required: the ubuntu user's docker group membership is only
+            # active in login shells; appleboy/ssh-action opens a non-login session.
             echo "${{ secrets.GITHUB_TOKEN }}" \
-              | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+              | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             # Start on first deploy; rolling restart on subsequent ones
-            if systemctl is-active --quiet bmo-compose; then
-              systemctl restart bmo-compose
+            if sudo systemctl is-active --quiet bmo-compose; then
+              sudo systemctl restart bmo-compose
             else
-              systemctl start bmo-compose
+              sudo systemctl start bmo-compose
             fi
 
             # Poll until Dagster responds (up to 60s)
@@ -120,22 +129,22 @@ jobs:
             done
             echo "Dagster failed to become healthy" && exit 1
 
-  deploy-serving:
-    name: Deploy serving API → Fly.io
-    runs-on: ubuntu-latest
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
+#   deploy-serving:
+#     name: Deploy serving API → Fly.io
+#     runs-on: ubuntu-latest
+#     if: >
+#       github.event_name == 'workflow_dispatch' ||
+#       github.event.workflow_run.conclusion == 'success'
 
-    steps:
-      - uses: actions/checkout@v4
+#     steps:
+#       - uses: actions/checkout@v4
 
-      - name: Set up flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@master
+#       - name: Set up flyctl
+#         uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Deploy
-        # --remote-only: Fly builds the image on their infra, not in this runner.
-        # Avoids a ~300MB Docker push from the runner and is faster overall.
-        run: fly deploy --config fly.toml --remote-only
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+#       - name: Deploy
+#         # --remote-only: Fly builds the image on their infra, not in this runner.
+#         # Avoids a ~300MB Docker push from the runner and is faster overall.
+#         run: fly deploy --config fly.toml --remote-only
+#         env:
+#           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
