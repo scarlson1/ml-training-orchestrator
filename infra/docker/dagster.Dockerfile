@@ -6,7 +6,9 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Copy lockfile first — this layer is cached until pyproject.toml/uv.lock changes.
 # Without --no-install-project, uv would also install bmo here, before src/ exists.
-COPY pyproject.toml uv.lock .python-version ./
+# .python-version is gitignored (it's for local tooling only).
+# Python version is already pinned by the FROM python:3.11-slim base image.
+COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev \
     --group dagster \
     --group training \
@@ -43,7 +45,7 @@ COPY infra/docker/dagster-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 ENV PATH="/app/.venv/bin:$PATH"
-ENV PYTHONPATH="/app/src:$PYTHONPATH"
+ENV PYTHONPATH="/app/src"
 ENV DAGSTER_HOME=/dagster_home
 
 RUN mkdir -p /dagster_home
