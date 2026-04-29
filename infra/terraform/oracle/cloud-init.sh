@@ -3,6 +3,13 @@
 # After this completes, the VM is ready for: git clone + docker compose up
 set -euo pipefail
 
+# Ubuntu starts unattended-upgrades immediately on boot; wait for the apt lock
+# before touching apt or the first apt-get update exits 100 and aborts this script.
+systemctl stop unattended-upgrades || true
+while fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock >/dev/null 2>&1; do
+  sleep 2
+done
+
 # ── System update ─────────────────────────────────────────────────────────────
 apt-get update -q
 apt-get upgrade -y -q
@@ -63,9 +70,9 @@ WorkingDirectory=/home/ubuntu/ml-training-orchestrator
 EnvironmentFile=/home/ubuntu/ml-training-orchestrator/.env
 
 # Pull before start so deploys via `systemctl restart` pick up new images
-ExecStartPre=/usr/bin/docker compose -f infra/compose/docker-compose.prod.yml pull --quiet
-ExecStart=/usr/bin/docker compose -f infra/compose/docker-compose.prod.yml up --remove-orphans
-ExecStop=/usr/bin/docker compose -f infra/compose/docker-compose.prod.yml down
+ExecStartPre=/usr/bin/docker compose -f infra/compose/compose.prod.yml pull --quiet
+ExecStart=/usr/bin/docker compose -f infra/compose/compose.prod.yml up --remove-orphans
+ExecStop=/usr/bin/docker compose -f infra/compose/compose.prod.yml down
 
 # Restart automatically if compose crashes (not on clean `systemctl stop`)
 Restart=on-failure
