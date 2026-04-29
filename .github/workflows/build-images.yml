@@ -12,6 +12,8 @@ on:
       - 'pyproject.toml'
       - 'uv.lock'
       - 'infra/docker/**'
+      - '.github/workflows/build-images.yml'
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
