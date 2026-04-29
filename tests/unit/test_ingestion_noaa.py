@@ -11,6 +11,10 @@ from __future__ import annotations
 import io
 import json
 from collections.abc import Callable
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from bmo.common.storage import ObjectStore
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -222,15 +226,15 @@ def test_build_station_map_excludes_inactive_stations() -> None:
 # ------------------------------------------------------------------
 
 
-def _make_download_mock(csv_text: str) -> Callable[[str, int], bytes]:
-    def _download(station_id: str, year: int) -> bytes:
+def _make_fetch_mock(csv_text: str) -> Callable[[str, int, 'ObjectStore'], bytes]:
+    def _fetch(station_id: str, year: int, store: 'ObjectStore') -> bytes:
         return csv_text.encode()
 
-    return _download
+    return _fetch
 
 
 def test_ingest_noaa_month_writes_parquet_and_manifest(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(noaa, '_download_lcd_year', _make_download_mock(SAMPLE_CSV))
+    monkeypatch.setattr(noaa, '_fetch_lcd_year', _make_fetch_mock(SAMPLE_CSV))
     store = MagicMock()
 
     result = ingest_noaa_month(year=2024, month=1, station_map={'ORD': '720530-14733'}, store=store)
@@ -242,7 +246,7 @@ def test_ingest_noaa_month_writes_parquet_and_manifest(monkeypatch: pytest.Monke
 
 
 def test_ingest_noaa_month_manifest_contents(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(noaa, '_download_lcd_year', _make_download_mock(SAMPLE_CSV))
+    monkeypatch.setattr(noaa, '_fetch_lcd_year', _make_fetch_mock(SAMPLE_CSV))
     store = MagicMock()
 
     ingest_noaa_month(year=2024, month=1, station_map={'ORD': '720530-14733'}, store=store)
@@ -258,7 +262,7 @@ def test_ingest_noaa_month_manifest_contents(monkeypatch: pytest.MonkeyPatch) ->
 def test_ingest_noaa_month_parquet_conforms_to_schema(monkeypatch: pytest.MonkeyPatch) -> None:
     import pyarrow.parquet as pq
 
-    monkeypatch.setattr(noaa, '_download_lcd_year', _make_download_mock(SAMPLE_CSV))
+    monkeypatch.setattr(noaa, '_fetch_lcd_year', _make_fetch_mock(SAMPLE_CSV))
     store = MagicMock()
 
     ingest_noaa_month(year=2024, month=1, station_map={'ORD': '720530-14733'}, store=store)
@@ -270,14 +274,14 @@ def test_ingest_noaa_month_parquet_conforms_to_schema(monkeypatch: pytest.Monkey
 
 
 def test_ingest_noaa_month_skips_404_station(monkeypatch: pytest.MonkeyPatch) -> None:
-    def download_side_effect(station_id: str, year: int) -> bytes:
+    def fetch_side_effect(station_id: str, year: int, store: 'ObjectStore') -> bytes:
         if station_id == 'MISSING':
             raise httpx.HTTPStatusError(
                 '404', request=MagicMock(), response=MagicMock(status_code=404)
             )
         return SAMPLE_CSV.encode()
 
-    monkeypatch.setattr(noaa, '_download_lcd_year', download_side_effect)
+    monkeypatch.setattr(noaa, '_fetch_lcd_year', fetch_side_effect)
     store = MagicMock()
 
     result = ingest_noaa_month(
@@ -289,7 +293,7 @@ def test_ingest_noaa_month_skips_404_station(monkeypatch: pytest.MonkeyPatch) ->
 
 
 def test_ingest_noaa_month_raises_when_no_data(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(noaa, '_download_lcd_year', _make_download_mock(SAMPLE_CSV))
+    monkeypatch.setattr(noaa, '_fetch_lcd_year', _make_fetch_mock(SAMPLE_CSV))
     store = MagicMock()
 
     with pytest.raises(RuntimeError, match='No LCD data'):
@@ -297,7 +301,7 @@ def test_ingest_noaa_month_raises_when_no_data(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_ingest_noaa_month_multi_station_combines_rows(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(noaa, '_download_lcd_year', _make_download_mock(SAMPLE_CSV))
+    monkeypatch.setattr(noaa, '_fetch_lcd_year', _make_fetch_mock(SAMPLE_CSV))
     store = MagicMock()
 
     result = ingest_noaa_month(
