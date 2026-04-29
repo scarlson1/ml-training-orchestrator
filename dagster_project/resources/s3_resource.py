@@ -12,10 +12,14 @@ boto3 S3 docs: https://boto3.amazonaws.com/v1/documentation/api/latest/reference
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import boto3
 from dagster import ConfigurableResource
-from mypy_boto3_s3 import S3Client
 from pydantic import Field
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client
 
 
 class S3Resource(ConfigurableResource):
