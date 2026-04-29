@@ -78,9 +78,9 @@ class TestPITJoinerCorrectness:
         # 14.1 is the value from the 14:30 snapshot (which is a future snapshot).
         # If the join were wrong, this value would appear instead of 9.8.
         ord_row = result[result['origin'] == 'ORD'].iloc[0]
-        assert ord_row['origin_avg_dep_delay_1h'] != pytest.approx(
-            14.1
-        ), 'Future snapshot value appeared in result — PIT join is broken!'
+        assert ord_row['origin_avg_dep_delay_1h'] != pytest.approx(14.1), (
+            'Future snapshot value appeared in result — PIT join is broken!'
+        )
 
     def test_left_join_unmatched_entity_returns_null(
         self, sample_label_df: pd.DataFrame, origin_view_config: FeatureViewConfig, tmp_path: Path
@@ -194,6 +194,6 @@ class TestPITJoinerCorrectness:
 
         ord_row = result[result['origin'] == 'ORD'].iloc[0]
         # Feature was written at 13:00, as_of is 10:00 — must be excluded
-        assert pd.isna(
-            ord_row['origin_avg_dep_delay_1h']
-        ), 'Feature snapshot after as_of appeared in result — as_of filtering broken!'
+        assert pd.isna(ord_row['origin_avg_dep_delay_1h']), (
+            'Feature snapshot after as_of appeared in result — as_of filtering broken!'
+        )
