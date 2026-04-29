@@ -116,13 +116,13 @@ jobs:
               sudo systemctl start bmo-compose
             fi
 
-            # Poll until Dagster responds (up to 60s)
-            for i in $(seq 1 12); do
+            # Poll until Dagster responds (up to 3m)
+            for i in $(seq 1 36); do
               if curl -sf http://localhost:3000/server_info > /dev/null; then
                 echo "Dagster healthy after $((i * 5))s"
                 exit 0
               fi
-              echo "Waiting for Dagster... (${i}/12)"
+              echo "Waiting for Dagster... (${i}/36)"
               sleep 5
             done
             echo "Dagster failed to become healthy" && exit 1
