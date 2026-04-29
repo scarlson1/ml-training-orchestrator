@@ -116,7 +116,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         model_name=_MODEL_NAME,
         alias='champion',
     )
-    await model_loader.load()
+    try:
+        await model_loader.load()
+    except Exception as exc:
+        log.warning(
+            'no champion model found at startup — serving will be degraded until a model is registered',
+            error=str(exc),
+        )
 
     _model_info.info(
         {
