@@ -29,7 +29,7 @@ def check_staged_flights_nulls(context) -> AssetCheckResult:
     year, month, *_ = (int(x) for x in context.partition_key.split('-'))
     # store = make_object_store()
     # key = f'bts/year={year}/month={month:02d}/flights.parquet'
-    # obj = store.client.get_object(Bucket='staging', Key=key)
+    # obj = store.client.get_object(Bucket=settings.s3_bucket_staging, Key=key)
     # table = pq.read_table(io.BytesIO(obj['Body'].read()))
 
     # critical = ['scheduled_departure_utc', 'origin', 'dest', 'flight_date']
@@ -88,7 +88,7 @@ def check_staged_flights_schema_evolution(context) -> AssetCheckResult:
     # store = make_object_store()
 
     # key = f'bts/year={year}/month={month:02d}/flights.parquet'
-    # obj = store.client.get_object(Bucket='staging', Key=key)
+    # obj = store.client.get_object(Bucket=settings.s3_bucket_staging, Key=key)
     # schema = pq.read_schema(io.BytesIO(obj['Body'].read()))
 
     catalog = make_catalog()
@@ -173,7 +173,7 @@ def check_staged_weather_nulls(context: AssetCheckExecutionContext) -> AssetChec
 @asset_check(asset='dim_airport', description='Airport dimension must have tz for all rows')
 def check_dim_airport(context: AssetCheckExecutionContext) -> AssetCheckResult:
     # store = make_object_store()
-    # obj = store.client.get_object(Bucket='staging', Key='dim_airport/dim_airport.parquet')
+    # obj = store.client.get_object(Bucket=settings.s3_bucket_staging, Key='dim_airport/dim_airport.parquet')
     # table = pq.read_table(io.BytesIO(obj['Body'].read()))
     table = make_catalog().load_table('staging.dim_airport').scan().to_arrow()
 
@@ -207,7 +207,7 @@ def check_dim_airport(context: AssetCheckExecutionContext) -> AssetCheckResult:
 @asset_check(asset='dim_route', description='Route dimension must have valid distances')
 def check_dim_route(context: AssetCheckExecutionContext) -> AssetCheckResult:
     # store = make_object_store()
-    # obj = store.client.get_object(Bucket='staging', Key='dim_route/dim_route.parquet')
+    # obj = store.client.get_object(Bucket=settings.s3_bucket_staging, Key='dim_route/dim_route.parquet')
     # table = pq.read_table(io.BytesIO(obj['Body'].read()))
     table = make_catalog().load_table('staging.dim_route').scan().to_arrow()
 

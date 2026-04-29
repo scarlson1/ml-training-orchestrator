@@ -90,6 +90,9 @@ jobs:
             # Serving image — GHCR_OWNER is your GitHub username (github.com/<owner>)
             GHCR_OWNER=${{ github.repository_owner }}
 
+            # VM public IP — used by MLflow --allowed-hosts so browser access works
+            ORACLE_VM_IP=${{ vars.ORACLE_VM_IP }}
+
             # Caddy TLS — domain Caddy obtains a Let's Encrypt cert for [VM_IP].sslip.io
             SERVING_DOMAIN=${{ vars.SERVING_DOMAIN }}
             CADDY_EMAIL=${{ vars.CADDY_EMAIL }}

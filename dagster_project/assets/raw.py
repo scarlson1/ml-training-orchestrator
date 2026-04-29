@@ -20,6 +20,7 @@ from dagster import (
     asset,
 )
 
+from bmo.common.config import settings
 from bmo.common.storage import make_object_store
 from bmo.ingestion.bts import IngestResult, ingest_month
 from bmo.ingestion.faa import ingest_airports, ingest_routes
@@ -71,7 +72,7 @@ def station_map(context: AssetExecutionContext) -> MaterializeResult:
     # Read the already-stored FAA airports parquet to get the IATA code set.
     # We don't take raw_faa_airports as a function argument — we stored it in S3
     # and read it back. deps=[raw_faa_airports] just ensures ordering.
-    obj = store.client.get_object(Bucket='raw', Key='faa/airports.parquet')
+    obj = store.client.get_object(Bucket=settings.s3_bucket_raw, Key='faa/airports.parquet')
     airports_table = pq.read_table(io.BytesIO(obj['Body'].read()))
     iata_codes: set[str] = {
         c for c in airports_table.column('iata_code').to_pylist() if c is not None
@@ -79,7 +80,7 @@ def station_map(context: AssetExecutionContext) -> MaterializeResult:
 
     mapping = build_station_map(iata_codes)
 
-    store.put_bytes('raw', 'noaa/_station_map.json', json.dumps(mapping).encode())
+    store.put_bytes(settings.s3_bucket_raw, 'noaa/_station_map.json', json.dumps(mapping).encode())
     return MaterializeResult(metadata={'station_count': MetadataValue.int(len(mapping))})
 
 
@@ -132,7 +133,7 @@ def raw_noaa_weather(context: AssetExecutionContext) -> MaterializeResult:
 
     # Load the station map written by the station_map asset.
     # station_map is unpartitioned, so there's always exactly one version.
-    obj = store.client.get_object(Bucket='raw', Key='noaa/_station_map.json')
+    obj = store.client.get_object(Bucket=settings.s3_bucket_raw, Key='noaa/_station_map.json')
     mapping: dict[str, str] = json.loads(obj['Body'].read())
 
     result: NoaaIngestResult = ingest_noaa_month(

@@ -159,7 +159,7 @@ resource "oci_core_instance" "control_plane" {
   availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
   compartment_id      = var.compartment_id
 #   display_name        = "bmo-control-plane"
-  display_name        = "${var.project_name}-control-plane"
+  display_name        = "${var.project_name}-vm"
   shape               = var.vm_shape
 
   shape_config {
@@ -170,7 +170,7 @@ resource "oci_core_instance" "control_plane" {
   create_vnic_details {
     subnet_id        = oci_core_subnet.main.id
     assign_public_ip = false # don't assign - using reserved IP
-    hostname_label   = "${var.project_name}-control-plane"
+    hostname_label   = "${var.project_name}-vm"
   }
 
   source_details {
@@ -194,7 +194,7 @@ resource "oci_core_instance" "control_plane" {
 resource "oci_core_public_ip" "control_plane" {
   compartment_id = var.compartment_id
   lifetime       = "RESERVED"   # survives VM termination; EPHEMERAL would not
-  display_name   = "bmo-control-plane-ip"
+  display_name   = "bmo-control-plane-vm-ip"
 
   # Attach to the instance's primary VNIC
   private_ip_id  = data.oci_core_private_ips.primary.private_ips[0].id
