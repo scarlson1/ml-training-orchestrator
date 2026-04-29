@@ -129,6 +129,8 @@ jobs:
             done
             echo "Dagster failed to become healthy" && exit 1
 
+# moved serving to VM (no fly.io free tier)
+
 #   deploy-serving:
 #     name: Deploy serving API → Fly.io
 #     runs-on: ubuntu-latest
