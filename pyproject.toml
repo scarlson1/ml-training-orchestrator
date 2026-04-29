@@ -124,6 +124,7 @@ exclude = [
     "node_modules",
     "site-packages",
     "venv",
+    "react"
 ]
 line-length = 100
 indent-width = 4
