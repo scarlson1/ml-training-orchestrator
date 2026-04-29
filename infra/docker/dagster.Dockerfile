@@ -11,6 +11,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev \
     --group dagster \
+    --group dbt \
     --group training \
     --group feast \
     --group iceberg \
@@ -25,6 +26,7 @@ COPY feature_repo/ ./feature_repo/
 
 RUN uv sync --frozen --no-dev \
     --group dagster \
+    --group dbt \
     --group training \
     --group feast \
     --group iceberg \
