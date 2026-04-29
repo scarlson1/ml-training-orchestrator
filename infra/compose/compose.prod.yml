@@ -60,7 +60,7 @@ services:
       --backend-store-uri postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       --artifacts-destination s3://bmo-mlflow-artifacts/
       --host 0.0.0.0
-      --allowed-hosts mlflow,localhost,127.0.0.1
+      --allowed-hosts "mlflow,mlflow:5000,localhost,localhost:5000,127.0.0.1"
     ports:
       # Public-facing: Fly.io serving API reads model artifacts from MLflow
       - '0.0.0.0:5000:5000'
