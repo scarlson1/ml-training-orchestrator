@@ -334,6 +334,7 @@ spark = [
     { name = "pyspark" },
 ]
 training = [
+    { name = "duckdb" },
     { name = "matplotlib" },
     { name = "mlflow" },
     { name = "numpy" },
@@ -404,6 +405,7 @@ spark = [
     { name = "pyspark", specifier = ">=3.5" },
 ]
 training = [
+    { name = "duckdb", specifier = ">=1.1" },
     { name = "matplotlib", specifier = ">=3.10" },
     { name = "mlflow", specifier = ">=3.11" },
     { name = "numpy", specifier = ">=2.4" },
