@@ -145,6 +145,6 @@ def test_reproduce_fails_with_different_seed(tiny_handle: DatasetHandle) -> None
         params={'max_depth': 3, 'n_estimators': 50, 'seed': 99, 'nthread': 1},
     )
 
-    assert get_sha(r42.mlflow_run_id) != get_sha(
-        r99.mlflow_run_id
-    ), 'seed=42 and seed=99 produced identical bytes — seed has no effect.'
+    assert get_sha(r42.mlflow_run_id) != get_sha(r99.mlflow_run_id), (
+        'seed=42 and seed=99 produced identical bytes — seed has no effect.'
+    )
