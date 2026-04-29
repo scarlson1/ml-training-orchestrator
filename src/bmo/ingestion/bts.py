@@ -45,6 +45,7 @@ import pyarrow.csv as pacsv
 import pyarrow.parquet as pq
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from bmo.common.config import settings
 from bmo.common.paths import bts
 from bmo.common.storage import ObjectStore, make_object_store
 
@@ -253,7 +254,7 @@ def ingest_month(
     year: int,
     month: int,
     store: ObjectStore,
-    bucket: str = 'raw',
+    bucket: str = settings.s3_bucket_raw,
     prefix: str = 'bts',
     force: bool = False,
 ) -> IngestResult:
@@ -341,7 +342,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description='Ingest BTS on-time performance data')
     parser.add_argument('--year', type=int, required=True)
     parser.add_argument('--month', type=int, required=True)
-    parser.add_argument('--bucket', default='raw')
+    parser.add_argument('--bucket', default=settings.s3_bucket_raw)
     parser.add_argument('--prefix', default='bts')
     parser.add_argument('--force', action='store_true')
     args = parser.parse_args()

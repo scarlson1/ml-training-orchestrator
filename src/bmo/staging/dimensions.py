@@ -8,6 +8,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from bmo.common.config import settings
 from bmo.common.iceberg import get_or_create_table, make_catalog
 from bmo.common.storage import ObjectStore
 
@@ -53,7 +54,9 @@ def _haversine_mi(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 def stage_airports(
-    store: ObjectStore, raw_bucket: str = 'raw', staging_bucket: str = 'staging'
+    store: ObjectStore,
+    raw_bucket: str = settings.s3_bucket_raw,
+    staging_bucket: str = settings.s3_bucket_staging,
 ) -> int:
     # load airports
     obj = store.client.get_object(Bucket=raw_bucket, Key='faa/airports.parquet')
@@ -90,7 +93,9 @@ def stage_airports(
 
 
 def stage_routes(
-    store: ObjectStore, raw_bucket: str = 'raw', staging_bucket: str = 'staging'
+    store: ObjectStore,
+    raw_bucket: str = settings.s3_bucket_raw,
+    staging_bucket: str = settings.s3_bucket_staging,
 ) -> int:
     obj = store.client.get_object(Bucket=raw_bucket, Key='openflights/routes.parquet')
     routes = pq.read_table(io.BytesIO(obj['Body'].read())).to_pandas()

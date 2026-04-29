@@ -17,6 +17,7 @@ import pyarrow.compute as pc
 import pyarrow.csv as pacsv
 import pyarrow.parquet as pq
 
+from bmo.common.config import settings
 from bmo.common.storage import ObjectStore
 
 OURAIRPORTS_URL = 'https://ourairports.com/data/airports.csv'
@@ -40,7 +41,9 @@ AIRPORTS_SCHEMA = pa.schema(
 )
 
 
-def ingest_airports(store: ObjectStore, bucket: str = 'raw', prefix: str = 'faa') -> pa.Table:
+def ingest_airports(
+    store: ObjectStore, bucket: str = settings.s3_bucket_raw, prefix: str = 'faa'
+) -> pa.Table:
     res = httpx.get(OURAIRPORTS_URL, timeout=30, follow_redirects=True)
     res.raise_for_status()
 
@@ -117,7 +120,9 @@ ROUTES_SCHEMA = pa.schema(
 )
 
 
-def ingest_routes(store: ObjectStore, bucket: str = 'raw', prefix: str = 'openflights') -> None:
+def ingest_routes(
+    store: ObjectStore, bucket: str = settings.s3_bucket_raw, prefix: str = 'openflights'
+) -> None:
     res = httpx.get(OPENFLIGHTS_URL, timeout=30, follow_redirects=True)
     res.raise_for_status()
 
