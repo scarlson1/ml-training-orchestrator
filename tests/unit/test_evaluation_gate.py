@@ -200,7 +200,7 @@ class TestSliceParityCheck:
 
         # Mock XGBoost booster: predict() returns constant 0.5 for all rows
         mock_booster = MagicMock()
-        mock_booster.predict.return_value = np.full(480, 0.5)  # n * 0.8 train rows in total df
+        mock_booster.predict.return_value = np.full(600, 0.5)  # n=600 test rows (20% of total)
 
         with patch('mlflow.xgboost.load_model', return_value=mock_booster):
             result = SliceParityCheck(min_slice_rows=20).run(

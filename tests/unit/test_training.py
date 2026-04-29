@@ -128,8 +128,11 @@ def test_train_logs_to_mlflow(tiny_handle: DatasetHandle) -> None:
     assert 'test_brier_score' in run.data.metrics
 
     artifacts = [a.path for a in client.list_artifacts(result.mlflow_run_id)]
-    assert 'model' in artifacts
     assert 'dataset_card.json' in artifacts
+    # MLflow 3.x stores named models outside the flat artifacts list; verify via URI instead
+    import mlflow.xgboost
+
+    assert mlflow.xgboost.load_model(result.model_uri) is not None
 
 
 def test_feature_importance_normalized(tiny_handle: DatasetHandle) -> None:
