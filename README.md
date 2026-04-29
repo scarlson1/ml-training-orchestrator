@@ -106,6 +106,20 @@ Feast PIT join rule:
   joined feature = latest feature where feature_ts <= event_ts - ttl
 ```
 
+## Documentation
+
+- [architecture.md](/docs/architecture.md)
+- [data-ingestion.md](/docs/data-ingestion.md)
+- [deployment.md](/docs/deployment.md)
+- [batch-scoring.md](/docs/batch-scoring.md)
+- [serving.md](/docs/serving.md)
+- [testing.md](/docs/testing.md)
+- [training.md](/docs/training.md)
+<!-- - [](/docs)
+- [](/docs)
+- [](/docs)
+- [](/docs) -->
+
 # References
 
 [XGBoost python examples](https://github.com/dmlc/xgboost/tree/master/demo/guide-python)
@@ -1415,3 +1429,7 @@ r2_bucket_names = {
 }
 r2_endpoint_url = "https://2662189f53004928cc8e89c79f095db9.r2.cloudflarestorage.com"
 ```
+
+#### Dagster UI: http://<VM_ID>:3000 http://207.211.176.98:3000
+
+#### MLFlow UI: http://<VM_ID>:5000 http://207.211.176.98:5000
