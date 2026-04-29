@@ -50,7 +50,8 @@ Builds `dagster.Dockerfile` and `serving.Dockerfile` → pushes image to registr
 
 ### `deploy.yml`
 
-- Creates `.env` from github environment secrets/variables.
-- Wait for [`cloud-init.sh`](/infra/terraform/oracle/cloud-init.sh) to finish installing docker
+- clone/pull repo into `~/ml-training-orchestrator`
+- creates `.env` from github environment secrets/variables.
+- wait for [`cloud-init.sh`](/infra/terraform/oracle/cloud-init.sh) to finish installing docker
 - authenticate to GHCR to pull images created in `build-images.yml`
 - start/restart bmo-compose service on VM
