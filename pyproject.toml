@@ -65,6 +65,7 @@ training = [
   "numpy>=2.4",
   "matplotlib>=3.10",
   "s3fs>=2026.3",
+  "duckdb>=1.1",
 ]
 
 spark = [
