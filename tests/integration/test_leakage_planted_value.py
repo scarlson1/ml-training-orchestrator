@@ -113,9 +113,9 @@ class TestPITJoinExcludesFutureSnapshot:
             f"didn't exist at the time of the flight's scheduled departure."
         )
         # Specifically: the correct value (9.8) should appear
-        assert delay_value == pytest.approx(
-            9.8
-        ), f'Expected past snapshot value (9.8) in result, got: {delay_value}'
+        assert delay_value == pytest.approx(9.8), (
+            f'Expected past snapshot value (9.8) in result, got: {delay_value}'
+        )
 
     def test_correct_past_snapshot_selected(
         self, label_df: pd.DataFrame, feature_with_future_snapshot: tuple[str, float]
@@ -166,13 +166,13 @@ class TestLeakageGuardCatchesFutureFeatureTs:
             as_of=None,
         )
 
-        assert (
-            not result.passed
-        ), 'Leakage guard should have FAILED — a future feature timestamp was present'
+        assert not result.passed, (
+            'Leakage guard should have FAILED — a future feature timestamp was present'
+        )
         error_checks = {v.check_name for v in result.errors}
-        assert (
-            'no_future_features' in error_checks
-        ), f'Expected "no_future_features" error, got: {result.errors}'
+        assert 'no_future_features' in error_checks, (
+            f'Expected "no_future_features" error, got: {result.errors}'
+        )
 
     def test_guard_passes_on_valid_feature_ts(self, label_df: pd.DataFrame) -> None:
         """Confirm the guard PASSES when feature timestamps are all before event_timestamp."""

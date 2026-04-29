@@ -166,12 +166,12 @@ class TestHistoricalPITJoin:
             .reset_index(drop=True)
         )
 
-        assert result['origin_avg_dep_delay_1h'].iloc[0] == pytest.approx(
-            5.0, rel=1e-4
-        ), 'Flight A got wrong delay — possible future leakage from the 14:00 snapshot'
-        assert result['origin_avg_dep_delay_1h'].iloc[1] == pytest.approx(
-            18.0, rel=1e-4
-        ), 'Flight B got wrong delay'
+        assert result['origin_avg_dep_delay_1h'].iloc[0] == pytest.approx(5.0, rel=1e-4), (
+            'Flight A got wrong delay — possible future leakage from the 14:00 snapshot'
+        )
+        assert result['origin_avg_dep_delay_1h'].iloc[1] == pytest.approx(18.0, rel=1e-4), (
+            'Flight B got wrong delay'
+        )
 
     def test_get_historical_is_not_just_latest_value(self, pit_store: FeatureStore) -> None:
         """
@@ -251,6 +251,6 @@ class TestOnlineRoundtrip:
             entity_rows=[{'origin': 'ZZZ'}],  # nonexistent airport
         ).to_df()
 
-        assert (
-            result['origin_avg_dep_delay_1h'].isna().iloc[0]
-        ), 'Unknown entity should return null — serving code must coalesce or impute'
+        assert result['origin_avg_dep_delay_1h'].isna().iloc[0], (
+            'Unknown entity should return null — serving code must coalesce or impute'
+        )
