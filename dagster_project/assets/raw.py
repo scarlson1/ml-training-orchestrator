@@ -64,7 +64,7 @@ def station_map(context: AssetExecutionContext) -> MaterializeResult:
     """
     store = make_object_store()
 
-    existing = store.read_json_or_none('raw', 'noaa/_station_map.json')
+    existing = store.read_json_or_none(settings.s3_bucket_raw, 'noaa/_station_map.json')
     if existing is not None:
         context.log.info('Station map already exists in MinIO, skipping download')
         return MaterializeResult(metadata={'station_count': MetadataValue.int(len(existing))})
