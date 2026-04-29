@@ -47,12 +47,18 @@ jobs:
         # Buildx enables layer caching via --cache-from/--cache-to,
         # which makes rebuilds ~5x faster when only source code changed.
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - name: Build and push ${{ matrix.name }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ${{ matrix.file }}
           push: true
+          platforms: linux/amd64,linux/arm64
           # Tag with both the git SHA (immutable, for rollbacks) and 'latest'
           tags: |
             ${{ env.IMAGE_PREFIX }}/bmo-${{ matrix.name }}:${{ github.sha }}
