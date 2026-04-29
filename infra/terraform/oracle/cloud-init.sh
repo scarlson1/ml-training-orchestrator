@@ -71,7 +71,7 @@ EnvironmentFile=/home/ubuntu/ml-training-orchestrator/.env
 
 # Pull before start so deploys via `systemctl restart` pick up new images
 ExecStartPre=/usr/bin/docker compose -f infra/compose/compose.prod.yml pull --quiet
-ExecStart=/usr/bin/docker compose -f infra/compose/ompose.prod.yml up --remove-orphans
+ExecStart=/usr/bin/docker compose -f infra/compose/compose.prod.yml up --remove-orphans
 ExecStop=/usr/bin/docker compose -f infra/compose/compose.prod.yml down
 
 # Restart automatically if compose crashes (not on clean `systemctl stop`)

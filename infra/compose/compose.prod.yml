@@ -45,7 +45,6 @@ services:
     build:
       context: ../../infra/docker/mlflow
       dockerfile: Dockerfile
-    image: bmo-mlflow:latest
     container_name: ml_flow
     restart: unless-stopped
     depends_on:
@@ -69,7 +68,7 @@ services:
     build:
       context: ../..
       dockerfile: infra/docker/dagster.Dockerfile
-    image: bmo-dagster:latest
+    image: ghcr.io/${GHCR_OWNER}/bmo-dagster:latest
     container_name: bmo_dagster
     restart: unless-stopped
     depends_on:
