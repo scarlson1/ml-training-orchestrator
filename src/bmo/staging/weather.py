@@ -49,8 +49,8 @@ def stage_weather(
     year: int,
     month: int,
     store: ObjectStore,
-    raw_bucket: str = 'raw',
-    staging_bucket: str = 'staging',
+    raw_bucket: str = settings.s3_bucket_raw,
+    staging_bucket: str = settings.s3_bucket_staging,
 ) -> WeatherStagingResult:
     # raw_key = f'noaa/year={year}/month={month:02d}/weather.parquet'
     # target_key = f'noaa/year={year}/month={month:02d}/weather.parquet'

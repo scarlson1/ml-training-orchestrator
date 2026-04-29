@@ -14,7 +14,6 @@ import io
 import logging
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Literal
 
 import pandas as pd
 import pyarrow as pa
@@ -45,7 +44,7 @@ class StagingResult:
 def _load_airport_tz() -> dict[str, str]:
     """Return {iata_code: tz_name} from the staged dim_airport."""
 
-    # obj = store.client.get_object(Bucket='staging', Key='dim_airport/dim_airport.parquet')
+    # obj = store.client.get_object(Bucket=settings.s3_bucket_staging, Key='dim_airport/dim_airport.parquet')
     # tbl = pq.read_table(io.BytesIO(obj['Body'].read()), columns=['iata_code', 'tz_database_timezone'])
 
     catalog = make_catalog()
@@ -115,8 +114,8 @@ def stage_flights(
     year: int,
     month: int,
     store: ObjectStore,
-    raw_bucket: str = 'raw',
-    staging_bucket: Literal['staging'] = 'staging',
+    raw_bucket: str = settings.s3_bucket_raw,
+    staging_bucket: str = settings.s3_bucket_staging,
 ) -> StagingResult:
     # raw_key = f'bts/year={year}/month={month:02d}/data.parquet'
     # # target_key = f'bts/year={year}/month={month:02d}/flights.parquet'

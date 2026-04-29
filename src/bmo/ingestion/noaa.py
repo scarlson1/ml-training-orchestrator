@@ -217,7 +217,7 @@ def build_station_map(iata_codes: set[str]) -> dict[str, str]:
 # --------------------------------------------------------------------------#
 
 
-_ANNUAL_CACHE_BUCKET = 'raw'
+_ANNUAL_CACHE_BUCKET = settings.s3_bucket_raw
 _ANNUAL_CACHE_PREFIX = 'noaa/_annual'
 
 
