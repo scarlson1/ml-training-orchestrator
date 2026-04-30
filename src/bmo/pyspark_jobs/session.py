@@ -49,7 +49,7 @@ def make_spark_session(app_name: str) -> SparkSession:
         .config('spark.sql.catalog.bmo.jdbc.user', settings.postgres_user)
         .config('spark.sql.catalog.bmo.jdbc.password', settings.postgres_password)
         .config('spark.sql.catalog.bmo.jdbc.schema-version', 'V1')
-        .config('spark.sql.catalog.bmo.warehouse', 's3a://staging/iceberg')
+        .config('spark.sql.catalog.bmo.warehouse', f's3a://{settings.s3_bucket_staging}/iceberg')
         .config('spark.sql.defaultCatalog', 'bmo')
         # S3A / MinIO — for s3a:// paths
         .config('spark.hadoop.fs.s3a.endpoint', settings.s3_endpoint)
@@ -58,6 +58,10 @@ def make_spark_session(app_name: str) -> SparkSession:
         .config('spark.hadoop.fs.s3a.path.style.access', 'true')
         .config('spark.hadoop.fs.s3a.connection.ssl.enabled', 'false')
         .config('spark.hadoop.fs.s3a.impl', 'org.apache.hadoop.fs.s3a.S3AFileSystem')
+        # Prevents S3A (hadoop-aws 3.4+) from attempting AWS region auto-discovery
+        # via HeadBucket redirects. Non-AWS endpoints (R2, MinIO) return a 301 that
+        # S3A's cross-region client cannot resolve, producing "region null" errors.
+        .config('spark.hadoop.fs.s3a.endpoint.region', settings.s3_region)
         # Alias s3:// → S3AFileSystem so PyIceberg-stored metadata_location values
         # (written as s3://) resolve through the same S3A config.
         .config('spark.hadoop.fs.s3.impl', 'org.apache.hadoop.fs.s3a.S3AFileSystem')

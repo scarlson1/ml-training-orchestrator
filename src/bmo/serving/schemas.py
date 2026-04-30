@@ -77,3 +77,88 @@ class HealthResponse(BaseModel):
     model_loaded: bool
     redis_reachable: bool
     model_version: str | None
+
+
+# ----- API responses ----- #
+
+
+class DriftMetricRow(BaseModel):
+    report_date: str
+    feature_name: str
+    psi_score: float
+    kl_divergence: float | None
+    rank: int
+    is_breached: bool
+    model_version: str | None
+
+
+class DriftResponse(BaseModel):
+    rows: list[DriftMetricRow]
+    report_date: str  # the most recent date returned
+    n_breached: int
+
+
+class ModelRow(BaseModel):
+    model_version: str
+    avg_roc_auc: float
+    last_scored: float
+    n_flights: int
+
+
+class ModelStatsResponse(BaseModel):
+    rows: list[ModelRow]
+
+
+class DriftHeatmapRow(BaseModel):
+    report_date: str
+    feature_name: str
+    psi_score: float
+    kl_divergence: float | None
+    rank: int
+    is_breached: bool
+    model_version: str | None
+
+
+class DriftHeatmapResponse(BaseModel):
+    rows: list[DriftHeatmapRow]
+
+
+class PsiRow(BaseModel):
+    report_date: str
+    psi_score: float
+    kl_divergence: float | None
+    is_breached: bool
+
+
+class PsiResponse(BaseModel):
+    rows: list[PsiRow]
+
+
+class AccuracyRow(BaseModel):
+    score_date: str
+    model_version: str
+    roc_auc: float
+    f1: float
+    precision_score: float
+    recall_score: float
+    brier_score: float
+    positive_rate: float
+    actual_positive_rate: float
+    n_with_actuals: float
+
+
+class AccuracyResponse(BaseModel):
+    rows: list[AccuracyRow]
+
+
+class PredictionRow(BaseModel):
+    score_date: str
+    model_version: str
+    n_flights: int
+    avg_proba: float
+    positive_rate: float
+    n_with_actuals: int
+
+
+class PredictionsResponse(BaseModel):
+    rows: list[PredictionRow]
