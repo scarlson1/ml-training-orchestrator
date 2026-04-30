@@ -37,6 +37,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Java 17 is required by PySpark / Spark 4.0 for its JVM gateway process.
+# default-jdk-headless installs OpenJDK 17 on Debian bookworm and creates the
+# arch-neutral /usr/lib/jvm/default-java symlink used by JAVA_HOME below.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    default-jdk-headless \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /app/.venv      /app/.venv
 COPY --from=builder /app/src        /app/src
 COPY --from=builder /app/dagster_project  /app/dagster_project
@@ -49,6 +56,7 @@ RUN chmod +x /entrypoint.sh
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/src"
 ENV DAGSTER_HOME=/dagster_home
+ENV JAVA_HOME=/usr/lib/jvm/default-java
 
 RUN mkdir -p /dagster_home
 
