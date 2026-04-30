@@ -187,7 +187,8 @@ module = [
   "evidently.*",
   "fastapi",
   "fastapi.*",
-  "prometheus_client"
+  "prometheus_client",
+  "sqlalchemy"
 ]
 ignore_missing_imports = true
 

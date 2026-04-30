@@ -105,6 +105,7 @@ infra/terraform/.terraform.lock.hcl
 infra/terraform/terraform.tfvars
 infra/terraform/terraform.tfstate
 infra/terraform/terraform.tfstate.backup
+infra/terraform/tfplan
 *.tfvars
 !*.tfvars.example
 
@@ -113,3 +114,6 @@ infra/terraform/terraform.tfstate.backup
 !.env.example
 
 *node_modules/
+*.tanstack/
+
+
