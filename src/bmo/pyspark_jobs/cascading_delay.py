@@ -3,6 +3,8 @@ from __future__ import annotations
 from pyspark.sql import SparkSession, Window
 from pyspark.sql import functions as F
 
+from bmo.common.config import settings
+
 
 def compute_cascading_delay(spark: SparkSession) -> int:
     """
@@ -71,10 +73,12 @@ def compute_cascading_delay(spark: SparkSession) -> int:
         spark.sql(
             'CREATE TABLE staging.feat_cascading_delay '
             'USING iceberg '
-            "LOCATION 's3a://staging/iceberg/feat_cascading_delay' "
+            # "LOCATION 's3a://staging/iceberg/feat_cascading_delay' "
+            f"LOCATION 's3a://{settings.s3_bucket_staging}/iceberg/feat_cascading_delay' "
             'AS SELECT * FROM _feat_cascading_delay_tmp WHERE 1=0'
         )
 
-    result.writeTo('staging.feat_cascading_delay').overwrite(F.lit(True))
+    # result.writeTo('staging.feat_cascading_delay').overwrite(F.lit(True))
+    result.writeTo(f'{settings.s3_bucket_staging}.feat_cascading_delay').overwrite(F.lit(True))
 
     return int(row_count)

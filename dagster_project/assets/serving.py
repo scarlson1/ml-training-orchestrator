@@ -190,7 +190,7 @@ def batch_predictions(context: AssetExecutionContext) -> MaterializeResult:
         model_version=model_version,
         entity_df=entity_df,
         feature_store=store,
-        s3_base='s3://staging/predictions',
+        s3_base=f's3://{settings.s3_bucket_staging}/predictions',
         s3_endpoint_url=settings.s3_endpoint_url,
         s3_access_key_id=settings.s3_access_key_id,
         s3_secret_access_key=settings.s3_secret_access_key,
@@ -263,7 +263,7 @@ def deployed_api(context: AssetExecutionContext) -> MaterializeResult:
         client_kwargs={'region_name': settings.s3_region},
     )
 
-    config_path = 's3://staging/serving/model_config.json'
+    config_path = f's3://{settings.s3_bucket_staging}/serving/model_config.json'
     with fs.open(config_path, 'w') as f:
         json.dump(config, f, indent=2)
 
