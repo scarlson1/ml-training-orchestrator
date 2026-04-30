@@ -208,7 +208,8 @@ ignore_errors = true
 
 [[tool.mypy.overrides]]
 # FastAPI route decorators (@app.get, @app.post) are untyped when fastapi is
-# absent from the mypy env — suppress [misc] rather than scatter type: ignores.
+# absent from the mypy env — suppress [misc] and [untyped-decorator] rather than
+# scatter type: ignores.
 module = ["bmo.serving.api"]
 disable_error_code = ["misc"]
 

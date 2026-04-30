@@ -9,7 +9,7 @@ from dagster import (
 
 batch_score_job = define_asset_job(
     name='daily_batch_score',
-    selection=AssetSelection.keys('batch_predictions'),
+    selection=AssetSelection.assets('batch_predictions'),
     description="Daily batch scoring: load champion model, score today's flights, write predictions.",
 )
 

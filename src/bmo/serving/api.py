@@ -62,11 +62,14 @@ from bmo.serving.schemas import (
     DriftHeatmapRow,
     DriftMetricRow,
     DriftResponse,
+    DriftSummaryResponse,
+    DriftSummaryRow,
     HealthResponse,
     ModelInfoResponse,
     ModelRow,
     ModelStatsResponse,
     PredictionRow,
+    PredictionsDayResponse,
     PredictionsResponse,
     PredictRequest,
     PredictResponse,
@@ -148,21 +151,28 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
 
     if _SHADOW_MODEL_VERSION:
-        log.info('shadow deploy active', shadow_version=_SHADOW_MODEL_VERSION)
-        shadow_loader = ModelLoader(
-            tracking_uri=_MLFLOW_URI,
-            model_name=_MODEL_NAME,
-            alias=f'v{_SHADOW_MODEL_VERSION}',  # Feast alias format; or use 'version' below
-        )
-        # Simpler: load by version number directly
-        import mlflow
+        try:
+            log.info('shadow deploy active', shadow_version=_SHADOW_MODEL_VERSION)
+            shadow_loader = ModelLoader(
+                tracking_uri=_MLFLOW_URI,
+                model_name=_MODEL_NAME,
+                alias=f'v{_SHADOW_MODEL_VERSION}',
+            )
+            # Load by version number directly; shadow is optional in dev.
+            import mlflow
+            import mlflow.pyfunc
 
-        mlflow.set_tracking_uri(_MLFLOW_URI)
-        shadow_model_uri = f'models:/{_MODEL_NAME}/{_SHADOW_MODEL_VERSION}'
-        import mlflow.pyfunc
-
-        shadow_loader._model = mlflow.pyfunc.load_model(shadow_model_uri)
-        shadow_loader._model_version = _SHADOW_MODEL_VERSION
+            mlflow.set_tracking_uri(_MLFLOW_URI)
+            shadow_model_uri = f'models:/{_MODEL_NAME}/{_SHADOW_MODEL_VERSION}'
+            shadow_loader._model = mlflow.pyfunc.load_model(shadow_model_uri)
+            shadow_loader._model_version = _SHADOW_MODEL_VERSION
+        except Exception as exc:
+            shadow_loader = None
+            log.warning(
+                'shadow model unavailable at startup — continuing without shadow deploy',
+                shadow_version=_SHADOW_MODEL_VERSION,
+                error=str(exc),
+            )
 
     feature_client = FeatureClient(feature_repo_dir=_FEATURE_REPO_DIR)
     log.info('serving ready', model_version=model_loader.model_version)
@@ -375,6 +385,7 @@ async def _run_shadow_prediction(
             agreed=(primary_proba >= 0.5) == (shadow_proba >= 0.5),
         )
         log.info('shadow_prediction', **result.model_dump())
+
     except Exception:
         log.exception('shadow prediction failed', flight_id=request.flight_id)
 
@@ -399,16 +410,36 @@ def get_duckdb() -> duckdb.DuckDBPyConnection:
 # ----- React API ----- #
 
 
+@app.get('/api/drift/summary', response_model=DriftSummaryResponse, tags=['api'])
+async def driftsummary(db: Engine = Depends(get_db)) -> DriftSummaryResponse:
+    """Calc drift aggregates for breach banner"""
+
+    _query = text("""
+        SELECT
+            report_date::text,
+            COUNT(*) FILTER (WHERE is_breached) AS n_breached,
+            COUNT(*)                            AS n_features,
+            ROUND(MAX(psi_score)::numeric, 4)   AS max_psi,
+            model_version
+        FROM drift_metrics
+        WHERE report_date = (SELECT MAX(report_date) FROM drift_metrics)
+        GROUP BY report_date, model_version
+    """)
+
+    with db.connect() as conn:
+        rows = conn.execute(_query).mappings().all()
+
+        data = [DriftSummaryRow(**r) for r in rows]
+        return DriftSummaryResponse(rows=data)
+
+
 @app.get('/api/drift/metrics', response_model=DriftResponse, tags=['api'])
 async def drift(
     start: date | None = None, end: date | None = None, db: Engine = Depends(get_db)
 ) -> DriftResponse:
-    """Drift metrics for React dashboard. Defaults to 30 most recent report dates when no range is provided"""
+    """Drift metrics for React dashboard. Defaults to 30 most recent report dates when no range is provided. Query monitoring table (drift_metrics) in Postgres"""
 
-    with db.connect() as conn:
-        rows = (
-            conn.execute(
-                text("""
+    _query = text("""
                 SELECT
                     report_date::text,
                     feature_name,
@@ -423,7 +454,12 @@ async def drift(
                     AND
                     COALESCE(:end, (SELECT MAX(report_date) FROM drift_metrics))
                 ORDER BY report_date DESC, rank ASC
-            """),
+            """)
+
+    with db.connect() as conn:
+        rows = (
+            conn.execute(
+                _query,
                 {'start': start, 'end': end},
             )
             .mappings()
@@ -441,25 +477,21 @@ async def drift(
 
 @app.get('/api/model-stats', response_model=ModelStatsResponse, tags=['api'])
 async def modelstats(db: Engine = Depends(get_db)) -> ModelStatsResponse:
-    """All versions of models with AUC"""
+    """All versions of models with AUC Query monitoring table (live_accuracy) in Postgres"""
+
+    _query = text("""
+                SELECT
+                    model_version,
+                    AVG(roc_auc) AS avg_roc_auc,
+                    MAX(score_date) AS last_scored,
+                    SUM(n_flights) AS total_flights_scored
+                FROM live_accuracy
+                GROUP BY model_version
+                ORDER BY MAX(score_date) DESC
+                """)
 
     with db.connect() as conn:
-        rows = (
-            conn.execute(
-                text("""
-                    SELECT
-                        model_version,
-                        AVG(roc_auc) AS avg_roc_auc,
-                        MAX(score_date) AS last_scored,
-                        SUM(n_flights) AS total_flights_scored
-                    FROM live_accuracy
-                    GROUP BY model_version
-                    ORDER BY MAX(score_date) DESC
-                """)
-            )
-            .mappings()
-            .all()
-        )
+        rows = conn.execute(_query).mappings().all()
 
         data = [
             ModelRow(
@@ -477,12 +509,9 @@ async def modelstats(db: Engine = Depends(get_db)) -> ModelStatsResponse:
 async def driftheatmap(
     start_date: date | None = None, end_date: date | None = None, db: Engine = Depends(get_db)
 ) -> DriftHeatmapResponse:
-    """features x dates"""
+    """features x dates. Query monitoring table (drift_metrics) in Postgres"""
 
-    with db.connect() as conn:
-        rows = (
-            conn.execute(
-                text("""
+    _query = text("""
                 SELECT
                     report_date,
                     feature_name,
@@ -494,7 +523,12 @@ async def driftheatmap(
                 FROM drift_metrics
                 WHERE report_date BETWEEN :start_date AND :end_date
                 ORDER BY report_date DESC, rank ASC
-            """),
+                """)
+
+    with db.connect() as conn:
+        rows = (
+            conn.execute(
+                _query,
                 {'start_date': start_date, 'end_date': end_date},
             )
             .mappings()
@@ -507,12 +541,9 @@ async def driftheatmap(
 
 @app.get('/api/psi/:feature_name', response_model=PsiResponse, tags=['api'])
 async def psi(feature_name: str, db: Engine = Depends(get_db)) -> PsiResponse:
-    """per-feature PSI time series"""
+    """per-feature PSI time series. Query monitoring table (drift_metrics) in Postgres"""
 
-    with db.connect() as conn:
-        rows = (
-            conn.execute(
-                text("""
+    _query = text("""
                 SELECT
                     report_date,
                     psi_score,
@@ -521,7 +552,12 @@ async def psi(feature_name: str, db: Engine = Depends(get_db)) -> PsiResponse:
                 FROM drift_metrics
                 WHERE feature_name = :feature_name
                 ORDER BY report_date
-            """),
+                """)
+
+    with db.connect() as conn:
+        rows = (
+            conn.execute(
+                _query,
                 {'feature_name': feature_name},
             )
             .mappings()
@@ -534,12 +570,9 @@ async def psi(feature_name: str, db: Engine = Depends(get_db)) -> PsiResponse:
 
 @app.get('/api/accuracy', response_model=AccuracyResponse, tags=['api'])
 async def accuracy(db: Engine = Depends(get_db)) -> AccuracyResponse:
-    """Live accuracy time series"""
+    """Live accuracy time series. Query monitoring table (live_accuracy) in Postgres"""
 
-    with db.connect() as conn:
-        rows = (
-            conn.execute(
-                text("""
+    _query = text("""
                 SELECT
                     score_date,
                     model_version,
@@ -554,11 +587,10 @@ async def accuracy(db: Engine = Depends(get_db)) -> AccuracyResponse:
                 FROM live_accuracy
                 WHERE score_date >= NOW() - INTERVAL '90 days'
                 ORDER BY score_date, model_version
-            """)
-            )
-            .mappings()
-            .all()
-        )
+                """)
+
+    with db.connect() as conn:
+        rows = conn.execute(_query).mappings().all()
 
         data = [AccuracyRow(**r) for r in rows]
         return AccuracyResponse(rows=data)
@@ -569,8 +601,8 @@ async def predictions(
     days: int = 30, con: duckdb.DuckDBPyConnection = Depends(get_duckdb)
 ) -> PredictionsResponse:
     """
-    -- mart_predictions is a DuckDB view, so this needs DuckDB not Postgres.
-    -- Expose via a /api/predictions?start=&end= endpoint backed by DuckDB.
+    mart_predictions is a DuckDB view, so this needs DuckDB, not Postgres.
+    Queries mart_predictions in S3 storage.
 
     DuckDB connections hold a file lock and aren't thread-safe, so read_only=True and asyncio.to_thread are used to avoid blocking the event loop (DuckDB api is synchronous ==> will block fast api event loop).
     """
@@ -583,17 +615,17 @@ async def predictions(
                 list[dict[str, Any]],
                 con.execute(
                     """
-                SELECT
-                    score_date::text                               AS score_date,
-                    model_version,
-                    COUNT(*)                                       AS n_flights,
-                    AVG(predicted_is_delayed::int)                 AS positive_rate,
-                    COUNT(*) FILTER (WHERE actual_is_delayed IS NOT NULL) AS n_with_actuals
-                FROM mart_predictions
-                WHERE score_date >= CURRENT_DATE - INTERVAL (? || ' days')
-                GROUP BY score_date, model_version
-                ORDER BY score_date DESC
-            """,
+                    SELECT
+                        score_date::text                               AS score_date,
+                        model_version,
+                        COUNT(*)                                       AS n_flights,
+                        AVG(predicted_is_delayed::int)                 AS positive_rate,
+                        COUNT(*) FILTER (WHERE actual_is_delayed IS NOT NULL) AS n_with_actuals
+                    FROM mart_predictions
+                    WHERE score_date >= CURRENT_DATE - INTERVAL (? || ' days')
+                    GROUP BY score_date, model_version
+                    ORDER BY score_date DESC
+                    """,
                     [days],
                 )
                 .df()
@@ -605,3 +637,38 @@ async def predictions(
 
     rows = await asyncio.to_thread(_query)
     return PredictionsResponse(rows=[PredictionRow(**r) for r in rows])
+
+
+@app.get('/api/predictions/today', response_model=PredictionsDayResponse, tags=['api'])
+async def preditionstoday(
+    duck: duckdb.DuckDBPyConnection = Depends(get_duckdb),
+) -> PredictionsDayResponse:
+    """Get predictions for today for dashboard"""
+
+    def _query() -> tuple[int, float] | None:
+        try:
+            row = duck.execute(
+                """
+                SELECT
+                    COUNT(*)                               AS n_flights,
+                    AVG(predicted_is_delayed::int)         AS positive_rate,
+                FROM mart_predictions
+                WHERE score_date = CURRENT_DATE
+                """,
+            ).fetchone()
+            return (row[0], row[1]) if row is not None else None
+        finally:
+            duck.close()
+
+    today = await asyncio.to_thread(_query)
+
+    return PredictionsDayResponse(
+        model_version=model_loader.model_version
+        if model_loader and model_loader.model_version
+        else None,
+        model_loaded_at=model_loader.loaded_at.isoformat()
+        if model_loader and model_loader.loaded_at
+        else '',
+        n_flights_today=today[0] if today else 0,
+        positive_rate_today=round(today[1], 4) if today and today[1] is not None else None,
+    )

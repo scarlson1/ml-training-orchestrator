@@ -110,6 +110,7 @@ Feast PIT join rule:
 
 - [architecture.md](/docs/architecture.md)
 - [data-ingestion.md](/docs/data-ingestion.md)
+- [data-structure-and-query-guidance.md](/docs/data-structure-and-query-guidance.md)
 - [deployment.md](/docs/deployment.md)
 - [batch-scoring.md](/docs/batch-scoring.md)
 - [serving.md](/docs/serving.md)
@@ -1423,9 +1424,9 @@ oracle_vm_public_ip = "207.211.176.98"
 oracle_vm_ssh = "ssh ubuntu@207.211.176.98"
 r2_bucket_names = {
   "mlflow-artifacts" = "bmo-mlflow-artifacts"
-  "raw" = "bmo-raw"
-  "rejected" = "bmo-rejected"
-  "staging" = "bmo-staging"
+  "raw" = "raw"
+  "rejected" = "rejected"
+  "staging" = "staging"
 }
 r2_endpoint_url = "https://2662189f53004928cc8e89c79f095db9.r2.cloudflarestorage.com"
 ```

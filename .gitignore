@@ -113,6 +113,9 @@ infra/terraform/tfplan
 *.pem
 !.env.example
 
+!react/.env.dev
+!react/.env.prod
+
 *node_modules/
 *.tanstack/
 

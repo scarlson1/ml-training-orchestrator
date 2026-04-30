@@ -211,7 +211,7 @@ def drift_report(
 
 @asset(
     group_name='monitoring',
-    deps=['bml_dbt_assets'],
+    deps=['bmo_dbt_assets'],
     description=(
         'Ground-truth backfill: computes live accuracy metrics once BTS actuals '
         'become available (~60 days after scoring). '

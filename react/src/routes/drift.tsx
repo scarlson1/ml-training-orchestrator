@@ -4,19 +4,10 @@ import { createFileRoute } from '@tanstack/react-router';
 import { apiFetch } from '~/api';
 
 /*
-Drift heatmap data (features × dates):
+Date range picker + two panels:
 
-SELECT
-  report_date,
-  feature_name,
-  psi_score,
-  kl_divergence,
-  rank,
-  is_breached,
-  model_version
-FROM drift_metrics
-WHERE report_date BETWEEN :start_date AND :end_date
-ORDER BY report_date DESC, rank ASC;
+Heatmap (features × dates, cell color = PSI severity)
+Feature detail — click a cell → PSI + KL divergence time series for that feature
 */
 
 export const Route = createFileRoute('/drift')({
@@ -46,7 +37,7 @@ function RouteComponent() {
       <Typography variant='h3' gutterBottom>
         Drift Metrics
       </Typography>
-      <Typography variant='body2'>
+      <Typography variant='body2' component='div'>
         <pre>{JSON.stringify(data, null, 2)}</pre>
       </Typography>
     </>
