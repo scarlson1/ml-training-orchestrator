@@ -37,7 +37,7 @@ function RouteComponent() {
       <Typography variant='h3' gutterBottom>
         Drift Metrics
       </Typography>
-      <Typography variant='body2'>
+      <Typography variant='body2' component='div'>
         <pre>{JSON.stringify(data, null, 2)}</pre>
       </Typography>
     </>

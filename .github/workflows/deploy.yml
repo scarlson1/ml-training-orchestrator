@@ -52,14 +52,14 @@ jobs:
             S3_SECRET_ACCESS_KEY=${{ secrets.S3_SECRET_ACCESS_KEY }}
 
             # Feast registry — S3 path shared between Dagster (writes) and serving (reads)
-            FEAST_REGISTRY_PATH=s3://bmo-staging/feast/registry.db
+            FEAST_REGISTRY_PATH=s3://staging/feast/registry.db
 
             # Buckets (match Terraform-created names)
-            S3_BUCKET_RAW=bmo-raw
-            S3_BUCKET_STAGING=bmo-staging
-            S3_BUCKET_REJECTED=bmo-rejected
-            FEAST_S3_BASE=s3://bmo-staging/feast
-            DATASET_S3_BASE=s3://bmo-staging/datasets
+            S3_BUCKET_RAW=raw
+            S3_BUCKET_STAGING=staging
+            S3_BUCKET_REJECTED=rejected
+            FEAST_S3_BASE=s3://staging/feast
+            DATASET_S3_BASE=s3://staging/datasets
 
             # Feast online store (Upstash — external, reachable from Fly.io too)
             REDIS_URL=${{ secrets.UPSTASH_REDIS_URL }}

@@ -229,16 +229,16 @@ Dagster is the central nervous system. Every pipeline stage is a Dagster **asset
 
 Key Dagster primitives used:
 
-| Primitive | Purpose |
-| --- | --- |
-| `@asset` | Defines a pipeline step with its outputs (metadata, S3 path, etc.) |
-| `@asset_check` | Validates an asset after materialization; blocking checks halt the graph |
-| `@sensor` | Polls an external system and yields `RunRequest`s when new work is detected |
-| `@schedule` | Cron-triggered `RunRequest` for time-driven pipelines |
-| `ConfigurableResource` | Typed, injectable clients (DuckDB, MLflow, S3, Feast) |
-| `MonthlyPartitionsDefinition` | Partitions assets by calendar month; enables selective backfill |
-| `DailyPartitionsDefinition` | Partitions batch scoring and drift reports by date |
-| `FreshnessPolicy` | Declares a maximum acceptable lag per asset; UI shows SLA violations |
+| Primitive                     | Purpose                                                                     |
+| ----------------------------- | --------------------------------------------------------------------------- |
+| `@asset`                      | Defines a pipeline step with its outputs (metadata, S3 path, etc.)          |
+| `@asset_check`                | Validates an asset after materialization; blocking checks halt the graph    |
+| `@sensor`                     | Polls an external system and yields `RunRequest`s when new work is detected |
+| `@schedule`                   | Cron-triggered `RunRequest` for time-driven pipelines                       |
+| `ConfigurableResource`        | Typed, injectable clients (DuckDB, MLflow, S3, Feast)                       |
+| `MonthlyPartitionsDefinition` | Partitions assets by calendar month; enables selective backfill             |
+| `DailyPartitionsDefinition`   | Partitions batch scoring and drift reports by date                          |
+| `FreshnessPolicy`             | Declares a maximum acceptable lag per asset; UI shows SLA violations        |
 
 Dagster stores all run metadata (run IDs, step logs, asset materializations) in PostgreSQL. The daemon process handles schedule/sensor evaluation; the gRPC user-code server loads the `Definitions` object and executes asset steps.
 
@@ -256,12 +256,12 @@ dagster_project/
 
 PostgreSQL holds three distinct schemas from different services:
 
-| Database / Schema | Owner | Contents |
-| --- | --- | --- |
-| `dagster` | Dagster daemon | Run history, asset materializations, schedule ticks, logs |
-| `mlflow` | MLflow server | Experiments, runs, params, metrics, tags, model versions |
-| `iceberg` | PyIceberg | Iceberg table catalog (namespace/table metadata, snapshot history) |
-| `bmo` (public) | Application | `drift_metrics`, `live_accuracy` application tables |
+| Database / Schema | Owner          | Contents                                                           |
+| ----------------- | -------------- | ------------------------------------------------------------------ |
+| `dagster`         | Dagster daemon | Run history, asset materializations, schedule ticks, logs          |
+| `mlflow`          | MLflow server  | Experiments, runs, params, metrics, tags, model versions           |
+| `iceberg`         | PyIceberg      | Iceberg table catalog (namespace/table metadata, snapshot history) |
+| `bmo` (public)    | Application    | `drift_metrics`, `live_accuracy` application tables                |
 
 In local dev, all four databases can share one PostgreSQL instance. In production on Oracle Cloud, they share a single Always Free PostgreSQL instance.
 
@@ -273,11 +273,11 @@ R2 is chosen for production because it has **zero egress fees** — the pipeline
 
 Three buckets:
 
-| Bucket | Contents |
-| --- | --- |
-| `raw` | Downloaded source files — BTS Parquet, NOAA Parquet, FAA/OpenFlights |
-| `staging` | All processed data — Iceberg tables, dbt outputs, Feast Parquet, datasets, predictions |
-| `rejected` | Rows that failed Pydantic schema validation, with a `rejection_reason` column |
+| Bucket             | Contents                                                                               |
+| ------------------ | -------------------------------------------------------------------------------------- |
+| `raw`              | Downloaded source files — BTS Parquet, NOAA Parquet, FAA/OpenFlights                   |
+| `staging`          | All processed data — Iceberg tables, dbt outputs, Feast Parquet, datasets, predictions |
+| `rejected`         | Rows that failed Pydantic schema validation, with a `rejection_reason` column          |
 | `mlflow-artifacts` | MLflow run artifacts — model binaries, Evidently HTML reports, feature importance JSON |
 
 ### Apache Iceberg — Versioned Table Storage
@@ -296,6 +296,7 @@ The catalog URI is `postgresql+psycopg2://.../<iceberg_db>`. DuckDB queries Iceb
 DuckDB is an in-process analytical SQL engine. It runs directly in the Dagster worker process (no separate server needed) and reads Parquet files from S3 via the `httpfs` extension.
 
 DuckDB is used for:
+
 1. **dbt feature models** — window aggregations (1h/24h/7d) over Iceberg-staged data
 2. **feast_feature_export** — reads dbt feature tables and writes per-entity Parquet for Feast
 3. **training_dataset builder** — reads `mart_training_dataset` labels
@@ -309,12 +310,12 @@ dbt (data build tool) manages the 15 SQL models that transform staged Iceberg da
 
 Materialization strategy:
 
-| dbt model layer | Strategy | Reason |
-| --- | --- | --- |
-| `stg_*` | `view` | Always-fresh reference to Iceberg tables; no storage |
-| `int_*` | `view` | Lightweight join enrichment |
-| `feat_*` | `table` | Expensive window aggregations; computed once |
-| `mart_*` | `table` | Training labels and ground-truth joins; final outputs |
+| dbt model layer | Strategy | Reason                                                |
+| --------------- | -------- | ----------------------------------------------------- |
+| `stg_*`         | `view`   | Always-fresh reference to Iceberg tables; no storage  |
+| `int_*`         | `view`   | Lightweight join enrichment                           |
+| `feat_*`        | `table`  | Expensive window aggregations; computed once          |
+| `mart_*`        | `table`  | Training labels and ground-truth joins; final outputs |
 
 The `BmoDbtTranslator` class overrides dbt's default Dagster asset key resolution to map dbt `source()` references (e.g., `iceberg_staging.staged_flights`) to the Python asset keys produced by the staging layer (`staged_flights`). This makes cross-language asset dependencies visible in the Dagster UI.
 
@@ -367,7 +368,7 @@ graph LR
 
 **Online store** (real-time serving): `get_online_features(entity_rows, feature_refs)` looks up Redis keys by entity value. If the stored value is older than the TTL, Feast returns null (handled as a 503 by the API — fail-closed).
 
-**Registry**: holds the schema, TTL, entity definitions, and source paths for each FeatureView. In dev it is a local SQLite file; in prod it lives on R2 (`s3://bmo-staging/feast/registry.db`).
+**Registry**: holds the schema, TTL, entity definitions, and source paths for each FeatureView. In dev it is a local SQLite file; in prod it lives on R2 (`s3://staging/feast/registry.db`).
 
 ### MLflow — Experiment Tracking and Model Registry
 
@@ -399,11 +400,11 @@ Search space includes: `max_depth`, `learning_rate`, `n_estimators`, `subsample`
 
 Evidently generates per-feature drift reports comparing the training distribution (reference) against the last 7 days of production feature values (current). PSI (Population Stability Index) is the primary metric:
 
-| PSI range | Interpretation |
-| --- | --- |
-| < 0.1 | Stable — no action needed |
-| 0.1 – 0.2 | Moderate shift — monitor |
-| > 0.2 | Significant drift — retrain trigger |
+| PSI range | Interpretation                      |
+| --------- | ----------------------------------- |
+| < 0.1     | Stable — no action needed           |
+| 0.1 – 0.2 | Moderate shift — monitor            |
+| > 0.2     | Significant drift — retrain trigger |
 
 Evidently outputs a self-contained HTML report (written to S3, served via GitHub Pages) and per-feature `DriftMetricsRow` objects (upserted to PostgreSQL `drift_metrics` table). The Dagster `drift_retrain_sensor` polls this table hourly and fires a `RunRequest` if any top-10 feature by importance has PSI > 0.2.
 
@@ -443,13 +444,13 @@ The frontend is built with TanStack Start (full-stack React) and Material UI. It
 
 Routes and what they display:
 
-| Route | Page | API Endpoints |
-| --- | --- | --- |
-| `/` | Index / navigation | — |
-| `/predictions` | Daily prediction volume, positive rate, actuals coverage | `GET /predictions` |
-| `/accuracy` | Live ROC AUC, F1, Brier score per model version | `GET /accuracy` |
-| `/drift` | PSI heatmap per feature per day, per-feature PSI trend | `GET /drift`, `GET /drift/heatmap`, `GET /drift/feature/{name}/psi` |
-| `/models` | Model registry stats — avg AUC, last scored date, flight count | `GET /models` |
+| Route          | Page                                                           | API Endpoints                                                       |
+| -------------- | -------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `/`            | Index / navigation                                             | —                                                                   |
+| `/predictions` | Daily prediction volume, positive rate, actuals coverage       | `GET /predictions`                                                  |
+| `/accuracy`    | Live ROC AUC, F1, Brier score per model version                | `GET /accuracy`                                                     |
+| `/drift`       | PSI heatmap per feature per day, per-feature PSI trend         | `GET /drift`, `GET /drift/heatmap`, `GET /drift/feature/{name}/psi` |
+| `/models`      | Model registry stats — avg AUC, last scored date, flight count | `GET /models`                                                       |
 
 ---
 
@@ -498,22 +499,22 @@ STAGED_FLIGHTS_SCHEMA = pa.schema([
 
 **Validation rules** (rejections written to `s3://rejected/bts/`):
 
-| Rule | Rejection reason |
-| --- | --- |
-| `origin` or `dest` not exactly 3 characters | `invalid_iata_code` |
-| `distance_mi` ≤ 0 or > 6000 | `implausible_distance` |
-| `scheduled_departure_utc` is null (timezone lookup failed) | `missing_scheduled_departure_utc` |
-| Non-cancelled flight with null `actual_departure_utc` | `missing_actual_departure_for_operated_flight` |
+| Rule                                                       | Rejection reason                               |
+| ---------------------------------------------------------- | ---------------------------------------------- |
+| `origin` or `dest` not exactly 3 characters                | `invalid_iata_code`                            |
+| `distance_mi` ≤ 0 or > 6000                                | `implausible_distance`                         |
+| `scheduled_departure_utc` is null (timezone lookup failed) | `missing_scheduled_departure_utc`              |
+| Non-cancelled flight with null `actual_departure_utc`      | `missing_actual_departure_for_operated_flight` |
 
 ### Feature Views — All Features
 
-| Feature view | Entity join key | TTL | Features |
-| --- | --- | --- | --- |
-| `origin_airport_features` | `origin` (IATA) | 26h | `origin_flight_count_1h`, `origin_avg_dep_delay_1h`, `origin_pct_delayed_1h`, `origin_avg_dep_delay_24h`, `origin_pct_cancelled_24h`, `origin_avg_dep_delay_7d`, `origin_pct_delayed_7d`, `origin_congestion_score_1h` |
-| `dest_airport_features` | `dest` (IATA) | 26h | `dest_avg_arr_delay_1h`, `dest_pct_delayed_1h`, `dest_avg_arr_delay_24h`, `dest_pct_diverted_24h` |
-| `carrier_features` | `carrier` (2-letter) | 8d | `carrier_on_time_pct_7d`, `carrier_cancellation_rate_7d`, `carrier_avg_delay_7d`, `carrier_flight_count_7d` |
-| `route_features` | `route_key` (`ORD-LAX`) | 8d | `route_avg_dep_delay_7d`, `route_avg_arr_delay_7d`, `route_pct_delayed_7d`, `route_cancellation_rate_7d`, `route_avg_elapsed_7d`, `route_distance_mi` |
-| `aircraft_features` | `tail_number` | 12h | `cascading_delay_min`, `turnaround_min` |
+| Feature view              | Entity join key         | TTL | Features                                                                                                                                                                                                               |
+| ------------------------- | ----------------------- | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `origin_airport_features` | `origin` (IATA)         | 26h | `origin_flight_count_1h`, `origin_avg_dep_delay_1h`, `origin_pct_delayed_1h`, `origin_avg_dep_delay_24h`, `origin_pct_cancelled_24h`, `origin_avg_dep_delay_7d`, `origin_pct_delayed_7d`, `origin_congestion_score_1h` |
+| `dest_airport_features`   | `dest` (IATA)           | 26h | `dest_avg_arr_delay_1h`, `dest_pct_delayed_1h`, `dest_avg_arr_delay_24h`, `dest_pct_diverted_24h`                                                                                                                      |
+| `carrier_features`        | `carrier` (2-letter)    | 8d  | `carrier_on_time_pct_7d`, `carrier_cancellation_rate_7d`, `carrier_avg_delay_7d`, `carrier_flight_count_7d`                                                                                                            |
+| `route_features`          | `route_key` (`ORD-LAX`) | 8d  | `route_avg_dep_delay_7d`, `route_avg_arr_delay_7d`, `route_pct_delayed_7d`, `route_cancellation_rate_7d`, `route_avg_elapsed_7d`, `route_distance_mi`                                                                  |
+| `aircraft_features`       | `tail_number`           | 12h | `cascading_delay_min`, `turnaround_min`                                                                                                                                                                                |
 
 Total: **24 features** across 5 entity types.
 
@@ -540,6 +541,7 @@ Hash inputs: sorted feature refs, `as_of` ISO string, SHA-256 of label Parquet b
 ### Serving API Schemas
 
 **Request** (`POST /predict`):
+
 ```python
 class PredictRequest(BaseModel):
     flight_id: str          # e.g. "AA123_20240406_0900"
@@ -551,6 +553,7 @@ class PredictRequest(BaseModel):
 ```
 
 **Response**:
+
 ```python
 class PredictResponse(BaseModel):
     flight_id: str
@@ -562,6 +565,7 @@ class PredictResponse(BaseModel):
 ```
 
 **Shadow prediction** (logged async, never returned to caller):
+
 ```python
 class ShadowPrediction(BaseModel):
     flight_id: str
@@ -687,7 +691,7 @@ mart_training_dataset row:
   NOT                              (computed at 2024-01-15T14:12Z ✗ — future)
 ```
 
-Event timestamp is `scheduled_departure_utc` (not actual), because at prediction time you only know when the flight is *scheduled* to depart.
+Event timestamp is `scheduled_departure_utc` (not actual), because at prediction time you only know when the flight is _scheduled_ to depart.
 
 ### Evaluation Gate
 
@@ -720,12 +724,12 @@ flowchart TD
 
 **SliceParityCheck subgroups** (`~30s`, loads test split from S3):
 
-| Dimension | Slices |
-| --- | --- |
-| Carrier | One bucket per carrier code |
-| Origin hub size | large hub / medium hub / small hub (FAA NPIAS classification) |
-| Time of day | morning (6–12), afternoon (12–18), evening (18–24), red-eye (0–6) |
-| Weather | high weather delay ratio / normal |
+| Dimension       | Slices                                                            |
+| --------------- | ----------------------------------------------------------------- |
+| Carrier         | One bucket per carrier code                                       |
+| Origin hub size | large hub / medium hub / small hub (FAA NPIAS classification)     |
+| Time of day     | morning (6–12), afternoon (12–18), evening (18–24), red-eye (0–6) |
+| Weather         | high weather delay ratio / normal                                 |
 
 Failure condition: any slice AUC < 0.60, or any slice AUC more than 10% below overall AUC.
 
@@ -758,12 +762,12 @@ sequenceDiagram
 
 The FastAPI `/metrics` endpoint exports:
 
-| Metric | Type | Description |
-| --- | --- | --- |
-| `bmo_predictions_total` | Counter | Total predictions, labeled by `predicted_class` |
-| `bmo_prediction_latency_seconds` | Histogram | End-to-end request latency |
-| `bmo_feature_null_total` | Counter | Requests with incomplete features |
-| `bmo_model_info` | Info | Current model version and loaded_at timestamp |
+| Metric                           | Type      | Description                                     |
+| -------------------------------- | --------- | ----------------------------------------------- |
+| `bmo_predictions_total`          | Counter   | Total predictions, labeled by `predicted_class` |
+| `bmo_prediction_latency_seconds` | Histogram | End-to-end request latency                      |
+| `bmo_feature_null_total`         | Counter   | Requests with incomplete features               |
+| `bmo_model_info`                 | Info      | Current model version and loaded_at timestamp   |
 
 ---
 
@@ -808,6 +812,7 @@ live_accuracy (roc_auc, f1, brier_score per score_date × model_version)
 ### PostgreSQL — Application Tables
 
 **`drift_metrics`** (upserted daily by `drift_report` asset):
+
 ```sql
 CREATE TABLE drift_metrics (
     report_date     DATE        NOT NULL,
@@ -823,6 +828,7 @@ CREATE TABLE drift_metrics (
 ```
 
 **`live_accuracy`** (upserted by `ground_truth_backfill` asset):
+
 ```sql
 CREATE TABLE live_accuracy (
     score_date           DATE    NOT NULL,
@@ -847,12 +853,12 @@ Both tables use `ON CONFLICT DO UPDATE` (upsert) so re-running an asset for the 
 
 ### GitHub Actions Workflows
 
-| Workflow | Trigger | Steps |
-| --- | --- | --- |
-| `ci.yml` | PR / push to main | ruff lint, mypy, pytest, dbt parse |
-| `build-images.yml` | Push to main | Build + push Dagster user-code and FastAPI Docker images to registry |
-| `deploy.yml` | Push to main | SSH to Oracle VM, pull new images, restart services |
-| `evidently-reports.yml` | Schedule | Sync Evidently HTML reports from S3 to GitHub Pages |
+| Workflow                | Trigger           | Steps                                                                |
+| ----------------------- | ----------------- | -------------------------------------------------------------------- |
+| `ci.yml`                | PR / push to main | ruff lint, mypy, pytest, dbt parse                                   |
+| `build-images.yml`      | Push to main      | Build + push Dagster user-code and FastAPI Docker images to registry |
+| `deploy.yml`            | Push to main      | SSH to Oracle VM, pull new images, restart services                  |
+| `evidently-reports.yml` | Schedule          | Sync Evidently HTML reports from S3 to GitHub Pages                  |
 
 ### Local Development
 
@@ -870,10 +876,10 @@ Run the Dagster UI: `dagster dev` (reads `DAGSTER_HOME` for workspace config)
 
 ### Terraform
 
-| Module | Resources |
-| --- | --- |
-| `infra/terraform/oracle/` | OCI VCN, subnet, internet gateway, route table, Ubuntu 22.04 ARM VM (Ampere A1 — free tier), SSH key, security rules |
-| `infra/terraform/cloudflare_r2/` | R2 buckets: `bmo-raw`, `bmo-staging`, `bmo-rejected`, `bmo-mlflow-artifacts` |
+| Module                           | Resources                                                                                                            |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `infra/terraform/oracle/`        | OCI VCN, subnet, internet gateway, route table, Ubuntu 22.04 ARM VM (Ampere A1 — free tier), SSH key, security rules |
+| `infra/terraform/cloudflare_r2/` | R2 buckets: `raw`, `staging`, `rejected`, `bmo-mlflow-artifacts`                                                     |
 
 ---
 
@@ -881,21 +887,21 @@ Run the Dagster UI: `dagster dev` (reads `DAGSTER_HOME` for workspace config)
 
 All configuration is loaded by `bmo.common.config.Settings` (pydantic-settings) from environment variables or `.env`. A single `settings` singleton is imported throughout the codebase.
 
-| Variable | Required | Description |
-| --- | --- | --- |
-| `DAGSTER_HOME` | yes | Dagster workspace root |
-| `S3_ENDPOINT_URL` | yes | MinIO (`http://localhost:9000`) or R2 (`https://<account>.r2.cloudflarestorage.com`) |
-| `S3_ACCESS_KEY_ID` / `AWS_ACCESS_KEY_ID` | yes | Object store credentials |
-| `S3_SECRET_ACCESS_KEY` / `AWS_SECRET_ACCESS_KEY` | yes | |
-| `S3_REGION` | no | Default `us-east-1` |
-| `DUCKDB_PATH` | no | Default `/tmp/bmo_features.duckdb` |
-| `DUCKDB_S3_ENDPOINT` | no | DuckDB httpfs endpoint (host:port, no scheme) |
-| `MLFLOW_TRACKING_URI` | yes | e.g. `http://localhost:5000` |
-| `POSTGRES_HOST/PORT/DB/USER/PASSWORD` | yes | Shared PostgreSQL instance |
-| `REDIS_URL` | yes | `redis://localhost:6379` (dev) or Upstash URI (prod) |
-| `ICEBERG_CATALOG_URI` | no | SQLite URI for dev; defaults to PostgreSQL `iceberg` database |
-| `FEAST_REGISTRY_PATH` | yes | `data/registry.db` (dev) or `s3://bmo-staging/feast/registry.db` |
-| `AWS_ENDPOINT_URL` | yes | boto3 endpoint for Feast S3 reads (same as `S3_ENDPOINT_URL`) |
-| `ADMIN_TOKEN` | no | Bearer token for `POST /admin/reload` |
-| `SHADOW_MODEL_VERSION` | no | Registry version for shadow inference logging |
-| `DISCORD_WEBHOOK_URL` | no | Alert destination for `run_failure_sensor` |
+| Variable                                         | Required | Description                                                                          |
+| ------------------------------------------------ | -------- | ------------------------------------------------------------------------------------ |
+| `DAGSTER_HOME`                                   | yes      | Dagster workspace root                                                               |
+| `S3_ENDPOINT_URL`                                | yes      | MinIO (`http://localhost:9000`) or R2 (`https://<account>.r2.cloudflarestorage.com`) |
+| `S3_ACCESS_KEY_ID` / `AWS_ACCESS_KEY_ID`         | yes      | Object store credentials                                                             |
+| `S3_SECRET_ACCESS_KEY` / `AWS_SECRET_ACCESS_KEY` | yes      |                                                                                      |
+| `S3_REGION`                                      | no       | Default `us-east-1`                                                                  |
+| `DUCKDB_PATH`                                    | no       | Default `/tmp/bmo_features.duckdb`                                                   |
+| `DUCKDB_S3_ENDPOINT`                             | no       | DuckDB httpfs endpoint (host:port, no scheme)                                        |
+| `MLFLOW_TRACKING_URI`                            | yes      | e.g. `http://localhost:5000`                                                         |
+| `POSTGRES_HOST/PORT/DB/USER/PASSWORD`            | yes      | Shared PostgreSQL instance                                                           |
+| `REDIS_URL`                                      | yes      | `redis://localhost:6379` (dev) or Upstash URI (prod)                                 |
+| `ICEBERG_CATALOG_URI`                            | no       | SQLite URI for dev; defaults to PostgreSQL `iceberg` database                        |
+| `FEAST_REGISTRY_PATH`                            | yes      | `data/registry.db` (dev) or `s3://staging/feast/registry.db`                         |
+| `AWS_ENDPOINT_URL`                               | yes      | boto3 endpoint for Feast S3 reads (same as `S3_ENDPOINT_URL`)                        |
+| `ADMIN_TOKEN`                                    | no       | Bearer token for `POST /admin/reload`                                                |
+| `SHADOW_MODEL_VERSION`                           | no       | Registry version for shadow inference logging                                        |
+| `DISCORD_WEBHOOK_URL`                            | no       | Alert destination for `run_failure_sensor`                                           |

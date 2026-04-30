@@ -25,7 +25,7 @@ from dagster import (
 
 daily_drift_report_job = define_asset_job(
     name='daily_drift_report',
-    selection=AssetSelection.keys('drift_report'),
+    selection=AssetSelection.assets('drift_report'),
     description='daily evidently drift report + PSI → Postgres for drift_retrain_sensor.',
 )
 

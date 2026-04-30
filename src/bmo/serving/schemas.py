@@ -82,6 +82,18 @@ class HealthResponse(BaseModel):
 # ----- API responses ----- #
 
 
+class DriftSummaryRow(BaseModel):
+    report_date: str
+    n_breached: int
+    n_features: int
+    max_psi: float
+    model_version: str
+
+
+class DriftSummaryResponse(BaseModel):
+    rows: list[DriftSummaryRow]
+
+
 class DriftMetricRow(BaseModel):
     report_date: str
     feature_name: str
@@ -162,3 +174,10 @@ class PredictionRow(BaseModel):
 
 class PredictionsResponse(BaseModel):
     rows: list[PredictionRow]
+
+
+class PredictionsDayResponse(BaseModel):
+    model_version: str | None
+    model_loaded_at: str
+    n_flights_today: int
+    positive_rate_today: float | None

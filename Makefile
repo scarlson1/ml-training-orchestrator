@@ -69,9 +69,6 @@ feast-teardown:
 reproduce:
 	$(ENV)uv run python -m bmo.training.reproduce $(RUN_ID)
 
-serving-dev:
-	uv run uvicorn bmo.serving.api:app --reload --port 8080
-
 serving-build:
 	docker build -f infra/docker/serving.Dockerfile -t bmo-serving:local .
 
@@ -80,14 +77,6 @@ serving-run:
 	  --env-file .env \
 	  -p 8080:8080 \
 	  bmo-serving:local
-
-fly-deploy:
-	fly deploy --config fly.toml
-
-fly-reload:
-	curl -s -X POST https://bmo-flight-delay.fly.dev/admin/reload \
-	  -H "Authorization: Bearer $$(fly secrets list | grep ADMIN_TOKEN)" \
-	  | jq .
 
 test-serving:
 	uv run pytest tests/unit/test_serving_feature_client.py -q

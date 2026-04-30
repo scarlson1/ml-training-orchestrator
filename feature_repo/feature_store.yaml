@@ -2,17 +2,17 @@
 # The registry file itself (registry.db) is generated — never commit it.
 #
 # Dev:  FEAST_REGISTRY_PATH=data/registry.db        (local SQLite, fast)
-# Prod: FEAST_REGISTRY_PATH=s3://bmo-staging/feast/registry.db  (R2, shared between services)
+# Prod: FEAST_REGISTRY_PATH=s3://staging/feast/registry.db  (R2, shared between services)
 
 project: bmo
 registry: ${FEAST_REGISTRY_PATH}
-provider: local  # uses file offline store + whichever online_store is configured
+provider: local # uses file offline store + whichever online_store is configured
 
 offline_store:
-  type: file  # reads Parquet from local path or S3 (boto3 picks up AWS_* env vars automatically)
+  type: file # reads Parquet from local path or S3 (boto3 picks up AWS_* env vars automatically)
 
 online_store:
   type: redis
-  connection_string: ${REDIS_URL}  # dev: redis://localhost:6379  prod: rediss://<upstash>
+  connection_string: ${REDIS_URL} # dev: redis://localhost:6379  prod: rediss://<upstash>
 
-entity_key_serialization_version: 2  # pin explicitly — changing this corrupts the registry
+entity_key_serialization_version: 2 # pin explicitly — changing this corrupts the registry

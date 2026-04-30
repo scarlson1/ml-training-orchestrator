@@ -26,7 +26,7 @@ from dagster import (
 retrain_job = define_asset_job(
     name='nightly_retrain',
     # The + prefix means "and all upstream assets. Here we just want the three training assets, not entire upstream"
-    selection=AssetSelection.keys(
+    selection=AssetSelection.assets(
         'training_dataset',
         'trained_model',
         'registered_model',
