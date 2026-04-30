@@ -28,6 +28,11 @@ def make_spark_session(app_name: str) -> SparkSession:
     as s3:// by PyIceberg are resolved by the same S3A config as s3a:// paths.
     """
     jdbc_url = f'jdbc:postgresql://{settings.postgres_host}:{settings.postgres_port}/iceberg'
+    # Derive SSL from the endpoint URL so that local MinIO (http://) and
+    # Cloudflare R2 (https://) are both handled correctly. Hardcoding 'false'
+    # causes R2 to return a 301 HTTP→HTTPS redirect, which S3A misreads as an
+    # AWS region redirect, producing the "region null" AWSRedirectException.
+    ssl_enabled = str(settings.s3_endpoint_url.startswith('https://')).lower()
 
     return (
         SparkSession.builder.appName(app_name)
@@ -56,7 +61,7 @@ def make_spark_session(app_name: str) -> SparkSession:
         .config('spark.hadoop.fs.s3a.access.key', settings.s3_access_key_id)
         .config('spark.hadoop.fs.s3a.secret.key', settings.s3_secret_access_key)
         .config('spark.hadoop.fs.s3a.path.style.access', 'true')
-        .config('spark.hadoop.fs.s3a.connection.ssl.enabled', 'false')
+        .config('spark.hadoop.fs.s3a.connection.ssl.enabled', ssl_enabled)
         .config('spark.hadoop.fs.s3a.impl', 'org.apache.hadoop.fs.s3a.S3AFileSystem')
         # Prevents S3A (hadoop-aws 3.4+) from attempting AWS region auto-discovery
         # via HeadBucket redirects. Non-AWS endpoints (R2, MinIO) return a 301 that
@@ -66,7 +71,7 @@ def make_spark_session(app_name: str) -> SparkSession:
         # (written as s3://) resolve through the same S3A config.
         .config('spark.hadoop.fs.s3.impl', 'org.apache.hadoop.fs.s3a.S3AFileSystem')
         .config('spark.hadoop.fs.s3.path.style.access', 'true')
-        .config('spark.hadoop.fs.s3.connection.ssl.enabled', 'false')
+        .config('spark.hadoop.fs.s3.connection.ssl.enabled', ssl_enabled)
         # Iceberg SQL extensions
         .config(
             'spark.sql.extensions',
