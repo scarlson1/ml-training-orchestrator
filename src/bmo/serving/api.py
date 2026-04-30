@@ -32,7 +32,7 @@ import os
 import time
 from contextlib import asynccontextmanager
 from datetime import date
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import duckdb
 
@@ -577,7 +577,10 @@ async def predictions(
 
     def _query() -> list[dict[str, Any]]:
         try:
-            rows: list[dict[str, Any]] = (
+            # to_dict('records') returns list[dict[Hashable, Any]] in pandas stubs
+            # but column names are always strings, so cast is safe.
+            rows = cast(
+                list[dict[str, Any]],
                 con.execute(
                     """
                 SELECT
@@ -594,7 +597,7 @@ async def predictions(
                     [days],
                 )
                 .df()
-                .to_dict('records')
+                .to_dict('records'),
             )
         finally:
             con.close()

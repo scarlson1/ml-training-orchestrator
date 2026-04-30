@@ -5,6 +5,8 @@ import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
 import '@fontsource/roboto/700.css';
 
+import CssBaseline from '@mui/material/CssBaseline';
+import { ThemeProvider } from '@mui/material/styles';
 import {
   createRootRoute,
   HeadContent,
@@ -12,7 +14,7 @@ import {
   Scripts,
 } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
-import { ThemeProvider, createTheme, CssBaseline } from '@mui/material/styles';
+import { theme } from '~/config/theme';
 
 export const Route = createRootRoute({
   head: () => ({
@@ -32,10 +34,6 @@ export const Route = createRootRoute({
   component: RootComponent,
 });
 
-
-
-const theme = createTheme({ cssVariables: true });
-
 function RootComponent() {
   return (
     <RootDocument>
@@ -47,14 +45,16 @@ function RootComponent() {
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html>
-      <CssBaseline />
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        {children}
-        <Scripts />
-      </body>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <head>
+          <HeadContent />
+        </head>
+        <body>
+          {children}
+          <Scripts />
+        </body>
+      </ThemeProvider>
     </html>
   );
 }
