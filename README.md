@@ -110,6 +110,7 @@ Feast PIT join rule:
 
 - [architecture.md](/docs/architecture.md)
 - [data-ingestion.md](/docs/data-ingestion.md)
+- [data-structure-and-query-guidance.md](/docs/data-structure-and-query-guidance.md)
 - [deployment.md](/docs/deployment.md)
 - [batch-scoring.md](/docs/batch-scoring.md)
 - [serving.md](/docs/serving.md)

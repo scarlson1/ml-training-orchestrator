@@ -94,4 +94,4 @@ test-serving:
 
 monitoring-init:
 	PGPASSWORD=password psql -h localhost -p 5432 -U user -d bmo \
-	  -f scripts/create_monitoring_tables.sql
+	  -f infra/postgres/create_monitoring_tables.sql

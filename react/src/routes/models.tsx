@@ -6,23 +6,11 @@ import { apiFetch } from '~/api';
 // Model Registry
 // Table of all MLflow model versions: version number, champion/challenger badge, ROC-AUC, dataset hash, registered date. Line chart of AUC across versions.
 
-/*
-Model registry with AUC trend:
+export const Route = createFileRoute('/models')({
+  component: Models,
+});
 
--- All versions ordered newest first (cross-reference MLflow via its REST API
--- for run_id → AUC; or store AUC in a postgres model_versions table)
--- Using live_accuracy as a proxy until you have a model_versions table:
-SELECT
-  model_version,
-  AVG(roc_auc)    AS avg_roc_auc,
-  MAX(score_date) AS last_scored,
-  SUM(n_flights)  AS total_flights_scored
-FROM live_accuracy
-GROUP BY model_version
-ORDER BY MAX(score_date) DESC;
-*/
-
-const Models = () => {
+function Models() {
   const { data } = useSuspenseQuery({
     queryKey: ['models'],
     queryFn: () => apiFetch(`/api/model-stats`).then((r) => r.json()),
@@ -39,8 +27,4 @@ const Models = () => {
       </Typography>
     </>
   );
-};
-
-export const Route = createFileRoute('/models')({
-  component: Models,
-});
+}

@@ -403,7 +403,7 @@ def get_duckdb() -> duckdb.DuckDBPyConnection:
 async def drift(
     start: date | None = None, end: date | None = None, db: Engine = Depends(get_db)
 ) -> DriftResponse:
-    """Drift metrics for React dashboard. Defaults to 30 most recent report dates when no range is provided"""
+    """Drift metrics for React dashboard. Defaults to 30 most recent report dates when no range is provided. Query monitoring table (drift_metrics) in Postgres"""
 
     with db.connect() as conn:
         rows = (
@@ -441,7 +441,7 @@ async def drift(
 
 @app.get('/api/model-stats', response_model=ModelStatsResponse, tags=['api'])
 async def modelstats(db: Engine = Depends(get_db)) -> ModelStatsResponse:
-    """All versions of models with AUC"""
+    """All versions of models with AUC Query monitoring table (live_accuracy) in Postgres"""
 
     with db.connect() as conn:
         rows = (
@@ -477,7 +477,7 @@ async def modelstats(db: Engine = Depends(get_db)) -> ModelStatsResponse:
 async def driftheatmap(
     start_date: date | None = None, end_date: date | None = None, db: Engine = Depends(get_db)
 ) -> DriftHeatmapResponse:
-    """features x dates"""
+    """features x dates. Query monitoring table (drift_metrics) in Postgres"""
 
     with db.connect() as conn:
         rows = (
@@ -507,7 +507,7 @@ async def driftheatmap(
 
 @app.get('/api/psi/:feature_name', response_model=PsiResponse, tags=['api'])
 async def psi(feature_name: str, db: Engine = Depends(get_db)) -> PsiResponse:
-    """per-feature PSI time series"""
+    """per-feature PSI time series. Query monitoring table (drift_metrics) in Postgres"""
 
     with db.connect() as conn:
         rows = (
@@ -534,7 +534,7 @@ async def psi(feature_name: str, db: Engine = Depends(get_db)) -> PsiResponse:
 
 @app.get('/api/accuracy', response_model=AccuracyResponse, tags=['api'])
 async def accuracy(db: Engine = Depends(get_db)) -> AccuracyResponse:
-    """Live accuracy time series"""
+    """Live accuracy time series. Query monitoring table (live_accuracy) in Postgres"""
 
     with db.connect() as conn:
         rows = (
@@ -569,8 +569,8 @@ async def predictions(
     days: int = 30, con: duckdb.DuckDBPyConnection = Depends(get_duckdb)
 ) -> PredictionsResponse:
     """
-    -- mart_predictions is a DuckDB view, so this needs DuckDB not Postgres.
-    -- Expose via a /api/predictions?start=&end= endpoint backed by DuckDB.
+    mart_predictions is a DuckDB view, so this needs DuckDB, not Postgres.
+    Queries mart_predictions in S3 storage.
 
     DuckDB connections hold a file lock and aren't thread-safe, so read_only=True and asyncio.to_thread are used to avoid blocking the event loop (DuckDB api is synchronous ==> will block fast api event loop).
     """
