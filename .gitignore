@@ -113,3 +113,4 @@ infra/terraform/terraform.tfstate.backup
 !.env.example
 
 *node_modules/
+infra/terraform/tfplan

@@ -31,7 +31,10 @@ import asyncio
 import os
 import time
 from contextlib import asynccontextmanager
+from datetime import date
 from typing import TYPE_CHECKING, Any
+
+import duckdb
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -47,15 +50,28 @@ from prometheus_client import (
     Info,
     generate_latest,
 )
+from sqlalchemy import Engine, create_engine, text
 
 from bmo.common.config import settings
 from bmo.serving.feature_client import FeatureClient
 from bmo.serving.model_loader import ModelLoader
 from bmo.serving.schemas import (
+    AccuracyResponse,
+    AccuracyRow,
+    DriftHeatmapResponse,
+    DriftHeatmapRow,
+    DriftMetricRow,
+    DriftResponse,
     HealthResponse,
     ModelInfoResponse,
+    ModelRow,
+    ModelStatsResponse,
+    PredictionRow,
+    PredictionsResponse,
     PredictRequest,
     PredictResponse,
+    PsiResponse,
+    PsiRow,
     ShadowPrediction,
 )
 
@@ -361,3 +377,228 @@ async def _run_shadow_prediction(
         log.info('shadow_prediction', **result.model_dump())
     except Exception:
         log.exception('shadow prediction failed', flight_id=request.flight_id)
+
+
+# ----- Postgres dependency ----- #
+_pg_engine: Engine | None = None
+
+
+def get_db() -> Engine:
+    global _pg_engine
+    if _pg_engine is None:
+        _pg_engine = create_engine(settings.postgres_url, pool_pre_ping=True)
+    return _pg_engine
+
+
+# Don't pool DuckDB connections — they hold a file lock.
+# Open read-only per request; Dagster's write connection can coexist.
+def get_duckdb() -> duckdb.DuckDBPyConnection:
+    return duckdb.connect(settings.duckdb_path, read_only=True)
+
+
+# ----- React API ----- #
+
+
+@app.get('/api/drift/metrics', response_model=DriftResponse, tags=['api'])
+async def drift(
+    start: date | None = None, end: date | None = None, db: Engine = Depends(get_db)
+) -> DriftResponse:
+    """Drift metrics for React dashboard. Defaults to 30 most recent report dates when no range is provided"""
+
+    with db.connect() as conn:
+        rows = (
+            conn.execute(
+                text("""
+                SELECT
+                    report_date::text,
+                    feature_name,
+                    psi_score,
+                    kl_divergence,
+                    rank,
+                    is_breached,
+                    model_version
+                FROM drift_metrics
+                WHERE report_date BETWEEN
+                    COALESCE(:start, (SELECT MAX(report_date) FROM drift_metrics) - INTERVAL '30 days')
+                    AND
+                    COALESCE(:end, (SELECT MAX(report_date) FROM drift_metrics))
+                ORDER BY report_date DESC, rank ASC
+            """),
+                {'start': start, 'end': end},
+            )
+            .mappings()
+            .all()
+        )
+
+    data = [DriftMetricRow(**r) for r in rows]
+    latest = data[0].report_date if data else str(date.today())
+    return DriftResponse(
+        rows=data,
+        report_date=latest,
+        n_breached=sum(1 for r in data if r.is_breached and r.report_date == latest),
+    )
+
+
+@app.get('/api/model-stats', response_model=ModelStatsResponse, tags=['api'])
+async def modelstats(db: Engine = Depends(get_db)) -> ModelStatsResponse:
+    """All versions of models with AUC"""
+
+    with db.connect() as conn:
+        rows = (
+            conn.execute(
+                text("""
+                    SELECT
+                        model_version,
+                        AVG(roc_auc) AS avg_roc_auc,
+                        MAX(score_date) AS last_scored,
+                        SUM(n_flights) AS total_flights_scored
+                    FROM live_accuracy
+                    GROUP BY model_version
+                    ORDER BY MAX(score_date) DESC
+                """)
+            )
+            .mappings()
+            .all()
+        )
+
+        data = [
+            ModelRow(
+                model_version=r.model_version,
+                avg_roc_auc=r.avg_roc_auc,
+                last_scored=r.last_scored,
+                n_flights=r.total_flights_scored,
+            )
+            for r in rows
+        ]
+        return ModelStatsResponse(rows=data)
+
+
+@app.get('/api/drift/heatmap', response_model=DriftHeatmapResponse, tags=['api'])
+async def driftheatmap(
+    start_date: date | None = None, end_date: date | None = None, db: Engine = Depends(get_db)
+) -> DriftHeatmapResponse:
+    """features x dates"""
+
+    with db.connect() as conn:
+        rows = (
+            conn.execute(
+                text("""
+                SELECT
+                    report_date,
+                    feature_name,
+                    psi_score,
+                    kl_divergence,
+                    rank,
+                    is_breached,
+                    model_version
+                FROM drift_metrics
+                WHERE report_date BETWEEN :start_date AND :end_date
+                ORDER BY report_date DESC, rank ASC
+            """),
+                {'start_date': start_date, 'end_date': end_date},
+            )
+            .mappings()
+            .all()
+        )
+
+        data = [DriftHeatmapRow(**r) for r in rows]
+        return DriftHeatmapResponse(rows=data)
+
+
+@app.get('/api/psi/:feature_name', response_model=PsiResponse, tags=['api'])
+async def psi(feature_name: str, db: Engine = Depends(get_db)) -> PsiResponse:
+    """per-feature PSI time series"""
+
+    with db.connect() as conn:
+        rows = (
+            conn.execute(
+                text("""
+                SELECT
+                    report_date,
+                    psi_score,
+                    kl_divergence,
+                    is_breached
+                FROM drift_metrics
+                WHERE feature_name = :feature_name
+                ORDER BY report_date
+            """),
+                {'feature_name': feature_name},
+            )
+            .mappings()
+            .all()
+        )
+
+        data = [PsiRow(**r) for r in rows]
+        return PsiResponse(rows=data)
+
+
+@app.get('/api/accuracy', response_model=AccuracyResponse, tags=['api'])
+async def accuracy(db: Engine = Depends(get_db)) -> AccuracyResponse:
+    """Live accuracy time series"""
+
+    with db.connect() as conn:
+        rows = (
+            conn.execute(
+                text("""
+                SELECT
+                    score_date,
+                    model_version,
+                    roc_auc,
+                    f1,
+                    precision_score,
+                    recall_score,
+                    brier_score,
+                    positive_rate,
+                    actual_positive_rate,
+                    n_with_actuals
+                FROM live_accuracy
+                WHERE score_date >= NOW() - INTERVAL '90 days'
+                ORDER BY score_date, model_version
+            """)
+            )
+            .mappings()
+            .all()
+        )
+
+        data = [AccuracyRow(**r) for r in rows]
+        return AccuracyResponse(rows=data)
+
+
+@app.get('/api/predictions', response_model=PredictionsResponse, tags=['api'])
+async def predictions(
+    days: int = 30, con: duckdb.DuckDBPyConnection = Depends(get_duckdb)
+) -> PredictionsResponse:
+    """
+    -- mart_predictions is a DuckDB view, so this needs DuckDB not Postgres.
+    -- Expose via a /api/predictions?start=&end= endpoint backed by DuckDB.
+
+    DuckDB connections hold a file lock and aren't thread-safe, so read_only=True and asyncio.to_thread are used to avoid blocking the event loop (DuckDB api is synchronous ==> will block fast api event loop).
+    """
+
+    def _query() -> list[dict[str, Any]]:
+        try:
+            rows: list[dict[str, Any]] = (
+                con.execute(
+                    """
+                SELECT
+                    score_date::text                               AS score_date,
+                    model_version,
+                    COUNT(*)                                       AS n_flights,
+                    AVG(predicted_is_delayed::int)                 AS positive_rate,
+                    COUNT(*) FILTER (WHERE actual_is_delayed IS NOT NULL) AS n_with_actuals
+                FROM mart_predictions
+                WHERE score_date >= CURRENT_DATE - INTERVAL (? || ' days')
+                GROUP BY score_date, model_version
+                ORDER BY score_date DESC
+            """,
+                    [days],
+                )
+                .df()
+                .to_dict('records')
+            )
+        finally:
+            con.close()
+        return rows
+
+    rows = await asyncio.to_thread(_query)
+    return PredictionsResponse(rows=[PredictionRow(**r) for r in rows])
