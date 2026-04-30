@@ -25,7 +25,7 @@
     )
 }}
 
-{% set metrics_glob = env_var("MONITORING_METRICS_GLOB", "s3://staging/monitoring/metrics/**/drift_metrics.parquet") %}
+{% set metrics_glob = "s3://" ~ env_var("S3_BUCKET_STAGING") ~ "/monitoring/metrics/**/drift_metrics.parquet" %}
 
 {% if execute %}
     {% set file_check %}

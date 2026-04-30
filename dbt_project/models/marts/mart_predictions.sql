@@ -16,7 +16,8 @@
     )
 }}
 
-{% set predictions_glob = env_var("PREDICTIONS_S3_GLOB", "s3://staging/predictions/**/data.parquet") %}
+-- {% set predictions_glob = env_var("PREDICTIONS_S3_GLOB", "s3://staging/predictions/**/data.parquet") %}
+{% set predictions_glob = "s3://" ~ env_var("S3_BUCKET_STAGING") ~ "/predictions/**/data.parquet") %}
 
 {# Check at compile time whether any prediction files exist yet. #}
 {# read_parquet hard-errors on a no-match glob, so we emit an empty typed   #}

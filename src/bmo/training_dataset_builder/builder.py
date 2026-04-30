@@ -75,7 +75,7 @@ def build_dataset(
     label_df: pd.DataFrame,
     feature_refs: list[str],
     as_of: datetime | None = None,
-    output_base_path: str = 's3://staging/datasets',
+    output_base_path: str = f's3://{settings.s3_bucket_staging}/datasets',
     feature_views: list[FeatureViewConfig] | None = None,
     code_version: str | None = None,
     feature_set_version: str | None = None,

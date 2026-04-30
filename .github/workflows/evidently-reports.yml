@@ -38,6 +38,7 @@ jobs:
         env:
           S3_ENDPOINT_URL: ${{ vars.S3_ENDPOINT_URL || secrets.S3_ENDPOINT_URL }}
           DATE_PREFIX: ${{ github.event.inputs.date_prefix }}
+          S3_BUCKET_STAGING: ${{ vars.S3_BUCKET_STAGING || 'staging'}}
         run: |
           mkdir -p docs/evidently-reports
 
@@ -45,7 +46,7 @@ jobs:
           # --delete removes local reports that were deleted from S3 (cleanup).
           # --include / --exclude ordering: AWS CLI processes them left-to-right.
           aws s3 sync \
-            s3://staging/monitoring/reports/ \
+            s3://${S3_BUCKET_STAGING }/monitoring/reports/ \
             docs/evidently-reports/ \
             --exclude "*" \
             --include "*/drift_report.html" \
