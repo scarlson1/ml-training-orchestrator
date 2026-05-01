@@ -125,6 +125,10 @@ Feast PIT join rule:
 
 [XGBoost python examples](https://github.com/dmlc/xgboost/tree/master/demo/guide-python)
 
+## Screenshots
+
+![Home](docs/screenshot-home.png)
+
 ### Storage
 
 Rough estimates per monthly partition:
@@ -166,7 +170,7 @@ uv sync --all-groups
 make dbt-bootstrap
 
 # 3. Start infrastructure
-docker compose up -d
+docker compose -f infra/compose/compose.dev.yml up -d
 
 # 4. Create S3 buckets and Postgres databases
 ./scripts/bootstrap_dev.sh # already run by minio-init in compose.yml
@@ -189,6 +193,12 @@ make dagster-dev
 # 9. In Dagster UI: materialize bmo_dbt_assets
 #    Or from CLI:
 cd dbt_project && uv run dbt build --profiles-dir .
+
+# serve fastAPI
+make serving-dev
+
+# react
+cd react && pnpm dev
 ```
 
 ### Ingestion from Dagster UI

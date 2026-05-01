@@ -50,6 +50,8 @@ class ModelLoader:
         self._model: Any = None  # mlflow.pyfunc.PyFuncModel
         self._model_version: str | None = None
         self._loaded_at: datetime | None = None
+        self._registered_at: datetime | None = None
+        self._training_roc_auc: float | None = None
 
     @property
     def model_version(self) -> str | None:
@@ -62,6 +64,14 @@ class ModelLoader:
     @property
     def is_loaded(self) -> bool:
         return self._model is not None
+
+    @property
+    def registered_at(self) -> datetime | None:
+        return self._registered_at
+
+    @property
+    def training_roc_auc(self) -> float | None:
+        return self._training_roc_auc
 
     async def load(self) -> str:
         """
@@ -91,11 +101,18 @@ class ModelLoader:
         model_uri = f'models:/{self._model_name}@{self._alias}'
         log.info('loading model', uri=model_uri, version=version_num)
 
+        ts_ms = int(version_obj.creation_timestamp)
+        self._registered_at = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc)
+
+        run = client.get_run(version_obj.run_id)
+        auc = run.data.metrics.get('test_roc_auc')
+        self._training_roc_auc = float(auc) if auc is not None else None
+
         self._model = mlflow.pyfunc.load_model(model_uri)
         self._model_version = version_num
         self._loaded_at = datetime.now(timezone.utc)
 
-        log.info('model loaded', version=version_num)
+        log.info('model loaded', version=version_num, training_roc_auc=self._training_roc_auc)
         return str(version_num)
 
     async def reload(self) -> str:
