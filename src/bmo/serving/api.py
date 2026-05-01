@@ -31,8 +31,8 @@ import asyncio
 import os
 import time
 from contextlib import asynccontextmanager
-from datetime import date
-from typing import TYPE_CHECKING, Any, cast
+from datetime import date, datetime, timezone
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import duckdb
 
@@ -58,12 +58,12 @@ from bmo.serving.model_loader import ModelLoader
 from bmo.serving.schemas import (
     AccuracyResponse,
     AccuracyRow,
+    DriftFeatureSummary,
     DriftHeatmapResponse,
     DriftHeatmapRow,
     DriftMetricRow,
     DriftResponse,
     DriftSummaryResponse,
-    DriftSummaryRow,
     HealthResponse,
     ModelInfoResponse,
     ModelRow,
@@ -251,6 +251,8 @@ async def model_info(loader: ModelLoader = Depends(get_model_loader)) -> ModelIn
         model_version=loader.model_version or 'unknown',
         champion_alias='champion',
         loaded_at=loader.loaded_at.isoformat() if loader.loaded_at else '',
+        registered_at=loader.registered_at.isoformat() if loader.registered_at else '',
+        training_roc_auc=loader.training_roc_auc,
         feature_service='flight_delay_predictions',
         shadow_version=_SHADOW_MODEL_VERSION,
     )
@@ -410,14 +412,35 @@ def get_duckdb() -> duckdb.DuckDBPyConnection:
 # ----- React API ----- #
 
 
+# @app.get('/api/drift/summary', response_model=DriftSummaryResponse, tags=['api'])
+# async def driftsummary(db: Engine = Depends(get_db)) -> DriftSummaryResponse:
+#     """Calc drift aggregates for breach banner"""
+
+#     _query = text("""
+#         SELECT
+#             report_date::text,
+#             COUNT(*) FILTER (WHERE is_breached) AS n_breached,
+#             COUNT(*)                            AS n_features,
+#             ROUND(MAX(psi_score)::numeric, 4)   AS max_psi,
+#             model_version
+#         FROM drift_metrics
+#         WHERE report_date = (SELECT MAX(report_date) FROM drift_metrics)
+#         GROUP BY report_date, model_version
+#     """)
+
+#     with db.connect() as conn:
+#         rows = conn.execute(_query).mappings().all()
+
+#         data = [DriftSummaryRow(**r) for r in rows]
+#         return DriftSummaryResponse(rows=data)
+
+
 @app.get('/api/drift/summary', response_model=DriftSummaryResponse, tags=['api'])
 async def driftsummary(db: Engine = Depends(get_db)) -> DriftSummaryResponse:
-    """Calc drift aggregates for breach banner"""
-
-    _query = text("""
+    agg_q = text("""
         SELECT
             report_date::text,
-            COUNT(*) FILTER (WHERE is_breached) AS n_breached,
+            COUNT(*) FILTER (WHERE is_breached) AS psi_breaches,
             COUNT(*)                            AS n_features,
             ROUND(MAX(psi_score)::numeric, 4)   AS max_psi,
             model_version
@@ -425,12 +448,49 @@ async def driftsummary(db: Engine = Depends(get_db)) -> DriftSummaryResponse:
         WHERE report_date = (SELECT MAX(report_date) FROM drift_metrics)
         GROUP BY report_date, model_version
     """)
+    features_q = text("""
+        SELECT feature_name, psi_score, is_breached
+        FROM drift_metrics
+        WHERE report_date = (SELECT MAX(report_date) FROM drift_metrics)
+        ORDER BY rank ASC
+    """)
+
+    def _severity(psi: float, breached: bool) -> Literal['green', 'amber', 'red']:
+        if breached:
+            return 'red'
+        if psi >= 0.1:
+            return 'amber'
+        return 'green'
 
     with db.connect() as conn:
-        rows = conn.execute(_query).mappings().all()
+        agg = conn.execute(agg_q).mappings().first()
+        feature_rows = conn.execute(features_q).mappings().all()
 
-        data = [DriftSummaryRow(**r) for r in rows]
-        return DriftSummaryResponse(rows=data)
+    if agg is None:
+        return DriftSummaryResponse(
+            report_date='',
+            psi_breaches=0,
+            n_features=0,
+            max_psi=0.0,
+            model_version=None,
+            features=[],
+        )
+
+    return DriftSummaryResponse(
+        report_date=str(agg['report_date']),
+        psi_breaches=int(agg['psi_breaches']),
+        n_features=int(agg['n_features']),
+        max_psi=float(agg['max_psi']),
+        model_version=agg['model_version'],
+        features=[
+            DriftFeatureSummary(
+                name=r['feature_name'],
+                psi=round(float(r['psi_score']), 4),
+                severity=_severity(float(r['psi_score']), bool(r['is_breached'])),
+            )
+            for r in feature_rows
+        ],
+    )
 
 
 @app.get('/api/drift/metrics', response_model=DriftResponse, tags=['api'])
@@ -476,22 +536,35 @@ async def drift(
 
 
 @app.get('/api/model-stats', response_model=ModelStatsResponse, tags=['api'])
-async def modelstats(db: Engine = Depends(get_db)) -> ModelStatsResponse:
+async def modelstats(db: Engine = Depends(get_db), champion: bool = False) -> ModelStatsResponse:
     """All versions of models with AUC Query monitoring table (live_accuracy) in Postgres"""
 
-    _query = text("""
+    filters = 'WHERE model_version = :champion' if champion else ''
+    params = {'champion': 'champion'} if champion else {}
+
+    _query = text(f"""
                 SELECT
                     model_version,
-                    AVG(roc_auc) AS avg_roc_auc,
-                    MAX(score_date) AS last_scored,
-                    SUM(n_flights) AS total_flights_scored
+                    MAX(score_date)         AS last_scored,
+                    AVG(roc_auc)            AS avg_roc_auc,
+                    AVG(accuracy)           AS avg_accuracy,
+                    AVG(precision_score)    AS avg_precision_score,
+                    AVG(recall_score)       AS avg_recall_score,
+                    AVG(f1)                 AS avg_f1,
+                    AVG(log_loss)           AS avg_log_loss,
+                    AVG(brier_score)        AS avg_brier_score,
+                    AVG(positive_rate)      AS avg_positive_rate,
+                    AVG(actual_positive_rate) AS avg_actual_positive_rate,
+                    AVG(n_flights)          AS avg_n_flights_scored,
+                    SUM(n_flights)          AS total_flights_scored
                 FROM live_accuracy
+                {filters}
                 GROUP BY model_version
                 ORDER BY MAX(score_date) DESC
                 """)
 
     with db.connect() as conn:
-        rows = conn.execute(_query).mappings().all()
+        rows = conn.execute(_query, params).mappings().all()
 
         data = [
             ModelRow(
@@ -641,9 +714,10 @@ async def predictions(
 
 @app.get('/api/predictions/today', response_model=PredictionsDayResponse, tags=['api'])
 async def preditionstoday(
+    loader: ModelLoader = Depends(get_model_loader),
     duck: duckdb.DuckDBPyConnection = Depends(get_duckdb),
 ) -> PredictionsDayResponse:
-    """Get predictions for today for dashboard"""
+    """Get todays predictions (should run 8am cron)"""
 
     def _query() -> tuple[int, float] | None:
         try:
@@ -662,13 +736,15 @@ async def preditionstoday(
 
     today = await asyncio.to_thread(_query)
 
+    days_since_retrain: int | None = None
+    if loader.registered_at:
+        days_since_retrain = (datetime.now(timezone.utc) - loader.registered_at).days
+
     return PredictionsDayResponse(
-        model_version=model_loader.model_version
-        if model_loader and model_loader.model_version
-        else None,
-        model_loaded_at=model_loader.loaded_at.isoformat()
-        if model_loader and model_loader.loaded_at
-        else '',
+        model_version=loader.model_version if loader and loader.model_version else None,
+        model_loaded_at=loader.loaded_at.isoformat() if loader and loader.loaded_at else '',
+        registered_at=loader.registered_at.isoformat() if loader.registered_at else '',
         n_flights_today=today[0] if today else 0,
         positive_rate_today=round(today[1], 4) if today and today[1] is not None else None,
+        days_since_retrain=days_since_retrain,
     )

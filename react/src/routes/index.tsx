@@ -10,19 +10,6 @@ export const Route = createFileRoute('/')({
   component: Home,
 });
 
-// TODO: confirm shapes with backend
-type PredictionSummary = {
-  count: number;
-  positive_rate: number;
-  null_feature_rows: number;
-  run_at: string;
-};
-
-type DriftSummary = {
-  psi_breaches: number;
-  features: Array<{ name: string; psi: number; severity: 'green' | 'amber' | 'red' }>;
-};
-
 function Home() {
   return (
     <>
@@ -50,23 +37,34 @@ function HeroSection() {
       }}
     >
       <Box>
-        <Typography variant='overline' sx={{ color: 'text.disabled', mb: 2, display: 'block' }}>
-          Probabilistic delay prediction · Confidence-first
+        <Typography
+          variant='overline'
+          sx={{ color: 'text.disabled', mb: 2, display: 'block' }}
+        >
+          XGBoost classifier · BTS on-time performance · NOAA weather
         </Typography>
         <Typography variant='h1' sx={{ mb: 2.5 }}>
-          Know whether
+          Departure delay
           <br />
-          the flight{' '}
-          <Box component='em' sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
-            will
-          </Box>{' '}
-          hold —
+          probability, scored
           <br />
-          before it pushes back.
+          before every{' '}
+          <Box
+            component='em'
+            sx={{ fontStyle: 'italic', color: 'text.secondary' }}
+          >
+            pushback.
+          </Box>
         </Typography>
-        <Typography variant='body1' sx={{ color: 'text.secondary', maxWidth: 480, lineHeight: 1.6 }}>
-          Holdline's ensemble model fuses METAR, TAF, ground-stop bulletins, fleet rotation, and 9
-          years of carrier OTP data into a calibrated probability — refreshed every 90 seconds.
+        <Typography
+          variant='body1'
+          sx={{ color: 'text.secondary', maxWidth: 480, lineHeight: 1.6 }}
+        >
+          BMO's XGBoost classifier trains nightly on BTS on-time performance
+          records and NOAA surface weather observations, with 24 point-in-time
+          correct features spanning airport congestion windows, carrier and
+          route rolling rates, and aircraft cascading delay. Auto-retrains when
+          Evidently detects PSI above 0.2.
         </Typography>
       </Box>
       <MonitoringLinksPanel />
@@ -91,7 +89,10 @@ function MonitoringLinksPanel() {
         p: 3,
       }}
     >
-      <Typography variant='overline' sx={{ color: 'text.disabled', mb: 1.75, display: 'block' }}>
+      <Typography
+        variant='overline'
+        sx={{ color: 'text.disabled', mb: 1.75, display: 'block' }}
+      >
         Monitoring links
       </Typography>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -118,7 +119,9 @@ function MonitoringLinksPanel() {
               '&:hover': { borderColor: 'text.secondary' },
             }}
           >
-            <Typography sx={{ fontFamily: monoFont, fontSize: 13 }}>{label}</Typography>
+            <Typography sx={{ fontFamily: monoFont, fontSize: 13 }}>
+              {label}
+            </Typography>
             <OpenInNewRounded sx={{ fontSize: 14, color: 'text.disabled' }} />
           </Box>
         ))}
@@ -148,47 +151,110 @@ function StatsRow() {
   );
 }
 
+interface PredictionSummary {
+  n_flights_today: number;
+  positive_rate_today: number | null;
+  model_version: string | null;
+  registered_at: string;
+  days_since_retrain: number | null;
+}
+
 function TodayStats() {
-  // query: GET /api/predictions/today → PredictionSummary
-  const { data } = useSuspenseQuery({
+  const { data: temp } = useSuspenseQuery({
     queryKey: ['predictions', 'today'],
     queryFn: () =>
-      apiFetch('/api/predictions/today').then((r) => r.json() as Promise<PredictionSummary>),
+      apiFetch('/api/predictions/today').then(
+        (r) => r.json() as Promise<PredictionSummary>,
+      ),
     staleTime: 60 * 60 * 1000,
   });
+  // TODO: remove temp
+  const data: PredictionSummary = {
+    n_flights_today: 923,
+    positive_rate_today: 0.18,
+    model_version: '0129834',
+    registered_at: '2026-04-28',
+    days_since_retrain: 2,
+  };
 
   return (
     <>
       <StatCard
         label='Flights scored today'
-        value={data?.count != null ? String(data.count) : '—'}
+        value={
+          data?.n_flights_today != null ? String(data.n_flights_today) : '—'
+        }
       />
       <StatCard
         label='Delay probability rate'
         value={
-          data?.positive_rate != null ? `${(data.positive_rate * 100).toFixed(1)}%` : '—'
+          data?.positive_rate_today != null
+            ? `${(data.positive_rate_today * 100).toFixed(1)}%`
+            : '—'
         }
       />
       <StatCard
-        label='Null feature rows'
-        value={data?.null_feature_rows != null ? String(data.null_feature_rows) : '—'}
-        alert={data?.null_feature_rows != null && data.null_feature_rows > 0}
+        label='Days since retrain'
+        value={
+          data?.days_since_retrain != null
+            ? String(data.days_since_retrain)
+            : '—'
+        }
+        // arbitrary alert threshold
+        alert={data?.days_since_retrain != null && data.days_since_retrain > 14}
       />
     </>
   );
 }
 
-function ChampionModelStat() {
-  // TODO: query GET /api/model-stats?champion=true → { version: string, roc_auc: number }
-  return <StatCard label='Champion model' value='—' sub='connect /api/model-stats' />;
+interface ModelInfo {
+  model_version: string;
+  training_roc_auc: number | null;
 }
 
-type StatCardProps = { label: string; value: string; sub?: string; alert?: boolean };
+function ChampionModelStat() {
+  const { data: temp } = useSuspenseQuery({
+    queryKey: ['modelInfo'],
+    queryFn: () =>
+      apiFetch('/model-info').then((r) => r.json() as Promise<ModelInfo>),
+    staleTime: 60 * 60 * 1000,
+  });
+
+  // TODO: delete - use actual data
+  const data: ModelInfo = {
+    model_version: '0129834',
+    training_roc_auc: 0.947583782,
+  };
+
+  return (
+    <StatCard
+      label='Champion model'
+      value={
+        data?.training_roc_auc != null ? data.training_roc_auc.toFixed(4) : '—'
+      }
+      sub={
+        data?.model_version
+          ? `v${data.model_version} · training AUC`
+          : undefined
+      }
+    />
+  );
+}
+
+type StatCardProps = {
+  label: string;
+  value: string;
+  sub?: string;
+  alert?: boolean;
+};
 
 function StatCard({ label, value, sub, alert }: StatCardProps) {
   return (
     <Box>
-      <Typography variant='overline' sx={{ color: 'text.disabled', mb: 1, display: 'block' }}>
+      <Typography
+        variant='overline'
+        sx={{ color: 'text.disabled', mb: 1, display: 'block' }}
+      >
         {label}
       </Typography>
       <Typography
@@ -204,7 +270,14 @@ function StatCard({ label, value, sub, alert }: StatCardProps) {
         {value}
       </Typography>
       {sub && (
-        <Typography sx={{ fontFamily: monoFont, fontSize: 11, color: 'text.disabled', mt: 1 }}>
+        <Typography
+          sx={{
+            fontFamily: monoFont,
+            fontSize: 11,
+            color: 'text.disabled',
+            mt: 1,
+          }}
+        >
           {sub}
         </Typography>
       )}
@@ -231,14 +304,78 @@ function BodyGrid() {
   );
 }
 
+// interface DriftSummary {
+//   psi_breaches: number;
+//   features: Array<{
+//     name: string;
+//     psi: number;
+//     severity: 'green' | 'amber' | 'red';
+//   }>;
+// }
+interface DriftSummary {
+  report_date: string;
+  psi_breaches: number;
+  n_features: number;
+  max_psi: number;
+  model_version: string | null;
+  features: Array<{
+    name: string;
+    psi: number;
+    severity: 'green' | 'amber' | 'red';
+  }>;
+}
+
 function FeatureDriftPanel() {
-  // query: GET /api/drift/summary → DriftSummary
-  const { data } = useSuspenseQuery({
+  const { data: temp } = useSuspenseQuery({
     queryKey: ['drift', 'summary'],
     queryFn: () =>
-      apiFetch('/api/drift/summary').then((r) => r.json() as Promise<DriftSummary>),
+      apiFetch('/api/drift/summary').then(
+        (r) => r.json() as Promise<DriftSummary>,
+      ),
     staleTime: 60 * 60 * 1000,
   });
+
+  console.log('TODO: remove temp', temp);
+  // TODO: use actual data
+  const data: DriftSummary = {
+    report_date: '2024-01-01',
+    psi_breaches: 2,
+    n_features: 22,
+    max_psi: 0.4,
+    model_version: '029384',
+    features: [
+      {
+        name: 'feature_1',
+        psi: 0.03,
+        severity: 'green',
+      },
+      {
+        name: 'feature_2',
+        psi: 0.08,
+        severity: 'green',
+      },
+      {
+        name: 'feature_3',
+        psi: 0.27,
+        severity: 'red',
+      },
+      {
+        name: 'feature_4',
+        psi: 0.18,
+        severity: 'amber',
+      },
+      {
+        name: 'feature_4',
+        psi: 0.06,
+        severity: 'green',
+      },
+      {
+        name: 'feature_6',
+        psi: 0.34,
+        severity: 'red',
+      },
+    ],
+  };
 
   const features = data?.features ?? [];
 
@@ -261,14 +398,19 @@ function FeatureDriftPanel() {
         }}
       >
         <Box>
-          <Typography variant='overline' sx={{ color: 'text.disabled', display: 'block' }}>
+          <Typography
+            variant='overline'
+            sx={{ color: 'text.disabled', display: 'block' }}
+          >
             Feature drift · today
           </Typography>
           <Typography variant='h3' sx={{ mt: 0.75 }}>
             What's driving shift
           </Typography>
         </Box>
-        <Typography sx={{ fontFamily: monoFont, fontSize: 11, color: 'text.secondary' }}>
+        <Typography
+          sx={{ fontFamily: monoFont, fontSize: 11, color: 'text.secondary' }}
+        >
           PSI · population stability
         </Typography>
       </Box>
@@ -291,7 +433,11 @@ type DriftFeature = {
 };
 
 function DriftRow({ feature }: { feature: DriftFeature }) {
-  const colorMap = { green: 'success.main', amber: 'warning.main', red: 'error.main' } as const;
+  const colorMap = {
+    green: 'success.main',
+    amber: 'warning.main',
+    red: 'error.main',
+  } as const;
   const barColor = colorMap[feature.severity];
   const pct = Math.min(feature.psi / 0.4, 1) * 100;
 
@@ -308,7 +454,9 @@ function DriftRow({ feature }: { feature: DriftFeature }) {
         '&:last-child': { borderBottom: 'none' },
       }}
     >
-      <Typography sx={{ fontSize: 13, fontWeight: 500 }}>{feature.name}</Typography>
+      <Typography sx={{ fontSize: 13, fontWeight: 500 }}>
+        {feature.name}
+      </Typography>
       <Box
         sx={{
           position: 'relative',
@@ -330,7 +478,12 @@ function DriftRow({ feature }: { feature: DriftFeature }) {
         />
       </Box>
       <Typography
-        sx={{ fontFamily: monoFont, fontSize: 12, textAlign: 'right', color: barColor }}
+        sx={{
+          fontFamily: monoFont,
+          fontSize: 12,
+          textAlign: 'right',
+          color: barColor,
+        }}
       >
         {feature.psi.toFixed(3)}
       </Typography>
@@ -339,12 +492,56 @@ function DriftRow({ feature }: { feature: DriftFeature }) {
 }
 
 function PsiStatusCard() {
-  const { data } = useSuspenseQuery({
+  const { data: temp } = useSuspenseQuery({
     queryKey: ['drift', 'summary'],
     queryFn: () =>
-      apiFetch('/api/drift/summary').then((r) => r.json() as Promise<DriftSummary>),
+      apiFetch('/api/drift/summary').then(
+        (r) => r.json() as Promise<DriftSummary>,
+      ),
     staleTime: 60 * 60 * 1000,
   });
+
+  console.log('actual drift summary', temp);
+  // TODO: use actual data
+  const data: DriftSummary = {
+    report_date: '2024-01-01',
+    psi_breaches: 2,
+    n_features: 22,
+    max_psi: 0.4,
+    model_version: '029384',
+    features: [
+      {
+        name: 'feature_1',
+        psi: 0.03,
+        severity: 'green',
+      },
+      {
+        name: 'feature_2',
+        psi: 0.08,
+        severity: 'green',
+      },
+      {
+        name: 'feature_3',
+        psi: 0.27,
+        severity: 'red',
+      },
+      {
+        name: 'feature_4',
+        psi: 0.18,
+        severity: 'amber',
+      },
+      {
+        name: 'feature_4',
+        psi: 0.06,
+        severity: 'green',
+      },
+      {
+        name: 'feature_6',
+        psi: 0.34,
+        severity: 'red',
+      },
+    ],
+  };
 
   const breachCount = data?.psi_breaches ?? 0;
   const hasBreaches = breachCount > 0;
@@ -363,7 +560,10 @@ function PsiStatusCard() {
       }}
     >
       <Box>
-        <Typography variant='overline' sx={{ color: 'text.disabled', display: 'block' }}>
+        <Typography
+          variant='overline'
+          sx={{ color: 'text.disabled', display: 'block' }}
+        >
           PSI status
         </Typography>
         <Typography variant='h3' sx={{ mt: 0.75 }}>
@@ -388,7 +588,9 @@ function PsiStatusCard() {
         </Typography>
       </Box>
 
-      <Typography sx={{ fontSize: 13, color: 'text.secondary', lineHeight: 1.55 }}>
+      <Typography
+        sx={{ fontSize: 13, color: 'text.secondary', lineHeight: 1.55 }}
+      >
         {hasBreaches
           ? 'PSI threshold of 0.2 exceeded. Review drift metrics for affected features.'
           : 'No PSI threshold breaches. All monitored features are within bounds.'}

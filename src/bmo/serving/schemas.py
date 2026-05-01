@@ -10,6 +10,8 @@ Pydantic v2 docs: https://docs.pydantic.dev/latest/
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -68,6 +70,8 @@ class ModelInfoResponse(BaseModel):
     model_version: str
     champion_alias: str
     loaded_at: str  # iso utc
+    registered_at: str  # iso utc
+    training_roc_auc: float | None
     feature_service: str
     shadow_version: str | None  # SHADOW_MODEL_VERSION if set
 
@@ -82,16 +86,29 @@ class HealthResponse(BaseModel):
 # ----- API responses ----- #
 
 
-class DriftSummaryRow(BaseModel):
-    report_date: str
-    n_breached: int
-    n_features: int
-    max_psi: float
-    model_version: str
+# class DriftSummaryRow(BaseModel):
+#     report_date: str
+#     n_breached: int
+#     n_features: int
+#     max_psi: float
+#     model_version: str
+
+
+# class DriftSummaryResponse(BaseModel):
+#     rows: list[DriftSummaryRow]
+class DriftFeatureSummary(BaseModel):
+    name: str
+    psi: float
+    severity: Literal['green', 'amber', 'red']
 
 
 class DriftSummaryResponse(BaseModel):
-    rows: list[DriftSummaryRow]
+    report_date: str
+    psi_breaches: int
+    n_features: int
+    max_psi: float
+    model_version: str | None
+    features: list[DriftFeatureSummary]
 
 
 class DriftMetricRow(BaseModel):
@@ -179,5 +196,7 @@ class PredictionsResponse(BaseModel):
 class PredictionsDayResponse(BaseModel):
     model_version: str | None
     model_loaded_at: str
+    registered_at: str
     n_flights_today: int
     positive_rate_today: float | None
+    days_since_retrain: int | None

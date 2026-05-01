@@ -30,6 +30,13 @@ export const Route = createRootRoute({
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { title: 'Holdline · ML Flight Delay Prediction' },
     ],
+    links: [
+      {
+        rel: 'icon',
+        type: 'image/svg+xml',
+        href: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'><rect x='1' y='8' width='16' height='2' fill='%232B6BFF'/><rect x='8' y='1' width='2' height='16' fill='%232B6BFF'/><circle cx='9' cy='9' r='2.5' fill='none' stroke='%232B6BFF' stroke-width='1.5'/></svg>",
+      },
+    ],
   }),
   component: RootComponent,
 });

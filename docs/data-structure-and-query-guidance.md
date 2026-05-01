@@ -268,6 +268,8 @@ Lineage and API access:
 - Unique constraint: `(score_date, model_version)`
 - Indexes: `score_date`, `model_version`
 
+<!-- markdownlint-disable MD024 -->
+
 #### SQLAlchemy example
 
 ```python
@@ -1140,6 +1142,8 @@ ORDER BY rows DESC;
 #### `mart_predictions`
 
 Reads `s3://staging/predictions/**/data.parquet` and left joins BTS actuals from `stg_flights`.
+
+There's ~60 day delay for BTS actual data.
 
 Lineage and API access:
 
