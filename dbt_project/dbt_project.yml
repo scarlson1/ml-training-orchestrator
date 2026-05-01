@@ -13,9 +13,9 @@ clean-targets: [target, dbt_packages]
 models:
   bmo:
     staging:
-      +materialized: view # no storage cost; always fresh
+      +materialized: ephemeral # inlined into downstream SQL; no database object needed, so feature models build correctly when selected in isolation
     intermediate:
-      +materialized: view # same - thin transformations
+      +materialized: ephemeral # same reasoning as staging; only mart_training_dataset depends on it
     features:
       +materialized: table # computed once and stored; window functions = expensive ==> don't want to recompute window fns over millions of rows every time training code queries a feature
     marts:

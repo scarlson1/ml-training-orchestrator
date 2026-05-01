@@ -59,8 +59,6 @@ from bmo.serving.schemas import (
     AccuracyResponse,
     AccuracyRow,
     DriftFeatureSummary,
-    DriftHeatmapResponse,
-    DriftHeatmapRow,
     DriftMetricRow,
     DriftResponse,
     DriftSummaryResponse,
@@ -568,48 +566,11 @@ async def modelstats(db: Engine = Depends(get_db), champion: bool = False) -> Mo
 
         data = [
             ModelRow(
-                model_version=r.model_version,
-                avg_roc_auc=r.avg_roc_auc,
-                last_scored=r.last_scored,
-                n_flights=r.total_flights_scored,
+                **r,
             )
             for r in rows
         ]
         return ModelStatsResponse(rows=data)
-
-
-@app.get('/api/drift/heatmap', response_model=DriftHeatmapResponse, tags=['api'])
-async def driftheatmap(
-    start_date: date | None = None, end_date: date | None = None, db: Engine = Depends(get_db)
-) -> DriftHeatmapResponse:
-    """features x dates. Query monitoring table (drift_metrics) in Postgres"""
-
-    _query = text("""
-                SELECT
-                    report_date,
-                    feature_name,
-                    psi_score,
-                    kl_divergence,
-                    rank,
-                    is_breached,
-                    model_version
-                FROM drift_metrics
-                WHERE report_date BETWEEN :start_date AND :end_date
-                ORDER BY report_date DESC, rank ASC
-                """)
-
-    with db.connect() as conn:
-        rows = (
-            conn.execute(
-                _query,
-                {'start_date': start_date, 'end_date': end_date},
-            )
-            .mappings()
-            .all()
-        )
-
-        data = [DriftHeatmapRow(**r) for r in rows]
-        return DriftHeatmapResponse(rows=data)
 
 
 @app.get('/api/psi/:feature_name', response_model=PsiResponse, tags=['api'])
@@ -674,8 +635,7 @@ async def predictions(
     days: int = 30, con: duckdb.DuckDBPyConnection = Depends(get_duckdb)
 ) -> PredictionsResponse:
     """
-    mart_predictions is a DuckDB view, so this needs DuckDB, not Postgres.
-    Queries mart_predictions in S3 storage.
+    mart_predictions is a DuckDB view of data in S3, so this needs DuckDB, not Postgres.
 
     DuckDB connections hold a file lock and aren't thread-safe, so read_only=True and asyncio.to_thread are used to avoid blocking the event loop (DuckDB api is synchronous ==> will block fast api event loop).
     """
@@ -693,6 +653,7 @@ async def predictions(
                         model_version,
                         COUNT(*)                                       AS n_flights,
                         AVG(predicted_is_delayed::int)                 AS positive_rate,
+                        AVG(predicted_delay_proba)                     AS avg_proba,
                         COUNT(*) FILTER (WHERE actual_is_delayed IS NOT NULL) AS n_with_actuals
                     FROM mart_predictions
                     WHERE score_date >= CURRENT_DATE - INTERVAL (? || ' days')
@@ -708,7 +669,10 @@ async def predictions(
             con.close()
         return rows
 
-    rows = await asyncio.to_thread(_query)
+    try:
+        rows = await asyncio.to_thread(_query)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
     return PredictionsResponse(rows=[PredictionRow(**r) for r in rows])
 
 
@@ -734,7 +698,10 @@ async def preditionstoday(
         finally:
             duck.close()
 
-    today = await asyncio.to_thread(_query)
+    try:
+        today = await asyncio.to_thread(_query)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
     days_since_retrain: int | None = None
     if loader.registered_at:

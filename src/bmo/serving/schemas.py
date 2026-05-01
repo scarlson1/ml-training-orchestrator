@@ -129,27 +129,22 @@ class DriftResponse(BaseModel):
 
 class ModelRow(BaseModel):
     model_version: str
+    last_scored: str  # float ??
     avg_roc_auc: float
-    last_scored: float
-    n_flights: int
+    avg_accuracy: float
+    avg_precision_score: float
+    avg_recall_score: float
+    avg_f1: float
+    avg_log_loss: float
+    avg_brier_score: float
+    avg_positive_rate: float
+    avg_actual_positive_rate: float
+    avg_n_flights_scored: int
+    total_n_flights: int
 
 
 class ModelStatsResponse(BaseModel):
     rows: list[ModelRow]
-
-
-class DriftHeatmapRow(BaseModel):
-    report_date: str
-    feature_name: str
-    psi_score: float
-    kl_divergence: float | None
-    rank: int
-    is_breached: bool
-    model_version: str | None
-
-
-class DriftHeatmapResponse(BaseModel):
-    rows: list[DriftHeatmapRow]
 
 
 class PsiRow(BaseModel):

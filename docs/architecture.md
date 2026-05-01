@@ -280,6 +280,8 @@ Three buckets:
 | `rejected`         | Rows that failed Pydantic schema validation, with a `rejection_reason` column          |
 | `mlflow-artifacts` | MLflow run artifacts — model binaries, Evidently HTML reports, feature importance JSON |
 
+See [data-structure-and-query-guidance.md](./data-structure-and-query-guidance.md)
+
 ### Apache Iceberg — Versioned Table Storage
 
 PyIceberg manages the `staged_flights`, `staged_weather`, `dim_airport`, `dim_route`, and `feat_cascading_delay` tables. Iceberg provides:

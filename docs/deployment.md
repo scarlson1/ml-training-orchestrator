@@ -1,6 +1,36 @@
 # Deployment
 
-TODO
+## Dagster
+
+### Startup sequence
+
+On every container start, `infra/docker/dagster-entrypoint.sh` runs before Dagster itself:
+
+1. **`dbt deps`** — installs dbt packages declared in `packages.yml` (e.g. `dbt_utils`) into `dbt_packages/`. Must run before `dbt parse` so macros can be resolved.
+2. **`dbt parse`** — reads the project and writes `dbt_project/target/manifest.json`. No SQL is executed; a throwaway DuckDB file (`/tmp/dbt_parse.duckdb`) satisfies the adapter connection check without touching the real feature store.
+3. **`dagster dev`** — starts the Dagster webserver + daemon. At import time, `@dbt_assets` in `dagster_project/assets/features_dbt.py` reads `manifest.json` and registers one Dagster asset per dbt model. If `manifest.json` is missing, Dagster crashes before serving any requests.
+
+The manifest is generated at runtime (not baked into the image) because it embeds paths resolved from environment variables (`DUCKDB_PATH`, `ICEBERG_CATALOG_URI`, etc.) that differ between dev and prod.
+
+### DuckDB persistence
+
+dbt writes feature tables into a local DuckDB file. In prod this file lives at `/dagster_home/bmo_features.duckdb`, which is on the `dagster_home` named Docker volume and persists across container restarts. The path is set via `DUCKDB_PATH` in `compose.prod.yml`.
+
+If the container restarts and `feast_feature_export` runs before `bmo_dbt_assets` has written the DuckDB file, it will fail with `database does not exist`. Fix: manually materialize the dbt feature models first (see below).
+
+### Running the feast pipeline manually
+
+The hourly schedule (`feast_hourly_schedule`) only runs `feast_materialized_features` — it assumes `feast_feature_export` has already written fresh Parquet to S3 from a prior dbt run. After a fresh deploy or container restart, trigger the full chain manually from the Dagster UI:
+
+1. Open the Dagster UI at port 3000.
+2. Navigate to **Assets → Asset graph**.
+3. Click `feast_feature_export` → in the toolbar select **Ancestors** to include all upstream dbt models.
+4. Click **Materialize selected**. Dagster runs the dbt models (via `dbt build`) then `feast_feature_export` in dependency order.
+5. Optionally add `feast_materialized_features` to the selection to push features to Redis in the same run.
+
+### Asset graph structure
+
+`bmo_dbt_assets` (the Python function) does not appear as a single node in the lineage graph. The `@dbt_assets` decorator expands the dbt manifest into one node per model. The function itself is the executor — it runs `dbt build` — but the visible nodes are the individual models (`feat_origin_airport_windowed`, `feat_carrier_rolling`, etc.). Materializing any dbt model node triggers `dbt build` for the full project.
 
 ## Terraform
 
