@@ -145,7 +145,6 @@ services:
 
 volumes:
   postgres_data:
-  redis_data:
   dagster_home:
   caddy_data: # TLS certs — must persist or Caddy re-issues on every restart (LE rate limit: 5/week)
   caddy_config: # Caddy internal config cache
