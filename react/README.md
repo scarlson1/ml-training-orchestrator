@@ -17,4 +17,18 @@ export default defineConfig({
 });
 ```
 
+Create project from Vercel dashboard
+
+- connect repo
+- set directory to `react`
+- update build directory, start command, etc.
+
 After deploy ensure FastAPI Cors policy is configure to accept requests from the Vercel domain.
+
+## Screenshots
+
+![React home](../docs/screenshot-home.png)
+![React predictions](../docs/screenshot-predictions.png)
+![React versions](../docs/screenshot-versions.png)
+![React drift](../docs/screenshot-drift.png)
+![React accuracy](../docs/screenshot-accuracy.png)

@@ -60,17 +60,35 @@ function HeroSection() {
           variant='body1'
           sx={{ color: 'text.secondary', maxWidth: 480, lineHeight: 1.6 }}
         >
-          BMO's XGBoost classifier trains nightly on BTS on-time performance
-          records and NOAA surface weather observations, with 24 point-in-time
-          correct features spanning airport congestion windows, carrier and
-          route rolling rates, and aircraft cascading delay. Auto-retrains when
-          Evidently detects PSI above 0.2.
+          Every night, BMO learns from the latest flight records and weather
+          data to keep its predictions sharp. It weighs 24 factors — including
+          airport congestion, carrier history, route patterns, and aircraft
+          delays — and automatically retrains itself when it detects meaningful
+          shifts in the data.
         </Typography>
       </Box>
       <MonitoringLinksPanel />
     </Box>
   );
 }
+
+// success #67C28E / warning #E8B065 / error #E88370 (dark palette)
+// const GREEN: FlightRoute['color'] = [0.404, 0.761, 0.557];
+// const AMBER: FlightRoute['color'] = [0.91, 0.69, 0.396];
+// const RED: FlightRoute['color'] = [0.91, 0.514, 0.439];
+
+// const DUMMY_ROUTES: FlightRoute[] = [
+//   { from: [33.64, -84.43], to: [40.64, -73.78], color: GREEN },   // ATL → JFK
+//   { from: [33.94, -118.41], to: [41.98, -87.91], color: AMBER },  // LAX → ORD
+//   { from: [47.45, -122.31], to: [37.62, -122.38], color: GREEN },  // SEA → SFO
+//   { from: [25.80, -80.29], to: [42.37, -71.01], color: RED },      // MIA → BOS
+//   { from: [32.90, -97.04], to: [39.86, -104.67], color: GREEN },   // DFW → DEN
+//   { from: [40.64, -73.78], to: [51.48, -0.45], color: AMBER },     // JFK → LHR
+//   { from: [33.94, -118.41], to: [35.77, 141.69], color: RED },     // LAX → NRT
+//   { from: [37.62, -122.38], to: [49.01, 2.55], color: GREEN },     // SFO → CDG
+//   { from: [41.98, -87.91], to: [-23.43, -46.47], color: AMBER },   // ORD → GRU
+//   { from: [33.64, -84.43], to: [-33.95, 151.18], color: RED },     // ATL → SYD
+// ];
 
 function MonitoringLinksPanel() {
   const links = [
@@ -160,7 +178,7 @@ interface PredictionSummary {
 }
 
 function TodayStats() {
-  const { data: temp } = useSuspenseQuery({
+  const { data: realData } = useSuspenseQuery({
     queryKey: ['predictions', 'today'],
     queryFn: () =>
       apiFetch('/api/predictions/today').then(
@@ -169,13 +187,16 @@ function TodayStats() {
     staleTime: 60 * 60 * 1000,
   });
   // TODO: remove temp
-  const data: PredictionSummary = {
-    n_flights_today: 923,
-    positive_rate_today: 0.18,
-    model_version: '0129834',
-    registered_at: '2026-04-28',
-    days_since_retrain: 2,
-  };
+  const data: PredictionSummary =
+    !realData?.n_flights_today && import.meta.env.DEV
+      ? {
+          n_flights_today: 923,
+          positive_rate_today: 0.18,
+          model_version: '0129834',
+          registered_at: '2026-04-28',
+          days_since_retrain: 2,
+        }
+      : realData;
 
   return (
     <>

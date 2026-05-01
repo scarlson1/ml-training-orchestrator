@@ -42,6 +42,16 @@ usermod -aG docker ubuntu   # lets ubuntu user run docker without sudo
 curl -LsSf https://astral.sh/uv/install.sh | HOME=/home/ubuntu sh
 chown -R ubuntu:ubuntu /home/ubuntu/.local
 
+# ── Swap ──────────────────────────────────────────────────────────────────────
+# No swap by default on Oracle ARM. Without it, DuckDB training jobs exhaust
+# RAM and the kernel thrashes until the OOM killer fires, making the VM
+# unresponsive for minutes at a time.
+fallocate -l 4G /swapfile
+chmod 600 /swapfile
+mkswap /swapfile
+swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+
 # ── VM keepalive cron ─────────────────────────────────────────────────────────
 # Oracle reclaims idle Always Free VMs after ~7 days of "inactivity".
 # This pings the Dagster health endpoint every 30 minutes to prevent that.

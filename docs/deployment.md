@@ -85,3 +85,49 @@ Builds `dagster.Dockerfile` and `serving.Dockerfile` → pushes image to registr
 - wait for [`cloud-init.sh`](/infra/terraform/oracle/cloud-init.sh) to finish installing docker
 - authenticate to GHCR to pull images created in `build-images.yml`
 - start/restart bmo-compose service on VM
+
+### TODO: document memory constraint approach
+
+`mart_training_dataset` was causing OOM issues (VM starting shutting down processes to make room for DuckDB; couldn't ssh into VM)
+
+> Obviously would be better to bump up OCPUs and RAM, but I'm out of free tier resources
+
+Fixes:
+
+- Add swap
+- DuckDB memory cap (in `training.py`)
+- Add container constraints in `compose.prod.yml`
+
+```bash
+# cloud-init.sh
+sudo fallocate -l 4G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+```python
+# training.py
+con = duckdb.connect(settings.duckdb_path, read_only=True)
+con.execute("SET memory_limit = '2GB'")
+con.execute("SET temp_directory = '/dagster_home/duckdb_spill'")
+
+```
+
+```yml
+# `compose.prod.yml`
+services:
+  dagster:
+    mem_limit: 3g # DuckDB lives here — give it the most
+  postgres:
+    mem_limit: 512m
+  mlflow:
+    mem_limit: 512m
+  redis:
+    mem_limit: 256m
+  caddy:
+    mem_limit: 128m
+  serving:
+    mem_limit: 512m
+```
