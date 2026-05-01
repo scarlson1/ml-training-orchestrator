@@ -189,7 +189,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'],  # ["https://my-app.com"],  # or ["*"] for open access
+    allow_origins=['https://ml-training-orchestrator.vercel.app'],
+    allow_origin_regex=r'https://ml-training-orchestrator.*\.vercel\.app',
     allow_methods=['POST', 'GET'],
     allow_headers=['Content-Type', 'Authorization'],
 )
