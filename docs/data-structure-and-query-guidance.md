@@ -168,7 +168,7 @@ Constraints and indexes:
 - `UNIQUE (report_date, feature_name)` for idempotent upserts.
 - Indexes on `rank`, `computed_at`, and `report_date`.
 
-**SQLAlchemy example**
+#### SQLAlchemy example
 
 ```python
 from sqlalchemy import create_engine, text
@@ -263,12 +263,12 @@ Lineage and API access:
 | `actual_positive_rate` | `DOUBLE PRECISION`                   | Observed positive rate                  |
 | `computed_at`          | `TIMESTAMPTZ NOT NULL DEFAULT NOW()` | Write timestamp                         |
 
-**Constraints / indexes**
+#### Constraints / indexes
 
 - Unique constraint: `(score_date, model_version)`
 - Indexes: `score_date`, `model_version`
 
-**SQLAlchemy example**
+#### SQLAlchemy example
 
 ```python
 from sqlalchemy import create_engine, text
@@ -459,7 +459,7 @@ Lineage and API access:
 | `tz_database_timezone` | `string`  | IANA timezone               |
 | `lcd_station_id`       | `string`  | Matched NOAA LCD station ID |
 
-**dbt model SQL example**
+#### dbt model SQL example
 
 ```sql
 SELECT iata_code, name, tz_database_timezone, lcd_station_id
