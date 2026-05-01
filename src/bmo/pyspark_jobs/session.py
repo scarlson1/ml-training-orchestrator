@@ -77,5 +77,10 @@ def make_spark_session(app_name: str) -> SparkSession:
             'spark.sql.extensions',
             'org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions',
         )
+        # Pin driver to loopback so local-mode executor file fetches don't try to
+        # reach a transient LAN IP (e.g. 192.168.x.x) that may be unreachable.
+        # Deployment note: spark job must run locally (same JVM process)
+        .config('spark.driver.host', '127.0.0.1')
+        .config('spark.driver.bindAddress', '127.0.0.1')
         .getOrCreate()
     )

@@ -66,6 +66,7 @@ class BmoDbtTranslator(DagsterDbtTranslator):
     # automation_condition=AutomationCondition.eager()
 )
 def bmo_dbt_assets(context: AssetExecutionContext, dbt: DbtCliResource) -> Iterator:
+    """reads dbt_project/target/manifest.json at import time and expands into one Dagster asset per dbt model. The function bmo_dbt_assets is the executor — it runs dbt build — but the nodes in the graph are the individual models it produces (feat_origin_airport_windowed, feat_carrier_rolling, etc.)."""
     # `dbt build` runs models + tests + seeds in DAG order
     # yields Dagster events (AssetMaterialization, AssetCheckResult) as dbt progresses
     yield from dbt.cli(['build'], context=context).stream()

@@ -74,6 +74,12 @@ graph LR
 ```
 
 ![Dagster asset lineage](docs/lineage.svg)
+![Dagster runs](docs/screenshot-dagster-runs.png)
+![mlflow](docs/screenshot-mlflow.png)
+![React home](docs/screenshot-home.png)
+![React predictions](docs/screenshot-predictions.png)
+![React versions](docs/screenshot-versions.png)
+![React drift](docs/screenshot-drift.png)
 
 Key Dagster primitives used:
 

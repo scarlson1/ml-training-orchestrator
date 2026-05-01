@@ -20,6 +20,7 @@ import { type ReactNode, Suspense } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { AppShell } from '~/components/AppShell';
 import { ErrorFallback } from '~/components/ErrorFallback';
+import { NotFound } from '~/components/NotFound';
 import { queryClient } from '~/config/queryClient';
 import { theme } from '~/config/theme';
 
@@ -39,6 +40,7 @@ export const Route = createRootRoute({
     ],
   }),
   component: RootComponent,
+  notFoundComponent: NotFound,
 });
 
 function RootComponent() {
