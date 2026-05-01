@@ -160,7 +160,7 @@ interface PredictionSummary {
 }
 
 function TodayStats() {
-  const { data: temp } = useSuspenseQuery({
+  const { data: realData } = useSuspenseQuery({
     queryKey: ['predictions', 'today'],
     queryFn: () =>
       apiFetch('/api/predictions/today').then(
@@ -169,13 +169,16 @@ function TodayStats() {
     staleTime: 60 * 60 * 1000,
   });
   // TODO: remove temp
-  const data: PredictionSummary = {
-    n_flights_today: 923,
-    positive_rate_today: 0.18,
-    model_version: '0129834',
-    registered_at: '2026-04-28',
-    days_since_retrain: 2,
-  };
+  const data: PredictionSummary =
+    !realData?.n_flights_today && import.meta.env.DEV
+      ? {
+          n_flights_today: 923,
+          positive_rate_today: 0.18,
+          model_version: '0129834',
+          registered_at: '2026-04-28',
+          days_since_retrain: 2,
+        }
+      : realData;
 
   return (
     <>
