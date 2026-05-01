@@ -125,6 +125,10 @@ Feast PIT join rule:
 
 [XGBoost python examples](https://github.com/dmlc/xgboost/tree/master/demo/guide-python)
 
+## Screenshots
+
+![Home](docs/screenshot-home.png)
+
 ### Storage
 
 Rough estimates per monthly partition:
