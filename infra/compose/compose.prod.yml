@@ -90,6 +90,7 @@ services:
       # R2 endpoint for DuckDB (strips the http:// scheme — DuckDB wants host:port only)
       DUCKDB_S3_ENDPOINT: ${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com
       DAGSTER_HOME: /dagster_home
+      DUCKDB_PATH: /dagster_home/bmo_features.duckdb
     volumes:
       - dagster_home:/dagster_home
     ports:

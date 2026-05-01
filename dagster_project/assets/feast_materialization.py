@@ -13,6 +13,7 @@ from feast import FeatureStore
 
 from bmo.common.config import settings
 from bmo.common.iceberg import make_catalog
+from dagster_project.resources.duckdb_resource import DuckDBResource
 
 # dbt models produce DuckDB tables. Feast needs Parquet on S3. This asset bridges the two.
 
@@ -91,7 +92,13 @@ def _export_cascading_delay(s3: s3fs.S3FileSystem, row_counts: dict) -> None:
 
 @asset(
     group_name='feast',
-    deps=['bmo_dbt_assets', 'feat_cascading_delay'],
+    deps=[
+        'feat_origin_airport_windowed',
+        'feat_dest_airport_windowed',
+        'feat_carrier_rolling',
+        'feat_route_rolling',
+        'feat_cascading_delay',
+    ],
     description=(
         'Export dbt feature model outputs from DuckDB to S3 Parquet for Feast offline store. '
         'Runs after dbt build completes. Each entity type gets its own S3 prefix'
@@ -101,8 +108,9 @@ def _export_cascading_delay(s3: s3fs.S3FileSystem, row_counts: dict) -> None:
         lower_bound_delta=timedelta(minutes=55),
     ),
 )
-def feast_feature_export(context: AssetExecutionContext) -> MaterializeResult:
-    con = duckdb.connect(settings.duckdb_path, read_only=True)
+def feast_feature_export(
+    context: AssetExecutionContext, duckdb: DuckDBResource
+) -> MaterializeResult:
     s3 = _get_s3fs()
     row_counts: dict[str, int] = {}
 
@@ -159,23 +167,22 @@ def feast_feature_export(context: AssetExecutionContext) -> MaterializeResult:
         },
     ]
 
-    for spec in exports:
-        count = _export_table(
-            con=con,
-            table=spec['table'],
-            entity_col=spec['entity_col'],
-            feature_cols=spec['features'],
-            s3=s3,
-            s3_path=spec['s3_path'],
-        )
-        row_counts[spec['table']] = count
-        context.log.info(f'Exported {spec["table"]}: {count} rows -> {spec["s3_path"]}')
+    with duckdb.get_connection(read_only=True) as con:
+        for spec in exports:
+            count = _export_table(
+                con=con,
+                table=spec['table'],
+                entity_col=spec['entity_col'],
+                feature_cols=spec['features'],
+                s3=s3,
+                s3_path=spec['s3_path'],
+            )
+            row_counts[spec['table']] = count
+            context.log.info(f'Exported {spec["table"]}: {count} rows -> {spec["s3_path"]}')
 
     # cascading delay comes from the iceberg table written by PySpark job,
     # not from DuckDB. Read via PyArrow/s3fs directly
     _export_cascading_delay(s3, row_counts)
-
-    con.close()
 
     return MaterializeResult(
         metadata={name: MetadataValue.int(count) for name, count in row_counts.items()}
