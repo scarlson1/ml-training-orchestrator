@@ -20,4 +20,15 @@
         output stderr
         format console
     }
+
+    # When the upstream serving container is down, Caddy returns a 503 from its
+    # own error handler — which has none of FastAPI's CORS headers. The browser
+    # then reports a misleading CORS error instead of the real 503. Adding these
+    # headers here ensures the actual status code is visible in the browser.
+    handle_errors {
+        header Access-Control-Allow-Origin "https://ml-training-orchestrator.vercel.app"
+        header Access-Control-Allow-Methods "GET, POST, OPTIONS"
+        header Access-Control-Allow-Headers "Content-Type, Authorization"
+        respond "{http.error.status_code} {http.error.status_text}"
+    }
 }

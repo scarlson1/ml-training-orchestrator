@@ -6,6 +6,7 @@ services:
     image: postgres:17
     container_name: postgres
     restart: unless-stopped
+    mem_limit: 512m
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -24,22 +25,24 @@ services:
       timeout: 3s
       retries: 10
 
-  redis:
-    image: redis:7-alpine
-    container_name: orchestration_redis
-    restart: unless-stopped
-    ports:
-      # Same pattern: loopback-only. Online store reads come from Fly.io (Upstash),
-      # not from this Redis — this one is only for local Feast dev/testing.
-      - '127.0.0.1:6379:6379'
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 10s
-      timeout: 3s
-      retries: 5
+  # use upstash instead
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: orchestration_redis
+  #   restart: unless-stopped
+  #   mem_limit: 512m
+  #   ports:
+  #     # Same pattern: loopback-only. Online store reads come from Fly.io (Upstash),
+  #     # not from this Redis — this one is only for local Feast dev/testing.
+  #     - '127.0.0.1:6379:6379'
+  #   volumes:
+  #     - redis_data:/data
+  #   command: redis-server --appendonly yes
+  #   healthcheck:
+  #     test: ['CMD', 'redis-cli', 'ping']
+  #     interval: 10s
+  #     timeout: 3s
+  #     retries: 5
 
   mlflow:
     build:
@@ -47,6 +50,7 @@ services:
       dockerfile: Dockerfile
     container_name: ml_flow
     restart: unless-stopped
+    mem_limit: 512m
     depends_on:
       postgres:
         condition: service_healthy
@@ -72,20 +76,18 @@ services:
     image: ghcr.io/${GHCR_OWNER}/bmo-dagster:latest
     container_name: bmo_dagster
     restart: unless-stopped
+    mem_limit: 3g
     depends_on:
       postgres:
         condition: service_healthy
       mlflow:
         condition: service_started
-      redis:
-        condition: service_healthy
     env_file:
       # .env on the VM — populated with R2 creds + Upstash URL from terraform outputs
       - ../../.env
     environment:
       # Override the localhost defaults from .env with Docker service names
       POSTGRES_HOST: postgres
-      REDIS_URL: redis://redis:6379
       MLFLOW_TRACKING_URI: http://mlflow:5000
       # R2 endpoint for DuckDB (strips the http:// scheme — DuckDB wants host:port only)
       DUCKDB_S3_ENDPOINT: ${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com
@@ -101,6 +103,7 @@ services:
     image: ghcr.io/${GHCR_OWNER}/bmo-serving:latest
     container_name: bmo_serving
     restart: unless-stopped
+    mem_limit: 512m
     depends_on:
       mlflow:
         condition: service_started
@@ -111,13 +114,21 @@ services:
       # REDIS_URL comes from .env (Upstash). Override here only if using local Redis instead.
     # No ports: block — serving is not publicly exposed. Caddy proxies to it internally
     # via the shared Docker network using the service name "serving".
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -sf http://localhost:8080/health || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   caddy:
     image: caddy:alpine
     container_name: bmo_caddy
     restart: unless-stopped
+    mem_limit: 512m
     depends_on:
-      - serving
+      serving:
+        condition: service_healthy
     env_file:
       - ../../.env
     volumes:
@@ -129,12 +140,12 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     ports:
-      - '0.0.0.0:80:80'    # ACME HTTP-01 challenge
-      - '0.0.0.0:443:443'  # HTTPS
+      - '0.0.0.0:80:80' # ACME HTTP-01 challenge
+      - '0.0.0.0:443:443' # HTTPS
 
 volumes:
   postgres_data:
   redis_data:
   dagster_home:
-  caddy_data:    # TLS certs — must persist or Caddy re-issues on every restart (LE rate limit: 5/week)
-  caddy_config:  # Caddy internal config cache
+  caddy_data: # TLS certs — must persist or Caddy re-issues on every restart (LE rate limit: 5/week)
+  caddy_config: # Caddy internal config cache

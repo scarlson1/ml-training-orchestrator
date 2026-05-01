@@ -92,7 +92,7 @@ _HPO_N_TRIALS = int(os.getenv('DAGSTER_HPO_N_TRIALS', '50'))
 
 @asset(
     group_name='training',
-    deps=['feast_materialized_features'],
+    deps=['feast_materialized_features', 'mart_training_dataset'],
     freshness_policy=FreshnessPolicy.cron(
         deadline_cron='0 3 * * *', lower_bound_delta=timedelta(hours=2)
     ),
@@ -119,6 +119,8 @@ def training_dataset(context: AssetExecutionContext) -> MaterializeResult:
     not just the DuckDB tables. The feast_feature_export asset bridges DuckDB → S3.
     """
     con = duckdb.connect(settings.duckdb_path, read_only=True)
+    con.execute("SET memory_limit = '2GB'")
+    con.execute("SET temp_directory = '/dagster_home/duckdb_spill'")
 
     # read label columns from dbt mart
     # strip feature cols from mart to let build_dataset retrieve via PIT join to ensure same temporal correctness logic as in production serving
