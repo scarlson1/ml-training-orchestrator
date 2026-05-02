@@ -18,7 +18,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../../infra/postgres/init.sql:/docker-entrypoint-initdb.d/01_init.sql
-      - ../../scripts/create_monitoring_tables.sql:/docker-entrypoint-initdb.d/02_monitoring.sql
+      - ../postgres/create_monitoring_tables.sql:/docker-entrypoint-initdb.d/02_monitoring.sql
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
       interval: 5s
@@ -62,7 +62,7 @@ services:
     command: >
       mlflow server
       --backend-store-uri postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      --artifacts-destination s3://bmo-mlflow-artifacts/
+      --artifacts-destination s3://mlflow-artifacts/
       --host 0.0.0.0
       --workers 2
     # No ports: Caddy proxies to mlflow:5000 via the shared Docker network.
