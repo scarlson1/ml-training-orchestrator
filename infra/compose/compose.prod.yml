@@ -50,7 +50,7 @@ services:
       dockerfile: Dockerfile
     container_name: ml_flow
     restart: unless-stopped
-    mem_limit: 512m
+    mem_limit: 1g
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,6 +64,7 @@ services:
       --backend-store-uri postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       --artifacts-destination s3://bmo-mlflow-artifacts/
       --host 0.0.0.0
+      --workers 2
       --allowed-hosts "mlflow,mlflow:5000,localhost,localhost:5000,127.0.0.1,${ORACLE_VM_IP},${ORACLE_VM_IP}:5000"
     ports:
       # Public-facing: Fly.io serving API reads model artifacts from MLflow
