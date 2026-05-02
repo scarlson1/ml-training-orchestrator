@@ -172,7 +172,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 error=str(exc),
             )
 
-    feature_client = FeatureClient(feature_repo_dir=_FEATURE_REPO_DIR)
+    try:
+        feature_client = FeatureClient(feature_repo_dir=_FEATURE_REPO_DIR)
+    except Exception as exc:
+        log.warning(
+            'feature store unavailable at startup — /predict will return 503 until resolved',
+            error=str(exc),
+        )
     log.info('serving ready', model_version=model_loader.model_version)
 
     yield  # application runs here
