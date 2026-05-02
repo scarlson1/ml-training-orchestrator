@@ -3,6 +3,23 @@
     email {$CADDY_EMAIL}
 }
 
+# MLFLOW_DOMAIN is injected from .env — e.g. mlflow.150-136-1-2.sslip.io
+# sslip.io wildcard DNS resolves any subdomain to the same IP.
+{$MLFLOW_DOMAIN} {
+    basicauth {
+        {$MLFLOW_USER} {$MLFLOW_HASHED_PASSWORD}
+    }
+
+    reverse_proxy mlflow:5000
+
+    encode gzip
+
+    log {
+        output stderr
+        format console
+    }
+}
+
 # SERVING_DOMAIN is injected from .env — e.g. 150-136-1-2.sslip.io or bmo-api.duckdns.org
 # Caddy automatically obtains and renews a Let's Encrypt cert for this domain.
 {$SERVING_DOMAIN} {

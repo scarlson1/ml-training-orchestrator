@@ -119,4 +119,4 @@ infra/terraform/tfplan
 *node_modules/
 *.tanstack/
 
-
+CLAUDE.md

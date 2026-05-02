@@ -1,8 +1,20 @@
+import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
+import LinearProgress from '@mui/material/LinearProgress';
+import Link from '@mui/material/Link';
+import Paper from '@mui/material/Paper';
+import Skeleton from '@mui/material/Skeleton';
+import Stack from '@mui/material/Stack';
 import { useColorScheme } from '@mui/material/styles';
-import { useQuery } from '@tanstack/react-query';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import Typography from '@mui/material/Typography';
+import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 import { apiFetch } from '~/api';
 import { Globe } from '~/components/Globe';
 import { monoFont, serifFont } from '~/config/themePrimitives';
@@ -320,6 +332,7 @@ function Sparkline({
     .map((v, i) => `${i === 0 ? 'M' : 'L'} ${i * step} ${norm(v)}`)
     .join(' ');
   const a = `${d} L ${width} ${height} L 0 ${height} Z`;
+
   return (
     <svg width={width} height={height} style={{ display: 'block' }}>
       {fill && <path d={a} fill={fill} />}
@@ -352,6 +365,7 @@ function ProbabilityArc({
   const [x2, y2] = polar(ang);
   const [bx, by] = polar(endA);
   const largeArc = ang - startA > Math.PI ? 1 : 0;
+
   return (
     <svg width={size} height={size} style={{ display: 'block' }}>
       <path
@@ -394,57 +408,58 @@ function FactorBar({ factor, t }: { factor: Factor; t: Tokens }) {
   const v = factor.value;
   const pct = Math.min(Math.abs(v) / 0.4, 1) * 50;
   const positive = v >= 0;
+
   return (
-    <div
-      style={{
+    <Box
+      sx={{
         display: 'grid',
         gridTemplateColumns: '1fr 180px 40px',
-        gap: 16,
+        gap: 2,
         alignItems: 'center',
-        padding: '10px 0',
+        py: '10px',
         borderBottom: `1px solid ${t.lineSoft}`,
       }}
     >
-      <div>
-        <div style={{ fontSize: 13, color: t.ink, fontWeight: 500 }}>
+      <Box>
+        <Typography sx={{ fontSize: 13, color: t.ink, fontWeight: 500 }}>
           {factor.name}
-        </div>
-        <div style={{ fontSize: 11, color: t.inkMuted, marginTop: 2 }}>
+        </Typography>
+        <Typography sx={{ fontSize: 11, color: t.inkMuted, mt: '2px' }}>
           {factor.detail}
-        </div>
-      </div>
-      <div
-        style={{
+        </Typography>
+      </Box>
+      <Box
+        sx={{
           position: 'relative',
           height: 6,
-          background: t.lineSoft,
-          borderRadius: 1,
+          bgcolor: t.lineSoft,
+          borderRadius: '1px',
         }}
       >
-        <div
-          style={{
+        <Box
+          sx={{
             position: 'absolute',
             top: 0,
             bottom: 0,
             left: '50%',
             width: 1,
-            background: t.line,
+            bgcolor: t.line,
           }}
         />
-        <div
-          style={{
+        <Box
+          sx={{
             position: 'absolute',
             top: 0,
             bottom: 0,
             left: positive ? '50%' : `${50 - pct}%`,
             width: `${pct}%`,
-            background: positive ? t.good : t.bad,
-            borderRadius: 1,
+            bgcolor: positive ? t.good : t.bad,
+            borderRadius: '1px',
           }}
         />
-      </div>
-      <div
-        style={{
+      </Box>
+      <Typography
+        sx={{
           fontFamily: monoFont,
           fontSize: 12,
           textAlign: 'right',
@@ -453,8 +468,8 @@ function FactorBar({ factor, t }: { factor: Factor; t: Tokens }) {
       >
         {positive ? '+' : ''}
         {(v * 100).toFixed(0)}
-      </div>
-    </div>
+      </Typography>
+    </Box>
   );
 }
 
@@ -471,7 +486,7 @@ function RouteHistoryChart({ flight, t }: { flight: Flight; t: Tokens }) {
     .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`)
     .join(' ');
   return (
-    <div style={{ position: 'relative', width: '100%', height: h }}>
+    <Box sx={{ position: 'relative', width: '100%', height: h }}>
       <svg
         viewBox={`0 0 ${w} ${h}`}
         preserveAspectRatio='none'
@@ -520,8 +535,8 @@ function RouteHistoryChart({ flight, t }: { flight: Flight; t: Tokens }) {
           />
         ))}
       </svg>
-      <div
-        style={{
+      <Typography
+        sx={{
           position: 'absolute',
           right: 0,
           top: h - 0.8 * h - 10,
@@ -531,8 +546,8 @@ function RouteHistoryChart({ flight, t }: { flight: Flight; t: Tokens }) {
         }}
       >
         80% target
-      </div>
-    </div>
+      </Typography>
+    </Box>
   );
 }
 
@@ -542,15 +557,16 @@ function NetworkMap({ t, height = 280 }: { t: Tokens; height?: number }) {
   const statusColor = (s: 'green' | 'amber' | 'red') =>
     s === 'red' ? t.bad : s === 'amber' ? t.warn : t.good;
   return (
-    <div
-      style={{
+    <Paper
+      variant='outlined'
+      sx={{
         position: 'relative',
         width: '100%',
         height,
-        background: t.panelAlt,
-        borderRadius: 4,
+        bgcolor: t.panelAlt,
+        borderColor: t.lineSoft,
+        borderRadius: '4px',
         overflow: 'hidden',
-        border: `1px solid ${t.lineSoft}`,
       }}
     >
       <svg
@@ -635,8 +651,8 @@ function NetworkMap({ t, height = 280 }: { t: Tokens; height?: number }) {
           );
         })}
       </svg>
-      <div
-        style={{
+      <Typography
+        sx={{
           position: 'absolute',
           top: 10,
           left: 10,
@@ -648,42 +664,36 @@ function NetworkMap({ t, height = 280 }: { t: Tokens; height?: number }) {
         }}
       >
         Live · simulated
-      </div>
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 10,
-          right: 12,
-          display: 'flex',
-          gap: 10,
-          fontSize: 10,
-          color: t.inkSoft,
-          fontFamily: monoFont,
-        }}
+      </Typography>
+      <Stack
+        direction='row'
+        spacing='10px'
+        sx={{ position: 'absolute', bottom: 10, right: 12 }}
       >
         {[
-          ['green', t.good, '<15m'],
-          ['amber', t.warn, '15–30m'],
-          ['red', t.bad, '30m+'],
-        ].map(([, col, label]) => (
-          <span
-            key={label as string}
-            style={{ display: 'flex', gap: 4, alignItems: 'center' }}
-          >
-            <span
-              style={{
+          [t.good, '<15m'],
+          [t.warn, '15–30m'],
+          [t.bad, '30m+'],
+        ].map(([col, label]) => (
+          <Stack key={label} direction='row' spacing='4px' sx={{ alignItems: 'center' }}>
+            <Box
+              sx={{
                 width: 6,
                 height: 6,
-                background: col as string,
-                borderRadius: 6,
-                display: 'inline-block',
+                bgcolor: col,
+                borderRadius: '50%',
+                flexShrink: 0,
               }}
             />
-            {label}
-          </span>
+            <Typography
+              sx={{ fontSize: 10, color: t.inkSoft, fontFamily: monoFont }}
+            >
+              {label}
+            </Typography>
+          </Stack>
         ))}
-      </div>
-    </div>
+      </Stack>
+    </Paper>
   );
 }
 
@@ -697,82 +707,81 @@ function AirlineComparison({
   currentCode: string;
 }) {
   return (
-    <div>
+    <Box>
       {AIRLINE_COMPARISON.map((a) => {
         const isCurrent = a.code === currentCode;
         return (
-          <div
+          <Box
             key={a.code}
-            style={{
+            sx={{
               display: 'grid',
               gridTemplateColumns: '20px 1fr 80px 56px 50px',
-              gap: 12,
+              gap: '12px',
               alignItems: 'center',
-              padding: '10px 0',
+              py: '10px',
               borderBottom: `1px solid ${t.lineSoft}`,
               opacity: isCurrent ? 1 : 0.78,
             }}
           >
-            <div
-              style={{
+            <Avatar
+              variant='rounded'
+              sx={{
                 width: 18,
                 height: 18,
-                borderRadius: 2,
-                background: t.chipBg,
-                display: 'grid',
-                placeItems: 'center',
-                fontSize: 9,
-                fontFamily: monoFont,
+                borderRadius: '2px',
+                bgcolor: t.chipBg,
                 color: t.inkSoft,
+                fontFamily: monoFont,
+                fontSize: 9,
                 fontWeight: 600,
               }}
             >
               {a.code}
-            </div>
-            <div
-              style={{
-                fontSize: 13,
-                color: t.ink,
-                fontWeight: isCurrent ? 600 : 400,
-              }}
-            >
-              {a.airline}
+            </Avatar>
+            <Stack direction='row' sx={{ alignItems: 'center' }}>
+              <Typography
+                sx={{
+                  fontSize: 13,
+                  color: t.ink,
+                  fontWeight: isCurrent ? 600 : 400,
+                }}
+              >
+                {a.airline}
+              </Typography>
               {isCurrent && (
-                <span
-                  style={{
-                    marginLeft: 8,
+                <Chip
+                  label='current'
+                  size='small'
+                  sx={{
+                    ml: 1,
+                    height: 16,
                     fontSize: 10,
                     color: t.accent,
-                    textTransform: 'uppercase',
+                    fontFamily: monoFont,
                     letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    bgcolor: 'transparent',
+                    border: 'none',
+                    '& .MuiChip-label': { px: '4px' },
                   }}
-                >
-                  current
-                </span>
+                />
               )}
-            </div>
-            <div
-              style={{
-                position: 'relative',
+            </Stack>
+            <LinearProgress
+              variant='determinate'
+              value={a.otp * 100}
+              sx={{
                 height: 4,
-                background: t.lineSoft,
-                borderRadius: 1,
+                borderRadius: '1px',
+                bgcolor: t.lineSoft,
+                '& .MuiLinearProgress-bar': {
+                  bgcolor: t.ink,
+                  borderRadius: '1px',
+                },
               }}
-            >
-              <div
-                style={{
-                  position: 'absolute',
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: `${a.otp * 100}%`,
-                  background: t.ink,
-                  borderRadius: 1,
-                }}
-              />
-            </div>
-            <div
-              style={{
+            />
+            <Typography
+              sx={{
                 fontFamily: monoFont,
                 fontSize: 12,
                 color: t.ink,
@@ -780,9 +789,9 @@ function AirlineComparison({
               }}
             >
               {(a.otp * 100).toFixed(0)}%
-            </div>
-            <div
-              style={{
+            </Typography>
+            <Typography
+              sx={{
                 fontFamily: monoFont,
                 fontSize: 12,
                 color: t.inkSoft,
@@ -790,11 +799,11 @@ function AirlineComparison({
               }}
             >
               {a.avgDelay}m
-            </div>
-          </div>
+            </Typography>
+          </Box>
         );
       })}
-    </div>
+    </Box>
   );
 }
 
@@ -812,38 +821,100 @@ function FlightSwitcher({
   t: Tokens;
 }) {
   return (
-    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-      {flights.map((f) => {
-        const active = f.id === current.id;
-        return (
-          <button
-            key={f.id}
-            onClick={() => onPick(f)}
-            style={{
-              border: `1px solid ${active ? t.ink : t.line}`,
-              background: active ? t.ink : 'transparent',
-              color: active ? t.bg : t.ink,
-              padding: '6px 10px',
-              borderRadius: 2,
-              fontFamily: monoFont,
-              fontSize: 11,
-              cursor: 'pointer',
-              letterSpacing: '0.04em',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            {f.code} {f.number} · {f.from.code}→{f.to.code}
-          </button>
-        );
-      })}
-    </div>
+    <ToggleButtonGroup
+      value={current.id}
+      exclusive
+      onChange={(_, newId: string | null) => {
+        if (newId != null) {
+          const f = flights.find((fl) => fl.id === newId);
+          if (f) onPick(f);
+        }
+      }}
+      sx={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 1,
+        '& .MuiToggleButtonGroup-grouped': {
+          border: `1px solid ${t.line} !important`,
+          borderRadius: '2px !important',
+          color: t.ink,
+          fontFamily: monoFont,
+          fontSize: 11,
+          letterSpacing: '0.04em',
+          px: '10px',
+          py: '6px',
+          textTransform: 'none',
+          '&.Mui-selected': {
+            bgcolor: t.ink,
+            color: t.bg,
+            borderColor: `${t.ink} !important`,
+            '&:hover': { bgcolor: t.inkSoft },
+          },
+        },
+      }}
+    >
+      {flights.map((f) => (
+        <ToggleButton key={f.id} value={f.id}>
+          {f.code} {f.number} · {f.from.code}→{f.to.code}
+        </ToggleButton>
+      ))}
+    </ToggleButtonGroup>
   );
 }
 
 // ─── KPI strip (real data) ────────────────────────────────────────────────────
 
+function KpiItem({
+  title,
+  value,
+  subtitle,
+  t,
+}: {
+  title: string;
+  value: string | number | null | undefined;
+  subtitle: string;
+  t: Tokens;
+}) {
+  return (
+    <Box sx={{ borderLeft: `1px solid ${t.line}`, pl: '14px' }}>
+      <Typography
+        sx={{
+          fontFamily: monoFont,
+          fontSize: 9,
+          color: t.inkMuted,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+        }}
+      >
+        {title}
+      </Typography>
+      <Typography
+        sx={{
+          fontFamily: serifFont,
+          fontSize: 26,
+          color: t.ink,
+          letterSpacing: '-0.02em',
+          mt: '2px',
+        }}
+      >
+        {value}
+      </Typography>
+      <Typography
+        sx={{
+          fontFamily: monoFont,
+          fontSize: 10,
+          color: t.inkMuted,
+          mt: '2px',
+        }}
+      >
+        {subtitle}
+      </Typography>
+    </Box>
+  );
+}
+
 function KpiStrip({ t }: { t: Tokens }) {
-  const { data: pred } = useQuery({
+  const { data: pred } = useSuspenseQuery({
     queryKey: ['predictions', 'today'],
     queryFn: () =>
       apiFetch('/api/predictions/today').then(
@@ -852,7 +923,7 @@ function KpiStrip({ t }: { t: Tokens }) {
     staleTime: 60 * 60 * 1000,
     retry: false,
   });
-  const { data: drift } = useQuery({
+  const { data: drift } = useSuspenseQuery({
     queryKey: ['drift', 'summary'],
     queryFn: () =>
       apiFetch('/api/drift/summary').then(
@@ -894,49 +965,26 @@ function KpiStrip({ t }: { t: Tokens }) {
   ];
 
   return (
-    <div style={{ display: 'flex', gap: 28, marginTop: 28 }}>
+    <Stack direction='row' spacing='28px' sx={{ mt: '28px' }}>
       {kpis.map((k, i) => (
-        <div
-          key={i}
-          style={{ borderLeft: `1px solid ${t.line}`, paddingLeft: 14 }}
-        >
-          <div
-            style={{
-              fontFamily: monoFont,
-              fontSize: 9,
-              color: t.inkMuted,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-            }}
-          >
-            {k.l}
-          </div>
-          <div
-            style={{
-              fontFamily: serifFont,
-              fontSize: 26,
-              color: t.ink,
-              letterSpacing: '-0.02em',
-              marginTop: 2,
-            }}
-          >
-            {k.v}
-          </div>
-          <div
-            style={{
-              fontFamily: monoFont,
-              fontSize: 10,
-              color: t.inkMuted,
-              marginTop: 2,
-            }}
-          >
-            {k.s}
-          </div>
-        </div>
+        <KpiItem
+          key={`kpi-${i}`}
+          title={k.l}
+          value={k.v}
+          subtitle={k.s}
+          t={t}
+        />
       ))}
-    </div>
+    </Stack>
   );
 }
+
+const KPI_FALLBACK = [
+  { l: 'In flight today', v: '—', s: 'flights scored' },
+  { l: 'Predicted on-time', v: '—', s: '- live rate' },
+  { l: 'PSI alerts', v: '—', s: 'unknown' },
+  { l: 'Model version', v: '—', s: 'champion' },
+];
 
 // ─── Hero section ─────────────────────────────────────────────────────────────
 
@@ -985,10 +1033,11 @@ function HeroSection({
   };
 
   return (
-    <section
-      style={{
+    <Box
+      component='section'
+      sx={{
         position: 'relative',
-        padding: '56px 56px 36px',
+        p: '56px 56px 36px',
         borderBottom: `1px solid ${t.line}`,
         background: isDark
           ? 'radial-gradient(ellipse at 65% 50%, #0A1124 0%, #0F0F0E 65%)'
@@ -996,9 +1045,8 @@ function HeroSection({
         overflow: 'hidden',
       }}
     >
-      {/* Globe — clips at right edge */}
-      <div
-        style={{
+      <Box
+        sx={{
           position: 'absolute',
           right: -120,
           top: -40,
@@ -1006,52 +1054,61 @@ function HeroSection({
           height: 720,
           pointerEvents: 'none',
           opacity: 0.95,
+          filter: isDark
+            ? 'drop-shadow(0 4px 16px rgba(0,0,0,0.40)) drop-shadow(0 1px 4px rgba(0,0,0,0.25))'
+            : 'drop-shadow(0 4px 16px rgba(0,0,0,0.06)) drop-shadow(0 1px 3px rgba(0,0,0,0.08))',
         }}
       >
         <Globe isDark={isDark} size={720} />
-      </div>
+      </Box>
 
-      <div
-        style={{
+      <Box
+        sx={{
           position: 'relative',
           display: 'grid',
           gridTemplateColumns: '1.1fr 1fr',
-          gap: 64,
+          gap: 8,
           alignItems: 'end',
           minHeight: 520,
         }}
       >
-        <div>
-          <div
-            style={{
-              fontFamily: monoFont,
-              fontSize: 11,
-              color: t.inkMuted,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              marginBottom: 16,
-            }}
+        <Box>
+          <Stack
+            direction='row'
+            sx={{ mb: 2, fontFamily: monoFont, alignItems: 'center' }}
           >
-            <span
-              style={{
+            <Box
+              component='span'
+              sx={{
                 display: 'inline-block',
                 width: 6,
                 height: 6,
-                borderRadius: 6,
-                background: t.good,
-                marginRight: 8,
-                verticalAlign: 'middle',
+                borderRadius: '50%',
+                bgcolor: t.good,
+                mr: 1,
+                flexShrink: 0,
               }}
             />
-            Live · ML flight delay prediction
-          </div>
-          <h1
-            style={{
+            <Typography
+              sx={{
+                fontFamily: monoFont,
+                fontSize: 11,
+                color: t.inkMuted,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+              }}
+            >
+              Live · ML flight delay prediction
+            </Typography>
+          </Stack>
+
+          <Typography
+            component='h1'
+            sx={{
               fontFamily: serifFont,
               fontSize: 64,
               lineHeight: 0.98,
               letterSpacing: '-0.025em',
-              margin: 0,
               fontWeight: 400,
               color: t.ink,
             }}
@@ -1059,14 +1116,16 @@ function HeroSection({
             Know whether
             <br />
             the flight{' '}
-            <em style={{ fontStyle: 'italic', color: t.inkSoft }}>will</em> hold
-            —
-            <br />
+            <Box component='em' sx={{ fontStyle: 'italic', color: t.inkSoft }}>
+              will
+            </Box>{' '}
+            hold —<br />
             before it pushes back.
-          </h1>
-          <p
-            style={{
-              marginTop: 20,
+          </Typography>
+
+          <Typography
+            sx={{
+              mt: '20px',
               fontSize: 15,
               color: t.inkSoft,
               maxWidth: 480,
@@ -1077,132 +1136,141 @@ function HeroSection({
             Holdline's ensemble model fuses METAR, TAF, ground-stop bulletins,
             fleet rotation, and 9 years of carrier OTP data into a calibrated
             probability — refreshed every 90 seconds.
-          </p>
+          </Typography>
 
-          <KpiStrip t={t} />
-        </div>
+          <ErrorBoundary
+            fallbackRender={({ error }) => {
+              console.log(error);
+              return (
+                <>
+                  <Stack direction='row' spacing='28px' sx={{ mt: '28px' }}>
+                    {KPI_FALLBACK.map((k, i) => (
+                      <KpiItem
+                        key={`kpi-${i}`}
+                        title={k.l}
+                        value={k.v}
+                        subtitle={k.s}
+                        t={t}
+                      />
+                    ))}
+                  </Stack>
+                  <Typography color='error' sx={{ py: 1 }}>
+                    {`Api Error: ${error instanceof Error ? error.message : 'Unknown error occurred. See console.'}`}
+                  </Typography>
+                </>
+              );
+            }}
+          >
+            <Suspense
+              fallback={
+                <Stack direction='row' spacing='28px' sx={{ mt: '28px' }}>
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <Box
+                      key={`load-kpi-${i}`}
+                      sx={{ borderLeft: `1px solid ${t.line}`, pl: '14px' }}
+                    >
+                      <Skeleton width={72} height={10} />
+                      <Skeleton width={40} height={30} sx={{ mt: '6px' }} />
+                      <Skeleton width={56} height={10} sx={{ mt: '6px' }} />
+                    </Box>
+                  ))}
+                </Stack>
+              }
+            >
+              <KpiStrip t={t} />
+            </Suspense>
+          </ErrorBoundary>
+        </Box>
 
         {/* Prediction form */}
-        <div
-          style={{
-            background: t.panelAlt,
-            border: `1px solid ${t.lineSoft}`,
-            borderRadius: 4,
-            padding: 24,
+        <Paper
+          variant='outlined'
+          sx={{
+            bgcolor: t.panelAlt,
+            borderColor: t.lineSoft,
+            borderRadius: '4px',
+            p: 3,
           }}
         >
-          <div
-            style={{
+          <Typography
+            sx={{
               fontFamily: monoFont,
               fontSize: 10,
               color: t.inkMuted,
               letterSpacing: '0.1em',
               textTransform: 'uppercase',
-              marginBottom: 14,
+              mb: '14px',
             }}
           >
             Predict a flight
-          </div>
-          <div
-            style={{
+          </Typography>
+          <Box
+            sx={{
               display: 'grid',
               gridTemplateColumns: '1fr 1fr 1fr auto',
-              gap: 0,
               border: `1px solid ${t.line}`,
-              borderRadius: 4,
-              background: t.panel,
+              borderRadius: '4px',
+              bgcolor: t.panel,
               overflow: 'hidden',
             }}
           >
-            <div
-              style={{
-                padding: '10px 14px',
-                borderRight: `1px solid ${t.lineSoft}`,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  color: t.inkMuted,
-                  marginBottom: 2,
-                  fontFamily: 'Inter, sans-serif',
-                }}
+            {[
+              ['Carrier', flight.code],
+              ['Number', flight.number],
+              ['Route', `${flight.from.code}–${flight.to.code}`],
+            ].map(([label, val]) => (
+              <Box
+                key={label}
+                sx={{ p: '10px 14px', borderRight: `1px solid ${t.lineSoft}` }}
               >
-                Carrier
-              </div>
-              <div style={{ fontFamily: monoFont, fontSize: 14, color: t.ink }}>
-                {flight.code}
-              </div>
-            </div>
-            <div
-              style={{
-                padding: '10px 14px',
-                borderRight: `1px solid ${t.lineSoft}`,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  color: t.inkMuted,
-                  marginBottom: 2,
-                  fontFamily: 'Inter, sans-serif',
-                }}
-              >
-                Number
-              </div>
-              <div style={{ fontFamily: monoFont, fontSize: 14, color: t.ink }}>
-                {flight.number}
-              </div>
-            </div>
-            <div
-              style={{
-                padding: '10px 14px',
-                borderRight: `1px solid ${t.lineSoft}`,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  color: t.inkMuted,
-                  marginBottom: 2,
-                  fontFamily: 'Inter, sans-serif',
-                }}
-              >
-                Route
-              </div>
-              <div style={{ fontFamily: monoFont, fontSize: 14, color: t.ink }}>
-                {flight.from.code}–{flight.to.code}
-              </div>
-            </div>
-            <button
+                <Typography
+                  sx={{
+                    fontSize: 10,
+                    color: t.inkMuted,
+                    mb: '2px',
+                    fontFamily: 'Inter, sans-serif',
+                  }}
+                >
+                  {label}
+                </Typography>
+                <Typography
+                  sx={{ fontFamily: monoFont, fontSize: 14, color: t.ink }}
+                >
+                  {val}
+                </Typography>
+              </Box>
+            ))}
+            <Button
               onClick={handlePredict}
               disabled={predicting}
-              style={{
-                background: predicting ? t.inkMuted : t.ink,
+              variant='contained'
+              disableElevation
+              sx={{
+                bgcolor: t.ink,
                 color: t.bg,
-                border: 'none',
-                padding: '0 22px',
+                borderRadius: 0,
                 fontSize: 13,
-                cursor: predicting ? 'not-allowed' : 'pointer',
-                fontFamily: 'Inter, sans-serif',
+                px: '22px',
                 fontWeight: 500,
-                transition: 'background 0.15s',
+                textTransform: 'none',
+                '&:hover': { bgcolor: t.inkSoft },
+                '&.Mui-disabled': { bgcolor: t.inkMuted, color: t.bg },
               }}
             >
               {predicting ? '…' : 'Predict →'}
-            </button>
-          </div>
-          <div style={{ marginTop: 14 }}>
+            </Button>
+          </Box>
+          <Box sx={{ mt: '14px' }}>
             <FlightSwitcher
               flights={FLIGHTS}
               current={flight}
               onPick={onPickFlight}
               t={t}
             />
-          </div>
-        </div>
-      </div>
-    </section>
+          </Box>
+        </Paper>
+      </Box>
+    </Box>
   );
 }
 
@@ -1237,45 +1305,43 @@ function PredictionHeadline({
   const confidence = Math.abs(onTimeProb - 0.5) * 2;
 
   return (
-    <section
-      style={{ padding: '40px 56px', borderBottom: `1px solid ${t.line}` }}
+    <Box
+      component='section'
+      sx={{ p: '40px 56px', borderBottom: `1px solid ${t.line}` }}
     >
-      <div
-        style={{
+      <Box
+        sx={{
           display: 'grid',
           gridTemplateColumns: '1.5fr 1fr 1fr 1fr',
-          gap: 48,
+          gap: 6,
           alignItems: 'start',
         }}
       >
         {/* flight identity */}
-        <div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'baseline',
-              gap: 18,
-              marginBottom: 8,
-            }}
+        <Box>
+          <Stack
+            direction='row'
+            spacing='18px'
+            sx={{ mb: 1, alignItems: 'baseline' }}
           >
-            <div
-              style={{ fontFamily: monoFont, fontSize: 13, color: t.inkSoft }}
+            <Typography
+              sx={{ fontFamily: monoFont, fontSize: 13, color: t.inkSoft }}
             >
               {flight.code} {flight.number}
-            </div>
-            <div
-              style={{
+            </Typography>
+            <Typography
+              sx={{
                 fontSize: 13,
                 color: t.inkMuted,
                 fontFamily: 'Inter, sans-serif',
               }}
             >
               {flight.airline} · {flight.aircraft}
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-            <div
-              style={{
+            </Typography>
+          </Stack>
+          <Stack direction='row' spacing='18px' sx={{ alignItems: 'center' }}>
+            <Typography
+              sx={{
                 fontFamily: serifFont,
                 fontSize: 56,
                 lineHeight: 1,
@@ -1284,7 +1350,7 @@ function PredictionHeadline({
               }}
             >
               {flight.from.code}
-            </div>
+            </Typography>
             <svg width='40' height='14' viewBox='0 0 40 14'>
               <line
                 x1='0'
@@ -1301,8 +1367,8 @@ function PredictionHeadline({
                 strokeWidth='1'
               />
             </svg>
-            <div
-              style={{
+            <Typography
+              sx={{
                 fontFamily: serifFont,
                 fontSize: 56,
                 lineHeight: 1,
@@ -1311,11 +1377,11 @@ function PredictionHeadline({
               }}
             >
               {flight.to.code}
-            </div>
-          </div>
-          <div
-            style={{
-              marginTop: 8,
+            </Typography>
+          </Stack>
+          <Typography
+            sx={{
+              mt: 1,
               fontSize: 13,
               color: t.inkSoft,
               fontFamily: 'Inter, sans-serif',
@@ -1323,62 +1389,58 @@ function PredictionHeadline({
           >
             {flight.from.city} → {flight.to.city} · {flight.sched.date} · dep{' '}
             {flight.sched.dep} {flight.from.tz}
-          </div>
+          </Typography>
           {prediction && (
-            <div
-              style={{
-                marginTop: 14,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
+            <Chip
+              icon={
+                <Box
+                  component='span'
+                  sx={{
+                    width: 5,
+                    height: 5,
+                    borderRadius: '50%',
+                    bgcolor: t.accent,
+                    ml: '10px !important',
+                    flexShrink: 0,
+                  }}
+                />
+              }
+              label={`live · ${prediction.model_version ? `v${prediction.model_version.slice(0, 6)}` : 'model'} · ${prediction.features_complete ? 'features complete' : 'partial features'}`}
+              variant='outlined'
+              sx={{
+                mt: '14px',
                 fontFamily: monoFont,
                 fontSize: 10,
                 color: t.accent,
-                border: `1px solid ${t.accent}`,
-                borderRadius: 3,
-                padding: '4px 10px',
+                borderColor: t.accent,
+                borderRadius: '3px',
+                height: 'auto',
                 letterSpacing: '0.06em',
+                '& .MuiChip-label': { px: '10px', py: '4px' },
+                '& .MuiChip-icon': { color: t.accent, mr: 0 },
               }}
-            >
-              <span
-                style={{
-                  width: 5,
-                  height: 5,
-                  borderRadius: '50%',
-                  background: t.accent,
-                  display: 'inline-block',
-                }}
-              />
-              live ·{' '}
-              {prediction.model_version
-                ? `v${prediction.model_version.slice(0, 6)}`
-                : 'model'}{' '}
-              ·{' '}
-              {prediction.features_complete
-                ? 'features complete'
-                : 'partial features'}
-            </div>
+            />
           )}
-        </div>
+        </Box>
 
         {/* probability arc */}
-        <div>
-          <div
-            style={{
+        <Box>
+          <Typography
+            sx={{
               fontFamily: monoFont,
               fontSize: 10,
               color: t.inkMuted,
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
-              marginBottom: 8,
+              mb: 1,
             }}
           >
             On-time probability
-          </div>
-          <div style={{ position: 'relative', display: 'inline-block' }}>
+          </Typography>
+          <Box sx={{ position: 'relative', display: 'inline-block' }}>
             <ProbabilityArc prob={onTimeProb} t={t} size={180} />
-            <div
-              style={{
+            <Box
+              sx={{
                 position: 'absolute',
                 inset: 0,
                 display: 'grid',
@@ -1386,9 +1448,9 @@ function PredictionHeadline({
                 textAlign: 'center',
               }}
             >
-              <div>
-                <div
-                  style={{
+              <Box>
+                <Typography
+                  sx={{
                     fontFamily: serifFont,
                     fontSize: 44,
                     fontWeight: 400,
@@ -1398,41 +1460,43 @@ function PredictionHeadline({
                   }}
                 >
                   {(onTimeProb * 100).toFixed(0)}
-                  <span style={{ fontSize: 22, color: t.inkSoft }}>%</span>
-                </div>
-                <div
-                  style={{
+                  <Box component='span' sx={{ fontSize: 22, color: t.inkSoft }}>
+                    %
+                  </Box>
+                </Typography>
+                <Typography
+                  sx={{
                     fontSize: 11,
                     color: verdict.color,
-                    marginTop: 6,
+                    mt: '6px',
                     fontWeight: 500,
                     fontFamily: 'Inter, sans-serif',
                   }}
                 >
                   {verdict.label}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+        </Box>
 
         {/* expected delay */}
-        <div>
-          <div
-            style={{
+        <Box>
+          <Typography
+            sx={{
               fontFamily: monoFont,
               fontSize: 10,
               color: t.inkMuted,
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
-              marginBottom: 8,
+              mb: 1,
             }}
           >
             Expected delay
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            <div
-              style={{
+          </Typography>
+          <Stack direction='row' spacing='6px' sx={{ alignItems: 'baseline' }}>
+            <Typography
+              sx={{
                 fontFamily: serifFont,
                 fontSize: 44,
                 lineHeight: 1,
@@ -1441,76 +1505,75 @@ function PredictionHeadline({
               }}
             >
               {delayP50}
-            </div>
-            <div
-              style={{
+            </Typography>
+            <Typography
+              sx={{
                 fontSize: 14,
                 color: t.inkSoft,
                 fontFamily: 'Inter, sans-serif',
               }}
             >
               min · p50
-            </div>
-          </div>
-          <div
-            style={{
-              marginTop: 16,
-              fontSize: 12,
-              color: t.inkSoft,
-              fontFamily: 'Inter, sans-serif',
-            }}
-          >
+            </Typography>
+          </Stack>
+          <Box sx={{ mt: 2 }}>
             {[
               ['p50', `+${delayP50}m`],
               ['p90', `+${delayP90}m`],
               ['cancel', `${(cancelProb * 100).toFixed(1)}%`],
             ].map(([label, val]) => (
-              <div
+              <Stack
                 key={label}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  padding: '4px 0',
-                  borderBottom: `1px solid ${t.lineSoft}`,
-                }}
+                direction='row'
+                sx={{ py: '4px', borderBottom: `1px solid ${t.lineSoft}`, justifyContent: 'space-between' }}
               >
-                <span>{label}</span>
-                <span style={{ fontFamily: monoFont }}>{val}</span>
-              </div>
+                <Typography
+                  sx={{
+                    fontSize: 12,
+                    color: t.inkSoft,
+                    fontFamily: 'Inter, sans-serif',
+                  }}
+                >
+                  {label}
+                </Typography>
+                <Typography
+                  sx={{ fontSize: 12, fontFamily: monoFont, color: t.inkSoft }}
+                >
+                  {val}
+                </Typography>
+              </Stack>
             ))}
-          </div>
-        </div>
+          </Box>
+        </Box>
 
         {/* model confidence */}
-        <div>
-          <div
-            style={{
+        <Box>
+          <Typography
+            sx={{
               fontFamily: monoFont,
               fontSize: 10,
               color: t.inkMuted,
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
-              marginBottom: 8,
+              mb: 1,
             }}
           >
             Model confidence
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            <div
-              style={{
-                fontFamily: serifFont,
-                fontSize: 44,
-                lineHeight: 1,
-                letterSpacing: '-0.02em',
-                color: t.ink,
-              }}
-            >
-              {confidence.toFixed(2)}
-            </div>
-          </div>
-          <div
-            style={{
-              marginTop: 16,
+          </Typography>
+          <Typography
+            sx={{
+              fontFamily: serifFont,
+              fontSize: 44,
+              lineHeight: 1,
+              letterSpacing: '-0.02em',
+              color: t.ink,
+            }}
+          >
+            {confidence.toFixed(2)}
+          </Typography>
+          <Typography
+            sx={{
+              mt: 2,
               fontSize: 12,
               color: t.inkSoft,
               lineHeight: 1.5,
@@ -1520,25 +1583,25 @@ function PredictionHeadline({
             {prediction
               ? `Scored live. Brier ~0.06. ${prediction.features_complete ? 'All features resolved.' : 'Some features missing.'}`
               : 'Calibrated against 14d holdout. Brier 0.061.'}
-          </div>
-          <button
-            style={{
-              marginTop: 14,
-              background: 'transparent',
+          </Typography>
+          <Button
+            variant='outlined'
+            sx={{
+              mt: '14px',
               color: t.ink,
-              border: `1px solid ${t.line}`,
-              padding: '6px 12px',
-              borderRadius: 2,
+              borderColor: t.line,
+              borderRadius: '2px',
               fontSize: 12,
-              cursor: 'pointer',
+              textTransform: 'none',
               fontFamily: 'Inter, sans-serif',
+              '&:hover': { borderColor: t.ink, bgcolor: 'transparent' },
             }}
           >
             Inspect features →
-          </button>
-        </div>
-      </div>
-    </section>
+          </Button>
+        </Box>
+      </Box>
+    </Box>
   );
 }
 
@@ -1549,34 +1612,32 @@ function AttributionAndHistory({ t, flight }: { t: Tokens; flight: Flight }) {
     flight.history.reduce((a, b) => a + b, 0) / flight.history.length,
   );
   return (
-    <section
-      style={{
-        padding: '40px 56px',
+    <Box
+      component='section'
+      sx={{
+        p: '40px 56px',
         display: 'grid',
         gridTemplateColumns: '1.3fr 1fr',
-        gap: 32,
+        gap: 4,
         borderBottom: `1px solid ${t.line}`,
       }}
     >
-      <div
-        style={{
-          background: t.panel,
-          border: `1px solid ${t.lineSoft}`,
-          borderRadius: 4,
-          padding: 24,
+      <Paper
+        variant='outlined'
+        sx={{
+          bgcolor: t.panel,
+          borderColor: t.lineSoft,
+          borderRadius: '4px',
+          p: 3,
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'baseline',
-            marginBottom: 18,
-          }}
+        <Stack
+          direction='row'
+          sx={{ mb: '18px', justifyContent: 'space-between', alignItems: 'baseline' }}
         >
-          <div>
-            <div
-              style={{
+          <Box>
+            <Typography
+              sx={{
                 fontFamily: monoFont,
                 fontSize: 10,
                 color: t.inkMuted,
@@ -1585,50 +1646,48 @@ function AttributionAndHistory({ t, flight }: { t: Tokens; flight: Flight }) {
               }}
             >
               Feature attribution
-            </div>
-            <h3
-              style={{
+            </Typography>
+            <Typography
+              component='h3'
+              sx={{
                 fontFamily: serifFont,
                 fontSize: 22,
-                margin: '6px 0 0',
+                mt: '6px',
                 fontWeight: 400,
                 letterSpacing: '-0.01em',
                 color: t.ink,
               }}
             >
               What's driving this prediction
-            </h3>
-          </div>
-          <div
-            style={{ fontSize: 11, color: t.inkMuted, fontFamily: monoFont }}
+            </Typography>
+          </Box>
+          <Typography
+            sx={{ fontSize: 11, color: t.inkMuted, fontFamily: monoFont }}
           >
             SHAP-equivalent · log-odds shift
-          </div>
-        </div>
+          </Typography>
+        </Stack>
         {flight.factors.map((f, i) => (
           <FactorBar key={i} factor={f} t={t} />
         ))}
-      </div>
+      </Paper>
 
-      <div
-        style={{
-          background: t.panel,
-          border: `1px solid ${t.lineSoft}`,
-          borderRadius: 4,
-          padding: 24,
+      <Paper
+        variant='outlined'
+        sx={{
+          bgcolor: t.panel,
+          borderColor: t.lineSoft,
+          borderRadius: '4px',
+          p: 3,
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'baseline',
-            marginBottom: 18,
-          }}
+        <Stack
+          direction='row'
+          sx={{ mb: '18px', justifyContent: 'space-between', alignItems: 'baseline' }}
         >
-          <div>
-            <div
-              style={{
+          <Box>
+            <Typography
+              sx={{
                 fontFamily: monoFont,
                 fontSize: 10,
                 color: t.inkMuted,
@@ -1637,43 +1696,60 @@ function AttributionAndHistory({ t, flight }: { t: Tokens; flight: Flight }) {
               }}
             >
               Route history · 14d
-            </div>
-            <h3
-              style={{
+            </Typography>
+            <Typography
+              component='h3'
+              sx={{
                 fontFamily: serifFont,
                 fontSize: 22,
-                margin: '6px 0 0',
+                mt: '6px',
                 fontWeight: 400,
                 letterSpacing: '-0.01em',
                 color: t.ink,
               }}
             >
               {flight.from.code} → {flight.to.code} on-time %
-            </h3>
-          </div>
-          <div style={{ fontFamily: monoFont, fontSize: 12, color: t.ink }}>
+            </Typography>
+          </Box>
+          <Typography sx={{ fontFamily: monoFont, fontSize: 12, color: t.ink }}>
             {avgOtp}
-            <span style={{ color: t.inkMuted }}>%</span>
-            <span style={{ marginLeft: 8, color: t.inkMuted }}>avg</span>
-          </div>
-        </div>
+            <Box component='span' sx={{ color: t.inkMuted }}>
+              %
+            </Box>
+            <Box component='span' sx={{ ml: 1, color: t.inkMuted }}>
+              avg
+            </Box>
+          </Typography>
+        </Stack>
         <RouteHistoryChart flight={flight} t={t} />
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            marginTop: 12,
+        <Stack
+          direction='row'
+          sx={{
+            mt: '12px',
             fontFamily: monoFont,
             fontSize: 10,
             color: t.inkMuted,
+            justifyContent: 'space-between',
           }}
         >
-          <span>14d ago</span>
-          <span>7d ago</span>
-          <span>today</span>
-        </div>
-      </div>
-    </section>
+          <Typography
+            sx={{ fontFamily: monoFont, fontSize: 10, color: t.inkMuted }}
+          >
+            14d ago
+          </Typography>
+          <Typography
+            sx={{ fontFamily: monoFont, fontSize: 10, color: t.inkMuted }}
+          >
+            7d ago
+          </Typography>
+          <Typography
+            sx={{ fontFamily: monoFont, fontSize: 10, color: t.inkMuted }}
+          >
+            today
+          </Typography>
+        </Stack>
+      </Paper>
+    </Box>
   );
 }
 
@@ -1715,34 +1791,33 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
     },
   ];
   return (
-    <section
-      style={{
-        padding: '40px 56px',
+    <Box
+      component='section'
+      sx={{
+        p: '40px 56px',
         display: 'grid',
         gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: 24,
+        gap: 3,
         borderBottom: `1px solid ${t.line}`,
       }}
     >
       {cards.map((c, i) => (
-        <div
+        <Paper
           key={i}
-          style={{
-            background: t.panel,
-            border: `1px solid ${t.lineSoft}`,
-            borderRadius: 4,
-            padding: 18,
+          variant='outlined'
+          sx={{
+            bgcolor: t.panel,
+            borderColor: t.lineSoft,
+            borderRadius: '4px',
+            p: '18px',
           }}
         >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'baseline',
-            }}
+          <Stack
+            direction='row'
+            sx={{ justifyContent: 'space-between', alignItems: 'baseline' }}
           >
-            <div
-              style={{
+            <Typography
+              sx={{
                 fontFamily: monoFont,
                 fontSize: 10,
                 color: t.inkMuted,
@@ -1751,35 +1826,35 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
               }}
             >
               {c.l}
-            </div>
-            <div
-              style={{ fontFamily: monoFont, fontSize: 11, color: t.inkSoft }}
+            </Typography>
+            <Typography
+              sx={{ fontFamily: monoFont, fontSize: 11, color: t.inkSoft }}
             >
               {c.code}
-            </div>
-          </div>
-          <div
-            style={{
+            </Typography>
+          </Stack>
+          <Typography
+            sx={{
               fontFamily: serifFont,
               fontSize: 22,
-              marginTop: 8,
+              mt: 1,
               color: c.col,
               letterSpacing: '-0.01em',
             }}
           >
             {c.top}
-          </div>
-          <div
-            style={{
+          </Typography>
+          <Typography
+            sx={{
               fontFamily: monoFont,
               fontSize: 11,
               color: t.inkSoft,
-              marginTop: 4,
+              mt: '4px',
             }}
           >
             {c.sub}
-          </div>
-          <div style={{ marginTop: 14 }}>
+          </Typography>
+          <Box sx={{ mt: '14px' }}>
             <Sparkline
               values={c.spark}
               color={c.col}
@@ -1787,10 +1862,10 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
               width={200}
               height={30}
             />
-          </div>
-        </div>
+          </Box>
+        </Paper>
       ))}
-    </section>
+    </Box>
   );
 }
 
@@ -1798,26 +1873,28 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
 
 function NetworkAndAirline({ t, flight }: { t: Tokens; flight: Flight }) {
   return (
-    <section
-      style={{
-        padding: '40px 56px',
+    <Box
+      component='section'
+      sx={{
+        p: '40px 56px',
         display: 'grid',
         gridTemplateColumns: '1.3fr 1fr',
-        gap: 32,
+        gap: 4,
         borderBottom: `1px solid ${t.line}`,
       }}
     >
-      <div
-        style={{
-          background: t.panel,
-          border: `1px solid ${t.lineSoft}`,
-          borderRadius: 4,
-          padding: 24,
+      <Paper
+        variant='outlined'
+        sx={{
+          bgcolor: t.panel,
+          borderColor: t.lineSoft,
+          borderRadius: '4px',
+          p: 3,
         }}
       >
-        <div style={{ marginBottom: 18 }}>
-          <div
-            style={{
+        <Box sx={{ mb: '18px' }}>
+          <Typography
+            sx={{
               fontFamily: monoFont,
               fontSize: 10,
               color: t.inkMuted,
@@ -1826,34 +1903,36 @@ function NetworkAndAirline({ t, flight }: { t: Tokens; flight: Flight }) {
             }}
           >
             Network · simulated
-          </div>
-          <h3
-            style={{
+          </Typography>
+          <Typography
+            component='h3'
+            sx={{
               fontFamily: serifFont,
               fontSize: 22,
-              margin: '6px 0 0',
+              mt: '6px',
               fontWeight: 400,
               letterSpacing: '-0.01em',
               color: t.ink,
             }}
           >
             Average delays across the system
-          </h3>
-        </div>
+          </Typography>
+        </Box>
         <NetworkMap t={t} height={290} />
-      </div>
+      </Paper>
 
-      <div
-        style={{
-          background: t.panel,
-          border: `1px solid ${t.lineSoft}`,
-          borderRadius: 4,
-          padding: 24,
+      <Paper
+        variant='outlined'
+        sx={{
+          bgcolor: t.panel,
+          borderColor: t.lineSoft,
+          borderRadius: '4px',
+          p: 3,
         }}
       >
-        <div style={{ marginBottom: 18 }}>
-          <div
-            style={{
+        <Box sx={{ mb: '18px' }}>
+          <Typography
+            sx={{
               fontFamily: monoFont,
               fontSize: 10,
               color: t.inkMuted,
@@ -1862,23 +1941,24 @@ function NetworkAndAirline({ t, flight }: { t: Tokens; flight: Flight }) {
             }}
           >
             Carrier comparison
-          </div>
-          <h3
-            style={{
+          </Typography>
+          <Typography
+            component='h3'
+            sx={{
               fontFamily: serifFont,
               fontSize: 22,
-              margin: '6px 0 0',
+              mt: '6px',
               fontWeight: 400,
               letterSpacing: '-0.01em',
               color: t.ink,
             }}
           >
             {flight.from.code} → {flight.to.code} · 30d OTP
-          </h3>
-        </div>
+          </Typography>
+        </Box>
         <AirlineComparison t={t} currentCode={flight.code} />
-      </div>
-    </section>
+      </Paper>
+    </Box>
   );
 }
 
@@ -1886,28 +1966,41 @@ function NetworkAndAirline({ t, flight }: { t: Tokens; flight: Flight }) {
 
 function PageFooter({ t }: { t: Tokens }) {
   return (
-    <footer
-      style={{
-        padding: '32px 56px 56px',
+    <Box
+      component='footer'
+      sx={{
+        p: '32px 56px 56px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        fontSize: 12,
-        color: t.inkMuted,
-        fontFamily: 'Inter, sans-serif',
       }}
     >
-      <div>
+      <Typography
+        sx={{
+          fontSize: 12,
+          color: t.inkMuted,
+          fontFamily: 'Inter, sans-serif',
+        }}
+      >
         © 2026 Holdline · ML predictions are probabilistic, not guarantees.
-      </div>
-      <div style={{ display: 'flex', gap: 18 }}>
+      </Typography>
+      <Stack direction='row' spacing='18px'>
         {['Status', 'Changelog', 'Pricing', 'API reference'].map((label) => (
-          <span key={label} style={{ cursor: 'pointer' }}>
+          <Link
+            key={label}
+            underline='hover'
+            sx={{
+              fontSize: 12,
+              color: t.inkMuted,
+              cursor: 'pointer',
+              fontFamily: 'Inter, sans-serif',
+            }}
+          >
             {label}
-          </span>
+          </Link>
         ))}
-      </div>
-    </footer>
+      </Stack>
+    </Box>
   );
 }
 

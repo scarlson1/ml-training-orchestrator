@@ -76,6 +76,7 @@ jobs:
             MLFLOW_TRACKING_URI=http://mlflow:5000
             # VM public IP — used by MLflow --allowed-hosts so browser access works
             ORACLE_VM_IP=${{ vars.ORACLE_VM_IP }}
+            MLFLOW_HASHED_PASSWORD='${{ secrets.MLFLOW_HASHED_PASSWORD }}'
 
             # DuckDB scratch path (ephemeral inside container)
             DUCKDB_PATH=/tmp/bmo_features.duckdb
