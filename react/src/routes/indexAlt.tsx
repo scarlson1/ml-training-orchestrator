@@ -1,8 +1,10 @@
+import { Skeleton } from '@mui/material';
 import Box from '@mui/material/Box';
 import { useColorScheme } from '@mui/material/styles';
-import { useQuery } from '@tanstack/react-query';
+import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 import { apiFetch } from '~/api';
 import { Globe } from '~/components/Globe';
 import { monoFont, serifFont } from '~/config/themePrimitives';
@@ -320,6 +322,7 @@ function Sparkline({
     .map((v, i) => `${i === 0 ? 'M' : 'L'} ${i * step} ${norm(v)}`)
     .join(' ');
   const a = `${d} L ${width} ${height} L 0 ${height} Z`;
+
   return (
     <svg width={width} height={height} style={{ display: 'block' }}>
       {fill && <path d={a} fill={fill} />}
@@ -352,6 +355,7 @@ function ProbabilityArc({
   const [x2, y2] = polar(ang);
   const [bx, by] = polar(endA);
   const largeArc = ang - startA > Math.PI ? 1 : 0;
+
   return (
     <svg width={size} height={size} style={{ display: 'block' }}>
       <path
@@ -394,6 +398,7 @@ function FactorBar({ factor, t }: { factor: Factor; t: Tokens }) {
   const v = factor.value;
   const pct = Math.min(Math.abs(v) / 0.4, 1) * 50;
   const positive = v >= 0;
+
   return (
     <div
       style={{
@@ -842,8 +847,57 @@ function FlightSwitcher({
 
 // ─── KPI strip (real data) ────────────────────────────────────────────────────
 
+function KpiItem({
+  title,
+  value,
+  subtitle,
+  t,
+}: {
+  title: string;
+  value: string | number | null | undefined;
+  subtitle: string;
+  t: Tokens;
+}) {
+  return (
+    <div style={{ borderLeft: `1px solid ${t.line}`, paddingLeft: 14 }}>
+      <div
+        style={{
+          fontFamily: monoFont,
+          fontSize: 9,
+          color: t.inkMuted,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+        }}
+      >
+        {title}
+      </div>
+      <div
+        style={{
+          fontFamily: serifFont,
+          fontSize: 26,
+          color: t.ink,
+          letterSpacing: '-0.02em',
+          marginTop: 2,
+        }}
+      >
+        {value}
+      </div>
+      <div
+        style={{
+          fontFamily: monoFont,
+          fontSize: 10,
+          color: t.inkMuted,
+          marginTop: 2,
+        }}
+      >
+        {subtitle}
+      </div>
+    </div>
+  );
+}
+
 function KpiStrip({ t }: { t: Tokens }) {
-  const { data: pred } = useQuery({
+  const { data: pred } = useSuspenseQuery({
     queryKey: ['predictions', 'today'],
     queryFn: () =>
       apiFetch('/api/predictions/today').then(
@@ -852,7 +906,7 @@ function KpiStrip({ t }: { t: Tokens }) {
     staleTime: 60 * 60 * 1000,
     retry: false,
   });
-  const { data: drift } = useQuery({
+  const { data: drift } = useSuspenseQuery({
     queryKey: ['drift', 'summary'],
     queryFn: () =>
       apiFetch('/api/drift/summary').then(
@@ -896,43 +950,13 @@ function KpiStrip({ t }: { t: Tokens }) {
   return (
     <div style={{ display: 'flex', gap: 28, marginTop: 28 }}>
       {kpis.map((k, i) => (
-        <div
-          key={i}
-          style={{ borderLeft: `1px solid ${t.line}`, paddingLeft: 14 }}
-        >
-          <div
-            style={{
-              fontFamily: monoFont,
-              fontSize: 9,
-              color: t.inkMuted,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-            }}
-          >
-            {k.l}
-          </div>
-          <div
-            style={{
-              fontFamily: serifFont,
-              fontSize: 26,
-              color: t.ink,
-              letterSpacing: '-0.02em',
-              marginTop: 2,
-            }}
-          >
-            {k.v}
-          </div>
-          <div
-            style={{
-              fontFamily: monoFont,
-              fontSize: 10,
-              color: t.inkMuted,
-              marginTop: 2,
-            }}
-          >
-            {k.s}
-          </div>
-        </div>
+        <KpiItem
+          key={`kpi-${i}`}
+          title={k.l}
+          value={k.v}
+          subtitle={k.s}
+          t={t}
+        />
       ))}
     </div>
   );
@@ -1006,6 +1030,9 @@ function HeroSection({
           height: 720,
           pointerEvents: 'none',
           opacity: 0.95,
+          filter: isDark
+            ? 'drop-shadow(0 4px 16px rgba(0,0,0,0.40)) drop-shadow(0 1px 4px rgba(0,0,0,0.25))'
+            : 'drop-shadow(0 4px 16px rgba(0,0,0,0.06)) drop-shadow(0 1px 3px rgba(0,0,0,0.08))',
         }}
       >
         <Globe isDark={isDark} size={720} />
@@ -1079,7 +1106,73 @@ function HeroSection({
             probability — refreshed every 90 seconds.
           </p>
 
-          <KpiStrip t={t} />
+          <ErrorBoundary
+            // FallbackComponent={ErrorFallback}
+            fallbackRender={({ error, resetErrorBoundary }) => (
+              <div style={{ display: 'flex', gap: 28, marginTop: 28 }}>
+                {[
+                  {
+                    l: 'In flight today',
+                    v: '—',
+                    s: 'flights scored',
+                  },
+                  {
+                    l: 'Predicted on-time',
+                    v: '—',
+                    s: '- live rate',
+                  },
+                  {
+                    l: 'PSI alerts',
+                    v: '—',
+                    s: 'unknown',
+                  },
+                  {
+                    l: 'Model version',
+                    v: '—',
+                    s: 'champion',
+                  },
+                ].map((k, i) => (
+                  <KpiItem
+                    key={`kpi-${i}`}
+                    title={k.l}
+                    value={k.v}
+                    subtitle={k.s}
+                    t={t}
+                  />
+                ))}
+              </div>
+            )}
+          >
+            <Suspense
+              fallback={
+                <div style={{ display: 'flex', gap: 28, marginTop: 28 }}>
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div
+                      key={`load-kpi-${i}`}
+                      style={{
+                        borderLeft: `1px solid ${t.line}`,
+                        paddingLeft: 14,
+                      }}
+                    >
+                      <Skeleton width={72} height={10} />
+                      <Skeleton
+                        width={40}
+                        height={30}
+                        style={{ marginTop: 6 }}
+                      />
+                      <Skeleton
+                        width={56}
+                        height={10}
+                        style={{ marginTop: 6 }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              }
+            >
+              <KpiStrip t={t} />
+            </Suspense>
+          </ErrorBoundary>
         </div>
 
         {/* Prediction form */}

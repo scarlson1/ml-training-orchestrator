@@ -696,19 +696,16 @@ async def preditionstoday(
     """Get todays predictions (should run 8am cron)"""
 
     def _query() -> tuple[int, float] | None:
-        try:
-            row = duck.execute(
-                """
-                SELECT
-                    COUNT(*)                               AS n_flights,
-                    AVG(predicted_is_delayed::int)         AS positive_rate,
-                FROM mart_predictions
-                WHERE score_date = CURRENT_DATE
-                """,
-            ).fetchone()
-            return (row[0], row[1]) if row is not None else None
-        finally:
-            duck.close()
+        row = duck.execute(
+            """
+            SELECT
+                COUNT(*)                               AS n_flights,
+                AVG(predicted_is_delayed::int)         AS positive_rate
+            FROM mart_predictions
+            WHERE score_date = CURRENT_DATE
+            """,
+        ).fetchone()
+        return (row[0], row[1]) if row is not None else None
 
     try:
         today = await asyncio.to_thread(_query)
