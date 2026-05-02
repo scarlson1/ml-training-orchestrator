@@ -119,7 +119,7 @@ def training_dataset(context: AssetExecutionContext) -> MaterializeResult:
     not just the DuckDB tables. The feast_feature_export asset bridges DuckDB → S3.
     """
     con = duckdb.connect(settings.duckdb_path, read_only=True)
-    con.execute("SET memory_limit = '2GB'")
+    con.execute("SET memory_limit = '4GB'")
     con.execute("SET temp_directory = '/dagster_home/duckdb_spill'")
 
     # read label columns from dbt mart

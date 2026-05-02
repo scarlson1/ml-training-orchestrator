@@ -50,7 +50,7 @@ services:
       dockerfile: Dockerfile
     container_name: ml_flow
     restart: unless-stopped
-    mem_limit: 1g
+    mem_limit: 1.5g
     depends_on:
       postgres:
         condition: service_healthy
@@ -65,10 +65,7 @@ services:
       --artifacts-destination s3://bmo-mlflow-artifacts/
       --host 0.0.0.0
       --workers 2
-      --allowed-hosts "mlflow,mlflow:5000,localhost,localhost:5000,127.0.0.1,${ORACLE_VM_IP},${ORACLE_VM_IP}:5000"
-    ports:
-      # Public-facing: Fly.io serving API reads model artifacts from MLflow
-      - '0.0.0.0:5000:5000'
+    # No ports: Caddy proxies to mlflow:5000 via the shared Docker network.
 
   dagster:
     build:
@@ -77,7 +74,7 @@ services:
     image: ghcr.io/${GHCR_OWNER}/bmo-dagster:latest
     container_name: bmo_dagster
     restart: unless-stopped
-    mem_limit: 3g
+    mem_limit: 5g
     depends_on:
       postgres:
         condition: service_healthy

@@ -25,7 +25,7 @@ variable "vm_ocpus" {
 
 variable "vm_memory_gb" {
   type    = number
-  default = 6
+  default = 8
 }
 
 variable "boot_volume_gb" {
