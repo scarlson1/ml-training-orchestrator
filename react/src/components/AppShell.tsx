@@ -8,6 +8,7 @@ import { monoFont, serifFont } from '~/config/themePrimitives';
 
 const NAV = [
   { label: 'Dashboard', to: '/' },
+  { label: 'Holdline', to: '/indexAlt' },
   { label: 'Predictions', to: '/predictions' },
   { label: 'Models', to: '/models' },
   { label: 'Drift', to: '/drift' },
