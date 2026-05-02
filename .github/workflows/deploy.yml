@@ -114,9 +114,9 @@ jobs:
 
             # Start on first deploy; rolling restart on subsequent ones
             if sudo systemctl is-active --quiet bmo-compose; then
-              sudo systemctl restart bmo-compose
+              sudo systemctl restart bmo-compose --no-block
             else
-              sudo systemctl start bmo-compose
+              sudo systemctl start bmo-compose --no-block
             fi
 
             # Poll until Dagster responds (up to 3m)
