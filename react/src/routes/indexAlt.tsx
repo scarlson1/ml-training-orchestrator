@@ -359,17 +359,19 @@ interface GlobeProps {
 }
 
 function HoldlineGlobe({ isDark, size = 560 }: GlobeProps) {
+  const [mounted, setMounted] = useState(false);
   const [rot, setRot] = useState(0);
   const [tick, setTick] = useState(0);
   const [hovered, setHovered] = useState<string | null>(null);
   const rafRef = useRef<number>(0);
-  const lastRef = useRef(performance.now());
+  const lastRef = useRef(0);
 
   useEffect(() => {
+    setMounted(true);
     let alive = true;
     const loop = (t: number) => {
       if (!alive) return;
-      const dt = (t - lastRef.current) / 1000;
+      const dt = lastRef.current === 0 ? 0 : (t - lastRef.current) / 1000;
       lastRef.current = t;
       setRot((r) => (r + dt * 4) % 360);
       setTick((k) => k + dt);
