@@ -20,6 +20,22 @@
     }
 }
 
+# DAGSTER_DOMAIN is injected from .env — e.g. dagster.150-136-1-2.sslip.io
+{$DAGSTER_DOMAIN} {
+    basicauth {
+        {$DAGSTER_USER} {$DAGSTER_HASHED_PASSWORD}
+    }
+
+    reverse_proxy dagster:3000
+
+    encode gzip
+
+    log {
+        output stderr
+        format console
+    }
+}
+
 # SERVING_DOMAIN is injected from .env — e.g. 150-136-1-2.sslip.io or bmo-api.duckdns.org
 # Caddy automatically obtains and renews a Let's Encrypt cert for this domain.
 {$SERVING_DOMAIN} {

@@ -406,6 +406,40 @@ The old code (the commented-out lines in dimensions.py) did exactly that — wro
 
 TODO
 
+Dagster UI: https://dagster.207.211.176.98.sslip.io ~~http://207.211.176.98:3000/~~
+MLflow UI: https://mlflow.207.211.176.98.sslip.io
+
+TODO: document generating pw hashs for mlflow & dagster (caddy): `docker run --rm caddy:alpine caddy hash-password --plaintext '<password>'`
+
+### Terraform (re)apply
+
+#### What survives the VM rebuild (stored externally):
+
+- All R2 data — `raw/`, `staging/`, `rejected/`, `mlflow-artifacts/` are Cloudflare and completely independent of the VM
+- Feast registry (`s3://staging/feast/registry.db`)
+- Upstash Redis (online feature store)
+- MLflow model artifacts (the actual .pkl/model files in mlflow-artifacts/)
+
+#### What's lost (Docker named volumes on the VM disk):
+
+- `postgres_data` — all Postgres databases: `bmo`, `dagster`, `iceberg`
+  - Dagster's run history, event log, sensor cursors, schedule state
+  - MLflow experiment/run metadata (the UI history — artifacts in R2 are fine)
+  - `drift_metrics` table (used by drift_retrain_sensor)
+- `dagster_home` — Dagster's local state
+
+#### Do you need to start from scratch? No. The pipeline is largely idempotent:
+
+- `station_map` already has an explicit R2 existence check — it'll skip if the file is there
+- BTS/NOAA ingestion likely skips already-present partitions (check `ingest_month` for a similar guard)
+- Staging, features, and training assets will find their inputs in R2
+
+#### What you will need to do:
+
+- Re-run the full asset graph once — Dagster will show everything as "never materialized" since its event log is gone, but most runs will be fast no-ops hitting existing R2 data
+- Re-register the model — `registered_model` needs to re-run to recreate the MLflow Model Registry entry (artifacts are still in R2, it just re-points to them)
+- Watch the `bts_new_month_sensor` — its cursor is reset, so it may try to queue all historical months. Those runs will skip quickly since the data exists in R2, but you might want to manually backfill and then let the sensor resume from current month
+
 ---
 
 ## ML Training Orchestrator — Technology Overview
