@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as PredictionsRouteImport } from './routes/predictions'
 import { Route as ModelsRouteImport } from './routes/models'
+import { Route as IndexAltRouteImport } from './routes/indexAlt'
 import { Route as DriftRouteImport } from './routes/drift'
 import { Route as AccuracyRouteImport } from './routes/accuracy'
 import { Route as IndexRouteImport } from './routes/index'
@@ -23,6 +24,11 @@ const PredictionsRoute = PredictionsRouteImport.update({
 const ModelsRoute = ModelsRouteImport.update({
   id: '/models',
   path: '/models',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexAltRoute = IndexAltRouteImport.update({
+  id: '/indexAlt',
+  path: '/indexAlt',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DriftRoute = DriftRouteImport.update({
@@ -45,6 +51,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/accuracy': typeof AccuracyRoute
   '/drift': typeof DriftRoute
+  '/indexAlt': typeof IndexAltRoute
   '/models': typeof ModelsRoute
   '/predictions': typeof PredictionsRoute
 }
@@ -52,6 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/accuracy': typeof AccuracyRoute
   '/drift': typeof DriftRoute
+  '/indexAlt': typeof IndexAltRoute
   '/models': typeof ModelsRoute
   '/predictions': typeof PredictionsRoute
 }
@@ -60,21 +68,36 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/accuracy': typeof AccuracyRoute
   '/drift': typeof DriftRoute
+  '/indexAlt': typeof IndexAltRoute
   '/models': typeof ModelsRoute
   '/predictions': typeof PredictionsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/accuracy' | '/drift' | '/models' | '/predictions'
+  fullPaths:
+    | '/'
+    | '/accuracy'
+    | '/drift'
+    | '/indexAlt'
+    | '/models'
+    | '/predictions'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/accuracy' | '/drift' | '/models' | '/predictions'
-  id: '__root__' | '/' | '/accuracy' | '/drift' | '/models' | '/predictions'
+  to: '/' | '/accuracy' | '/drift' | '/indexAlt' | '/models' | '/predictions'
+  id:
+    | '__root__'
+    | '/'
+    | '/accuracy'
+    | '/drift'
+    | '/indexAlt'
+    | '/models'
+    | '/predictions'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccuracyRoute: typeof AccuracyRoute
   DriftRoute: typeof DriftRoute
+  IndexAltRoute: typeof IndexAltRoute
   ModelsRoute: typeof ModelsRoute
   PredictionsRoute: typeof PredictionsRoute
 }
@@ -93,6 +116,13 @@ declare module '@tanstack/react-router' {
       path: '/models'
       fullPath: '/models'
       preLoaderRoute: typeof ModelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/indexAlt': {
+      id: '/indexAlt'
+      path: '/indexAlt'
+      fullPath: '/indexAlt'
+      preLoaderRoute: typeof IndexAltRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/drift': {
@@ -123,6 +153,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccuracyRoute: AccuracyRoute,
   DriftRoute: DriftRoute,
+  IndexAltRoute: IndexAltRoute,
   ModelsRoute: ModelsRoute,
   PredictionsRoute: PredictionsRoute,
 }
