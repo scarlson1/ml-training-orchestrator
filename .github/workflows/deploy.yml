@@ -76,6 +76,8 @@ jobs:
             MLFLOW_TRACKING_URI=http://mlflow:5000
             # VM public IP — used by MLflow --allowed-hosts so browser access works
             ORACLE_VM_IP=${{ vars.ORACLE_VM_IP }}
+            MLFLOW_DOMAIN=mlflow.${{ vars.ORACLE_VM_IP }}.sslip.io
+            MLFLOW_USER=admin
             MLFLOW_HASHED_PASSWORD='${{ secrets.MLFLOW_HASHED_PASSWORD }}'
 
             # DuckDB scratch path (ephemeral inside container)
@@ -89,6 +91,8 @@ jobs:
 
             # Dagster
             DAGSTER_HOME=/dagster_home
+            DAGSTER_USER=admin
+            DAGSTER_HASHED_PASSWORD='${{ secrets.DAGSTER_HASHED_PASSWORD }}'
 
             # Serving image — GHCR_OWNER is your GitHub username (github.com/<owner>)
             GHCR_OWNER=${{ github.repository_owner }}
