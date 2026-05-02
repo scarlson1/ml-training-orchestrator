@@ -16,7 +16,7 @@ locals {
 resource "cloudflare_r2_bucket" "bmo" {
   for_each   = local.buckets
   account_id = var.account_id
-  name       = "bmo-${each.key}"
+  name       = each.key
   # WNAM = Western North America. Pick the region closest to your Oracle VM.
   # Options: WNAM, ENAM, WEUR, EEUR, APAC
   location   = "ENAM"
