@@ -1,4 +1,4 @@
-import { Skeleton } from '@mui/material';
+import { Skeleton, Typography } from '@mui/material';
 import Box from '@mui/material/Box';
 import { useColorScheme } from '@mui/material/styles';
 import { useSuspenseQuery } from '@tanstack/react-query';
@@ -1107,41 +1107,49 @@ function HeroSection({
           </p>
 
           <ErrorBoundary
-            // FallbackComponent={ErrorFallback}
-            fallbackRender={({ error, resetErrorBoundary }) => (
-              <div style={{ display: 'flex', gap: 28, marginTop: 28 }}>
-                {[
-                  {
-                    l: 'In flight today',
-                    v: '—',
-                    s: 'flights scored',
-                  },
-                  {
-                    l: 'Predicted on-time',
-                    v: '—',
-                    s: '- live rate',
-                  },
-                  {
-                    l: 'PSI alerts',
-                    v: '—',
-                    s: 'unknown',
-                  },
-                  {
-                    l: 'Model version',
-                    v: '—',
-                    s: 'champion',
-                  },
-                ].map((k, i) => (
-                  <KpiItem
-                    key={`kpi-${i}`}
-                    title={k.l}
-                    value={k.v}
-                    subtitle={k.s}
-                    t={t}
-                  />
-                ))}
-              </div>
-            )}
+            fallbackRender={({ error }) => {
+              console.log(error);
+              return (
+                <>
+                  <div style={{ display: 'flex', gap: 28, marginTop: 28 }}>
+                    {[
+                      {
+                        l: 'In flight today',
+                        v: '—',
+                        s: 'flights scored',
+                      },
+                      {
+                        l: 'Predicted on-time',
+                        v: '—',
+                        s: '- live rate',
+                      },
+                      {
+                        l: 'PSI alerts',
+                        v: '—',
+                        s: 'unknown',
+                      },
+                      {
+                        l: 'Model version',
+                        v: '—',
+                        s: 'champion',
+                      },
+                    ].map((k, i) => (
+                      <KpiItem
+                        key={`kpi-${i}`}
+                        title={k.l}
+                        value={k.v}
+                        subtitle={k.s}
+                        t={t}
+                      />
+                    ))}
+                  </div>
+                  <Typography
+                    color='error'
+                    sx={{ py: 1 }}
+                  >{`Api Error: ${error instanceof Error ? error.message : 'Unknown error occurred. See console.'}`}</Typography>
+                </>
+              );
+            }}
           >
             <Suspense
               fallback={
