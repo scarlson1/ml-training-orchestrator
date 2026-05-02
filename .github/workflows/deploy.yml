@@ -93,6 +93,7 @@ jobs:
             DAGSTER_HOME=/dagster_home
             DAGSTER_USER=admin
             DAGSTER_HASHED_PASSWORD='${{ secrets.DAGSTER_HASHED_PASSWORD }}'
+            DAGSTER_DOMAIN=dagster.${{ vars.ORACLE_VM_IP }}.sslip.io
 
             # Serving image — GHCR_OWNER is your GitHub username (github.com/<owner>)
             GHCR_OWNER=${{ github.repository_owner }}
