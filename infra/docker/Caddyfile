@@ -10,7 +10,9 @@
         {$MLFLOW_USER} {$MLFLOW_HASHED_PASSWORD}
     }
 
-    reverse_proxy mlflow:5000
+    reverse_proxy mlflow:5000 {
+        header_up Host mlflow:5000
+    }
 
     encode gzip
 
@@ -26,7 +28,9 @@
         {$DAGSTER_USER} {$DAGSTER_HASHED_PASSWORD}
     }
 
-    reverse_proxy dagster:3000
+    reverse_proxy dagster:3000 {
+        header_up Host dagster:3000
+    }
 
     encode gzip
 
