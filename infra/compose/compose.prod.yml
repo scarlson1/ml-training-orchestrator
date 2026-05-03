@@ -125,7 +125,7 @@ services:
     mem_limit: 512m
     depends_on:
       serving:
-        condition: service_healthy
+        condition: service_started
     env_file:
       - ../../.env
     volumes:
