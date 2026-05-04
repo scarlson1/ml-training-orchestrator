@@ -119,6 +119,9 @@ jobs:
             echo "${{ secrets.GITHUB_TOKEN }}" \
               | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
+            # Pre-pull so the restart itself is instant (image already cached).
+            sudo docker pull ghcr.io/${{ github.repository_owner }}/bmo-dagster:latest
+
             # Start on first deploy; rolling restart on subsequent ones
             if sudo systemctl is-active --quiet bmo-compose; then
               sudo systemctl restart bmo-compose --no-block
@@ -126,13 +129,13 @@ jobs:
               sudo systemctl start bmo-compose --no-block
             fi
 
-            # Poll until Dagster responds (up to 3m)
-            for i in $(seq 1 36); do
+            # Poll until Dagster responds (up to 5m — dbt deps + parse + JVM init takes ~3.5m)
+            for i in $(seq 1 60); do
               if curl -sf http://localhost:3000/server_info > /dev/null; then
                 echo "Dagster healthy after $((i * 5))s"
                 exit 0
               fi
-              echo "Waiting for Dagster... (${i}/36)"
+              echo "Waiting for Dagster... (${i}/60)"
               sleep 5
             done
             echo "Dagster failed to become healthy" && exit 1
