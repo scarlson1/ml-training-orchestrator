@@ -47,7 +47,7 @@ from dagster import (
     asset,
 )
 from feast import FeatureStore
-from mlflow.exceptions import RestException
+from mlflow.exceptions import MlflowException, RestException
 from mlflow.tracking import MlflowClient
 
 from bmo.batch_scoring.score import score_partition
@@ -153,6 +153,11 @@ def batch_predictions(context: AssetExecutionContext) -> MaterializeResult:
         raise Failure(
             f'No champion alias found for model "{MODEL_NAME}". '
             'Run the training pipeline to register and promote a champion model first.'
+        ) from exc
+    except MlflowException as exc:
+        raise Failure(
+            f'Could not connect to MLflow at {settings.mlflow_tracking_uri}. '
+            'Ensure the MLflow tracking server is running.'
         ) from exc
     model_uri = f'models:/{MODEL_NAME}/@champion'
     model_version = champion.version
