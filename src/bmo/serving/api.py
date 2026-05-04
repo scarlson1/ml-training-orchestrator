@@ -700,7 +700,7 @@ async def predictions(
 
 @app.get('/api/predictions/today', response_model=PredictionsDayResponse, tags=['api'])
 async def preditionstoday(
-    loader: ModelLoader = Depends(get_model_loader),
+    # loader: ModelLoader = Depends(get_model_loader), # endpoint fails if model unavailable (only need metadata, not inference => can use model_loader without dependency)
     duck: duckdb.DuckDBPyConnection = Depends(get_duckdb),
 ) -> PredictionsDayResponse:
     """Get todays predictions (from 8am cron)"""
@@ -715,25 +715,38 @@ async def preditionstoday(
             WHERE score_date = CURRENT_DATE
             """,
         ).fetchone()
-        return (row[0], row[1]) if row is not None else None
+        if row is None:
+            return None
+
+        return int(row[0]), row[1]
 
     try:
         today = await asyncio.to_thread(_query)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
+    loader = model_loader
+
     days_since_retrain: int | None = None
-    if loader.registered_at:
+    if loader and loader.registered_at:
         days_since_retrain = (datetime.now(timezone.utc) - loader.registered_at).days
 
     return PredictionsDayResponse(
         model_version=loader.model_version if loader and loader.model_version else None,
         model_loaded_at=loader.loaded_at.isoformat() if loader and loader.loaded_at else '',
-        registered_at=loader.registered_at.isoformat() if loader.registered_at else '',
+        registered_at=loader.registered_at.isoformat() if loader and loader.registered_at else '',
         n_flights_today=today[0] if today else 0,
         positive_rate_today=round(today[1], 4) if today and today[1] is not None else None,
         days_since_retrain=days_since_retrain,
     )
+    # return PredictionsDayResponse(
+    #     model_version=loader.model_version if loader and loader.model_version else None,
+    #     model_loaded_at=loader.loaded_at.isoformat() if loader and loader.loaded_at else '',
+    #     registered_at=loader.registered_at.isoformat() if loader.registered_at else '',
+    #     n_flights_today=today[0] if today else 0,
+    #     positive_rate_today=round(today[1], 4) if today and today[1] is not None else None,
+    #     days_since_retrain=days_since_retrain,
+    # )
 
 
 @app.get('/api/routes/{route_key}/history', response_model=RouteHistoryResponse, tags=['api'])
@@ -744,6 +757,15 @@ async def routehistory(
 ) -> RouteHistoryResponse:
     """Route delay history"""
 
+    normalized_route_key = route_key.upper()
+    origin, separator, dest = normalized_route_key.partition('-')
+
+    if separator != '-' or not origin or not dest:
+        raise HTTPException(
+            status_code=422,
+            detail='route_key must be formatted as ORIGIN-DEST, for example SFO-JFK',
+        )
+
     def _query() -> list[int]:
         rows = cast(
             list[dict[str, Any]],
@@ -753,21 +775,24 @@ async def routehistory(
                     score_date::text AS score_date,
                     ROUND(AVG((1 - predicted_is_delayed) * 100))::INTEGER AS otp_pct
                 FROM mart_predictions
-                WHERE (route_key = ? OR (route_key IS NULL AND origin || '-' || dest = ?))
-                    AND score_date >= CURRENT_DATE - INTERVAL (? || ' days')
+                WHERE score_date >= CURRENT_DATE - (? * INTERVAL '1 day')
+                    AND (
+                        route_key = ?
+                        OR (origin = ? AND dest = ?)
+                    )
                 GROUP BY score_date
                 ORDER BY score_date ASC
                 """,
-                [route_key, days],
+                [days, normalized_route_key, origin, dest],
             )
             .df()
-            .to_dict(),
+            .to_dict('records'),
         )
-        return [int(r['otp_pct']) for r in rows]
+        return [int(r['otp_pct']) for r in rows if r['otp_pct'] is not None]
 
     try:
         result = await asyncio.to_thread(_query)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
-    return RouteHistoryResponse(route_key=route_key, history=result, days=days)
+    return RouteHistoryResponse(route_key=normalized_route_key, history=result, days=days)

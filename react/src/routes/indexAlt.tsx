@@ -1777,16 +1777,45 @@ function RouteHistoryChart({
   });
   console.log('FLIGHT HISTORY: ', historyData);
   const data = historyData?.history || [];
+
   const w = 100;
   const h = 160;
-  const stepX = w / (data.length - 1);
-  const points = data.map((v, i) => [i * stepX, h - (v / 100) * h]);
-  const areaD =
-    points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`).join(' ') +
-    ` L ${w} ${h} L 0 ${h} Z`;
+  const validData = data.filter(Number.isFinite);
+
+  if (validData.length < 2) {
+    return (
+      <Box
+        sx={{
+          position: 'relative',
+          width: '100%',
+          height: h,
+          display: 'grid',
+          placeItems: 'center',
+          color: t.inkMuted,
+          fontFamily: monoFont,
+          fontSize: 12,
+        }}
+      >
+        No route history available
+      </Box>
+    );
+  }
+  const stepX = w / (validData.length - 1);
+  const points = validData.map((v, i) => [i * stepX, h - (v / 100) * h]);
+
   const lineD = points
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`)
+    .map(([x, y], index) => `${index === 0 ? 'M' : 'L'} ${x} ${y}`)
     .join(' ');
+
+  const areaD = `${lineD} L ${w} ${h} L 0 ${h} Z`;
+
+  // const areaD =
+  //   points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`).join(' ') +
+  //   ` L ${w} ${h} L 0 ${h} Z`;
+
+  // const lineD = points
+  //   .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`)
+  //   .join(' ');
 
   return (
     <Box sx={{ position: 'relative', width: '100%', height: h }}>
@@ -1904,7 +1933,7 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
     >
       {cards.map((c, i) => (
         <StatCard
-          key={`stat-${1}`}
+          key={`stat-${i}`}
           label={c.l}
           code={c.code}
           value={c.top}
