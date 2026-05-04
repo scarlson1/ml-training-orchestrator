@@ -10,9 +10,7 @@
         {$MLFLOW_USER} {$MLFLOW_HASHED_PASSWORD}
     }
 
-    reverse_proxy mlflow:5000 {
-        header_up Host mlflow:5000
-    }
+    reverse_proxy mlflow:5000
 
     encode gzip
 
