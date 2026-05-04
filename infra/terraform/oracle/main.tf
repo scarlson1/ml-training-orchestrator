@@ -94,7 +94,7 @@ resource "oci_core_security_list" "main" {
     }
   }
 
-  # MLflow tracking server (called by Dagster jobs + Fly.io serving API)
+  # MLflow tracking server (called by Dagster jobs + serving API)
   ingress_security_rules {
     protocol  = "6"
     source    = "0.0.0.0/0"
