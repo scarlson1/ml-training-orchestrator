@@ -256,14 +256,15 @@ async def health(
 
 
 @app.get('/model-info', response_model=ModelInfoResponse, tags=['ops'])
-async def model_info(loader: ModelLoader = Depends(get_model_loader)) -> ModelInfoResponse:
+async def model_info() -> ModelInfoResponse:  # loader: ModelLoader = Depends(get_model_loader)
+    loader = get_model_loader()
     return ModelInfoResponse(
         model_name=_MODEL_NAME,
-        model_version=loader.model_version or 'unknown',
+        model_version=loader.model_version if loader and loader.model_version else 'unknown',
         champion_alias='champion',
-        loaded_at=loader.loaded_at.isoformat() if loader.loaded_at else '',
-        registered_at=loader.registered_at.isoformat() if loader.registered_at else '',
-        training_roc_auc=loader.training_roc_auc,
+        loaded_at=loader.loaded_at.isoformat() if loader and loader.loaded_at else '',
+        registered_at=loader.registered_at.isoformat() if loader and loader.registered_at else '',
+        training_roc_auc=loader.training_roc_auc if loader and loader.training_roc_auc else None,
         feature_service='flight_delay_predictions',
         shadow_version=_SHADOW_MODEL_VERSION,
     )
@@ -678,7 +679,7 @@ async def predictions(
                         AVG(predicted_delay_proba)                     AS avg_proba,
                         COUNT(*) FILTER (WHERE actual_is_delayed IS NOT NULL) AS n_with_actuals
                     FROM mart_predictions
-                    WHERE score_date >= CURRENT_DATE - INTERVAL (? || ' days')
+                    WHERE CAST(score_date AS DATE) >= CURRENT_DATE - INTERVAL (? || ' days')
                     GROUP BY score_date, model_version
                     ORDER BY score_date DESC
                     """,

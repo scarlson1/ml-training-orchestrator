@@ -1485,4 +1485,9 @@ r2_endpoint_url = "https://2662189f53004928cc8e89c79f095db9.r2.cloudflarestorage
 
 #### MLFlow UI: http://<VM_ID>:5000 http://207.211.176.98:5000
 
-TODO: debug missing feature views in VM - `batch_predictions` fails b/c Feast has empty feature views
+---
+
+### TODO:
+
+- debug missing feature views in VM - `batch_predictions` fails b/c Feast has empty feature views
+- dagster resources - wire up dagster resources (duckDB, Feast, S3, mlflow)

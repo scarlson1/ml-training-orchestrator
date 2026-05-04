@@ -328,6 +328,9 @@ serving = [
     { name = "feast", extra = ["redis"] },
     { name = "mlflow-skinny" },
     { name = "prometheus-client" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
+    { name = "xgboost" },
 ]
 spark = [
     { name = "delta-spark" },
@@ -399,6 +402,9 @@ serving = [
     { name = "feast", extras = ["redis"], specifier = ">=0.50" },
     { name = "mlflow-skinny", specifier = ">=3.11" },
     { name = "prometheus-client" },
+    { name = "scikit-learn", specifier = ">=1.8" },
+    { name = "scipy", specifier = ">=1.17" },
+    { name = "xgboost", specifier = ">=3.2" },
 ]
 spark = [
     { name = "delta-spark", specifier = ">=3.2" },

@@ -11,10 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as PredictionsRouteImport } from './routes/predictions'
 import { Route as ModelsRouteImport } from './routes/models'
-import { Route as IndexAltRouteImport } from './routes/indexAlt'
 import { Route as DriftRouteImport } from './routes/drift'
 import { Route as AccuracyRouteImport } from './routes/accuracy'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as OldIndexRouteImport } from './routes/old.index'
 
 const PredictionsRoute = PredictionsRouteImport.update({
   id: '/predictions',
@@ -24,11 +24,6 @@ const PredictionsRoute = PredictionsRouteImport.update({
 const ModelsRoute = ModelsRouteImport.update({
   id: '/models',
   path: '/models',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const IndexAltRoute = IndexAltRouteImport.update({
-  id: '/indexAlt',
-  path: '/indexAlt',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DriftRoute = DriftRouteImport.update({
@@ -46,60 +41,59 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OldIndexRoute = OldIndexRouteImport.update({
+  id: '/old/',
+  path: '/old/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/accuracy': typeof AccuracyRoute
   '/drift': typeof DriftRoute
-  '/indexAlt': typeof IndexAltRoute
   '/models': typeof ModelsRoute
   '/predictions': typeof PredictionsRoute
+  '/old/': typeof OldIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/accuracy': typeof AccuracyRoute
   '/drift': typeof DriftRoute
-  '/indexAlt': typeof IndexAltRoute
   '/models': typeof ModelsRoute
   '/predictions': typeof PredictionsRoute
+  '/old': typeof OldIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/accuracy': typeof AccuracyRoute
   '/drift': typeof DriftRoute
-  '/indexAlt': typeof IndexAltRoute
   '/models': typeof ModelsRoute
   '/predictions': typeof PredictionsRoute
+  '/old/': typeof OldIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/accuracy'
-    | '/drift'
-    | '/indexAlt'
-    | '/models'
-    | '/predictions'
+  fullPaths: '/' | '/accuracy' | '/drift' | '/models' | '/predictions' | '/old/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/accuracy' | '/drift' | '/indexAlt' | '/models' | '/predictions'
+  to: '/' | '/accuracy' | '/drift' | '/models' | '/predictions' | '/old'
   id:
     | '__root__'
     | '/'
     | '/accuracy'
     | '/drift'
-    | '/indexAlt'
     | '/models'
     | '/predictions'
+    | '/old/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccuracyRoute: typeof AccuracyRoute
   DriftRoute: typeof DriftRoute
-  IndexAltRoute: typeof IndexAltRoute
   ModelsRoute: typeof ModelsRoute
   PredictionsRoute: typeof PredictionsRoute
+  OldIndexRoute: typeof OldIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -116,13 +110,6 @@ declare module '@tanstack/react-router' {
       path: '/models'
       fullPath: '/models'
       preLoaderRoute: typeof ModelsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/indexAlt': {
-      id: '/indexAlt'
-      path: '/indexAlt'
-      fullPath: '/indexAlt'
-      preLoaderRoute: typeof IndexAltRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/drift': {
@@ -146,6 +133,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/old/': {
+      id: '/old/'
+      path: '/old'
+      fullPath: '/old/'
+      preLoaderRoute: typeof OldIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -153,9 +147,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccuracyRoute: AccuracyRoute,
   DriftRoute: DriftRoute,
-  IndexAltRoute: IndexAltRoute,
   ModelsRoute: ModelsRoute,
   PredictionsRoute: PredictionsRoute,
+  OldIndexRoute: OldIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
