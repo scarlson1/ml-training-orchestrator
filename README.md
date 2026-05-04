@@ -1484,3 +1484,5 @@ r2_endpoint_url = "https://2662189f53004928cc8e89c79f095db9.r2.cloudflarestorage
 #### Dagster UI: http://<VM_ID>:3000 http://207.211.176.98:3000
 
 #### MLFlow UI: http://<VM_ID>:5000 http://207.211.176.98:5000
+
+TODO: debug missing feature views in VM - `batch_predictions` fails b/c Feast has empty feature views

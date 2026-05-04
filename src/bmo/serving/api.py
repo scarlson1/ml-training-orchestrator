@@ -775,7 +775,7 @@ async def routehistory(
                     score_date::text AS score_date,
                     ROUND(AVG((1 - predicted_is_delayed) * 100))::INTEGER AS otp_pct
                 FROM mart_predictions
-                WHERE score_date >= CURRENT_DATE - (? * INTERVAL '1 day')
+                WHERE CAST(score_date AS DATE) >= CURRENT_DATE - (? * INTERVAL '1 day')
                     AND (
                         route_key = ?
                         OR (origin = ? AND dest = ?)

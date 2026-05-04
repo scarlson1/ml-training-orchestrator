@@ -83,6 +83,10 @@ serving = [
   "feast[redis]>=0.50",
   "mlflow-skinny>=3.11",  # pulls model without full MLflow stack
   "prometheus-client",
+  # model runtime deps — required to deserialize and run the XGBoost champion model
+  "xgboost>=3.2",
+  "scikit-learn>=1.8",
+  "scipy>=1.17",
 ]
 
 monitoring = [
