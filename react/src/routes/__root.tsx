@@ -9,12 +9,17 @@ import { ThemeProvider } from '@mui/material/styles';
 import { TanStackDevtools } from '@tanstack/react-devtools';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtoolsPanel } from '@tanstack/react-query-devtools';
+import { QueryClient } from '@tanstack/react-query';
 import {
-  createRootRoute,
+  createRootRouteWithContext,
   HeadContent,
   Outlet,
   Scripts,
 } from '@tanstack/react-router';
+
+interface RouterContext {
+  queryClient: QueryClient;
+}
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools';
 import { type ReactNode, Suspense } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -24,7 +29,7 @@ import { NotFound } from '~/components/NotFound';
 import { queryClient } from '~/config/queryClient';
 import { theme } from '~/config/theme';
 
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<RouterContext>()({
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
