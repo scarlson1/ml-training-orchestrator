@@ -13,7 +13,12 @@ import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { apiFetch } from '~/api';
+import { apiFetch } from '~/api/apiFetch';
+import {
+  driftSummaryOptions,
+  routeHistoryOptions,
+  todaysPredictionOptions,
+} from '~/api/queryOptions';
 import { CarrierComparison } from '~/components/CarrierComparison';
 import { Globe } from '~/components/Globe';
 import { NetworkMap } from '~/components/NetworkMap';
@@ -26,33 +31,12 @@ export const Route = createFileRoute('/')({
   component: IndexAlt,
   loader: ({ context: { queryClient } }) =>
     Promise.allSettled([
-      queryClient.prefetchQuery({
-        queryKey: ['predictions', 'today'],
-        queryFn: () => apiFetch('/api/predictions/today').then((r) => r.json()),
-        staleTime: 60 * 60 * 1000,
-      }),
-      queryClient.prefetchQuery({
-        queryKey: ['drift', 'summary'],
-        queryFn: () => apiFetch('/api/drift/summary').then((r) => r.json()),
-        staleTime: 60 * 60 * 1000,
-      }),
+      queryClient.prefetchQuery(todaysPredictionOptions),
+      queryClient.prefetchQuery(driftSummaryOptions),
     ]),
 });
 
 // ─── API types ────────────────────────────────────────────────────────────────
-
-interface PredictionSummary {
-  n_flights_today: number;
-  positive_rate_today: number | null;
-  model_version: string | null;
-  days_since_retrain: number | null;
-  model_loaded_at: string;
-}
-
-interface DriftSummary {
-  psi_breaches: number;
-  n_features: number;
-}
 
 interface PredictResponse {
   flight_id: string;
@@ -513,21 +497,11 @@ function KpiItem({
 
 function KpiStrip({ t }: { t: Tokens }) {
   const { data: pred } = useSuspenseQuery({
-    queryKey: ['predictions', 'today'],
-    queryFn: () =>
-      apiFetch('/api/predictions/today').then(
-        (r) => r.json() as Promise<PredictionSummary>,
-      ),
-    staleTime: 60 * 60 * 1000,
+    ...todaysPredictionOptions,
     retry: false,
   });
   const { data: drift } = useSuspenseQuery({
-    queryKey: ['drift', 'summary'],
-    queryFn: () =>
-      apiFetch('/api/drift/summary').then(
-        (r) => r.json() as Promise<DriftSummary>,
-      ),
-    staleTime: 60 * 60 * 1000,
+    ...driftSummaryOptions,
     retry: false,
   });
 
@@ -1416,12 +1390,6 @@ function AttributionAndHistory({ t, flight }: { t: Tokens; flight: Flight }) {
   );
 }
 
-interface RouteHistoryResponse {
-  route_key: string;
-  history: number[];
-  days: number;
-}
-
 function RouteHistoryChart({
   origin,
   dest,
@@ -1433,14 +1401,9 @@ function RouteHistoryChart({
   days?: number;
   t: Tokens;
 }) {
-  // apiFetch(`/api/routes/${flight.from.code}-${flight.to.code}/history?days=14`).then(r => r.json())
-  const { data: historyData } = useSuspenseQuery({
-    queryKey: ['routes', origin, dest, 'history', days],
-    queryFn: () =>
-      apiFetch(`/api/routes/${origin}-${dest}/history?days=${days}`).then(
-        (r) => r.json() as Promise<RouteHistoryResponse>,
-      ),
-  });
+  const { data: historyData } = useSuspenseQuery(
+    routeHistoryOptions(origin, dest, days),
+  );
   console.log('FLIGHT HISTORY: ', historyData);
   const data = historyData?.history || [];
 
@@ -1716,7 +1679,14 @@ function NetworkAndAirline({ t, flight }: { t: Tokens; flight: Flight }) {
               </Box>
             }
           >
-            <CarrierComparison t={t} currentCode={flight.code} />
+            <CarrierComparison
+              t={t}
+              // currentCode={flight.code}
+              currentCarrier={flight.airline}
+              origin={flight.from.code}
+              dest={flight.to.code}
+              days={7}
+            />
           </Suspense>
         </ErrorBoundary>
       </Paper>

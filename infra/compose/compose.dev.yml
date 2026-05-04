@@ -76,10 +76,6 @@ services:
     # networks:
     #   - ml_orchestration
 
-  # dagster:
-  #   image:
-  #   container_name:
-
   mlflow:
     #   image: ghcr.io/mlflow/mlflow:v3.11.1 (build docker image - need psycopg2-binary boto3 to support postgres instead of sqlite)
     build:

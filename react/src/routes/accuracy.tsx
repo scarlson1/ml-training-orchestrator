@@ -2,7 +2,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { apiFetch } from '~/api';
+import { accuracyOptions, type AccuracyPoint } from '~/api/queryOptions';
 import { Sparkline } from '~/components/Sparkline';
 import { monoFont, serifFont } from '~/config/themePrimitives';
 
@@ -18,31 +18,14 @@ import { monoFont, serifFont } from '~/config/themePrimitives';
 
 export const Route = createFileRoute('/accuracy')({
   component: Accuracy,
+  loader: ({ context: { queryClient } }) =>
+    queryClient.prefetchQuery(accuracyOptions),
 });
-
-// TODO: confirm shape with backend
-type AccuracyPoint = {
-  score_date: string;
-  model_version: string;
-  roc_auc: number;
-  f1: number;
-  precision_score: number;
-  recall_score: number;
-  positive_rate: number;
-  actual_positive_rate: number;
-  n_with_actuals: number;
-};
 
 function Accuracy() {
   // query: GET /api/accuracy → AccuracyPoint[]
-  const { data: tmp } = useSuspenseQuery({
-    queryKey: ['accuracy'],
-    queryFn: () =>
-      apiFetch('/api/accuracy').then(
-        (r) => r.json() as Promise<{ rows: AccuracyPoint[] }>,
-      ),
-    staleTime: 60 * 60 * 1000,
-  });
+  // TODO: confirm shape with backend
+  const { data: tmp } = useSuspenseQuery(accuracyOptions);
 
   const data =
     !tmp.rows?.length && import.meta.env.DEV
