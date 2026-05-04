@@ -95,16 +95,23 @@ iceberg_staging               staged_weather
 
 _FLIGHTS_SQL = """
 SELECT
-    flight_id,
+    md5(
+        cast(flight_date as varchar)
+        || reporting_airline
+        || cast(flight_number as varchar)
+        || origin
+        || dest
+    ) AS flight_id,
     origin,
     dest,
-    carrier,
+    reporting_airline AS carrier,
     tail_number,
     origin || '-' || dest AS route_key,
     scheduled_departure_utc,
     LEAST(scheduled_departure_utc, TIMESTAMPTZ '{run_time}') AS event_timestamp
-FROM main.stg_flights
+FROM iceberg_staging.staged_flights
 WHERE flight_date = '{score_date}'
+  AND scheduled_departure_utc IS NOT NULL
 """
 
 

@@ -65,6 +65,11 @@ ONLINE_FEATURE_REFS: list[str] = [
 
 FEATURE_COLUMNS: list[str] = [ref.split(':')[1] for ref in ONLINE_FEATURE_REFS]
 
+# Aircraft features depend on tail_number, which callers may not know at serving time.
+# When null, we impute 0.0 (no inbound delay assumed) rather than failing closed.
+# All other features are expected to be in Redis — nulls there are a real data gap.
+_SOFT_NULL_FEATURES: frozenset[str] = frozenset({'cascading_delay_min', 'turnaround_min'})
+
 
 class FeatureClient:
     """
@@ -86,24 +91,18 @@ class FeatureClient:
     def __init__(self, feature_repo_dir: str | Path) -> None:
         self._store = FeatureStore(repo_path=str(feature_repo_dir))
 
-    def get_features(self, request: PredictRequest) -> pd.DataFrame | None:
+    def get_features(self, request: PredictRequest) -> tuple[pd.DataFrame, bool] | None:
         """
         Retrieve online features for one flight entity.
 
-        Returns None (fail-closed) if any feature in ONLINE_FEATURE_REFS is null.
-        The caller is responsible for returning 503 to the API client.
-
-        Feast returns features as a dict[feature_name → list[value]].
-        The list always has one element per entity row — here always length 1.
-
-        Args:
-            request: PredictRequest containing all entity keys.
+        Returns None (fail-closed) if any non-aircraft feature is null.
+        Aircraft features (cascading_delay_min, turnaround_min) are imputed as
+        0.0 when tail_number is unknown — matching batch scoring's fillna(0) behaviour.
 
         Returns:
-            Single-row DataFrame with feature columns in FEATURE_COLUMNS order,
-            or None if any feature is missing/stale.
+            (DataFrame, features_complete) where features_complete is False when
+            aircraft features were imputed, or None if a hard null was encountered.
         """
-        # build entity row to match Feast entity key names in feature_repo/entities.py
         entity_row: dict[str, Any] = {
             'origin': request.origin,
             'dest': request.dest,
@@ -124,18 +123,29 @@ class FeatureClient:
         result_dict = response.to_dict()
 
         null_features = [col for col in FEATURE_COLUMNS if result_dict.get(col, [None])[0] is None]
+        hard_nulls = [f for f in null_features if f not in _SOFT_NULL_FEATURES]
 
-        if null_features:
+        if hard_nulls:
             log.warning(
                 'null features - failing closed',
                 flight_id=request.flight_id,
                 origin=request.origin,
-                null_features=null_features,
+                null_features=hard_nulls,
             )
             return None
 
-        feature_row = {col: [result_dict[col][0]] for col in FEATURE_COLUMNS}
-        return pd.DataFrame(feature_row)
+        if null_features:
+            log.info(
+                'aircraft features null - imputing 0.0',
+                flight_id=request.flight_id,
+                null_features=null_features,
+            )
+
+        feature_row = {
+            col: [result_dict[col][0] if result_dict.get(col, [None])[0] is not None else 0.0]
+            for col in FEATURE_COLUMNS
+        }
+        return pd.DataFrame(feature_row), len(null_features) == 0
 
     def ping_redis(self) -> bool:
         """

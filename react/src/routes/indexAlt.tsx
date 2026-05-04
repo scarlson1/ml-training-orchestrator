@@ -7,20 +7,34 @@ import Link from '@mui/material/Link';
 import Paper from '@mui/material/Paper';
 import Skeleton from '@mui/material/Skeleton';
 import Stack from '@mui/material/Stack';
-import { useColorScheme } from '@mui/material/styles';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
-import { useSuspenseQuery } from '@tanstack/react-query';
+import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { apiFetch } from '~/api';
 import { Globe } from '~/components/Globe';
+import { StatCard } from '~/components/StatCard';
 import { monoFont, serifFont } from '~/config/themePrimitives';
+import { useResolvedMode } from '~/hooks/useResolvedMode';
 
 export const Route = createFileRoute('/indexAlt')({
   component: IndexAlt,
+  loader: ({ context: { queryClient } }) =>
+    Promise.allSettled([
+      queryClient.prefetchQuery({
+        queryKey: ['predictions', 'today'],
+        queryFn: () => apiFetch('/api/predictions/today').then((r) => r.json()),
+        staleTime: 60 * 60 * 1000,
+      }),
+      queryClient.prefetchQuery({
+        queryKey: ['drift', 'summary'],
+        queryFn: () => apiFetch('/api/drift/summary').then((r) => r.json()),
+        staleTime: 60 * 60 * 1000,
+      }),
+    ]),
 });
 
 // ─── API types ────────────────────────────────────────────────────────────────
@@ -64,7 +78,7 @@ interface Tokens {
   bad: string;
   chipBg: string;
 }
-
+// TODO: integrate into theme
 const TOKENS: { light: Tokens; dark: Tokens } = {
   light: {
     bg: '#FBFAF7',
@@ -113,7 +127,7 @@ interface Flight {
   number: string;
   from: { code: string; city: string; tz: string };
   to: { code: string; city: string; tz: string };
-  sched: { dep: string; arr: string; date: string };
+  scheduled: { dep: string; arr: string; date: string };
   aircraft: string;
   onTimeProb: number;
   delayMin: { p50: number; p90: number };
@@ -130,7 +144,7 @@ const FLIGHTS: Flight[] = [
     number: '2104',
     from: { code: 'SFO', city: 'San Francisco', tz: 'PT' },
     to: { code: 'JFK', city: 'New York', tz: 'ET' },
-    sched: { dep: '07:45', arr: '16:18', date: 'Thu, 1 May' },
+    scheduled: { dep: '07:45', arr: '16:18', date: 'Thu, 1 May' },
     aircraft: 'A321neo',
     onTimeProb: 0.83,
     delayMin: { p50: 6, p90: 24 },
@@ -168,7 +182,7 @@ const FLIGHTS: Flight[] = [
     number: '418',
     from: { code: 'ORD', city: 'Chicago', tz: 'CT' },
     to: { code: 'LHR', city: 'London', tz: 'GMT' },
-    sched: { dep: '20:15', arr: '10:05', date: 'Thu, 1 May' },
+    scheduled: { dep: '20:15', arr: '10:05', date: 'Thu, 1 May' },
     aircraft: 'B787-9',
     onTimeProb: 0.61,
     delayMin: { p50: 22, p90: 78 },
@@ -210,7 +224,7 @@ const FLIGHTS: Flight[] = [
     number: '906',
     from: { code: 'ATL', city: 'Atlanta', tz: 'ET' },
     to: { code: 'DEN', city: 'Denver', tz: 'MT' },
-    sched: { dep: '13:30', arr: '15:02', date: 'Thu, 1 May' },
+    scheduled: { dep: '13:30', arr: '15:02', date: 'Thu, 1 May' },
     aircraft: 'B737-800',
     onTimeProb: 0.42,
     delayMin: { p50: 38, p90: 112 },
@@ -248,7 +262,7 @@ const FLIGHTS: Flight[] = [
     number: '12',
     from: { code: 'NRT', city: 'Tokyo', tz: 'JST' },
     to: { code: 'LAX', city: 'Los Angeles', tz: 'PT' },
-    sched: { dep: '17:00', arr: '10:35', date: 'Thu, 1 May' },
+    scheduled: { dep: '17:00', arr: '10:35', date: 'Thu, 1 May' },
     aircraft: 'B777-300ER',
     onTimeProb: 0.91,
     delayMin: { p50: 2, p90: 11 },
@@ -310,36 +324,6 @@ const NETWORK_AIRPORTS = [
 ];
 
 // ─── Small atoms ──────────────────────────────────────────────────────────────
-
-function Sparkline({
-  values,
-  color,
-  height = 28,
-  width = 120,
-  fill,
-}: {
-  values: number[];
-  color: string;
-  height?: number;
-  width?: number;
-  fill?: string;
-}) {
-  const max = Math.max(...values);
-  const min = Math.min(...values);
-  const norm = (v: number) => height - ((v - min) / (max - min || 1)) * height;
-  const step = width / (values.length - 1);
-  const d = values
-    .map((v, i) => `${i === 0 ? 'M' : 'L'} ${i * step} ${norm(v)}`)
-    .join(' ');
-  const a = `${d} L ${width} ${height} L 0 ${height} Z`;
-
-  return (
-    <svg width={width} height={height} style={{ display: 'block' }}>
-      {fill && <path d={a} fill={fill} />}
-      <path d={d} stroke={color} strokeWidth='1.5' fill='none' />
-    </svg>
-  );
-}
 
 function ProbabilityArc({
   prob,
@@ -412,28 +396,47 @@ function FactorBar({ factor, t }: { factor: Factor; t: Tokens }) {
   return (
     <Box
       sx={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 180px 40px',
-        gap: 2,
+        display: 'flex',
         alignItems: 'center',
+        gap: 2,
         py: '10px',
         borderBottom: `1px solid ${t.lineSoft}`,
       }}
     >
-      <Box>
-        <Typography sx={{ fontSize: 13, color: t.ink, fontWeight: 500 }}>
+      <Box sx={{ flex: '1 1 0', minWidth: 0, overflow: 'hidden' }}>
+        <Typography
+          sx={{
+            fontSize: 13,
+            color: t.ink,
+            fontWeight: 500,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
           {factor.name}
         </Typography>
-        <Typography sx={{ fontSize: 11, color: t.inkMuted, mt: '2px' }}>
+        <Typography
+          sx={{
+            fontSize: 11,
+            color: t.inkMuted,
+            mt: '2px',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
           {factor.detail}
         </Typography>
       </Box>
       <Box
         sx={{
+          flex: '2 1 0',
           position: 'relative',
           height: 6,
           bgcolor: t.lineSoft,
           borderRadius: '1px',
+          minWidth: 0,
         }}
       >
         <Box
@@ -442,7 +445,7 @@ function FactorBar({ factor, t }: { factor: Factor; t: Tokens }) {
             top: 0,
             bottom: 0,
             left: '50%',
-            width: 1,
+            width: '1px',
             bgcolor: t.line,
           }}
         />
@@ -460,92 +463,16 @@ function FactorBar({ factor, t }: { factor: Factor; t: Tokens }) {
       </Box>
       <Typography
         sx={{
+          flex: '0 0 36px',
           fontFamily: monoFont,
-          fontSize: 12,
+          fontSize: 11,
           textAlign: 'right',
           color: positive ? t.good : t.bad,
+          whiteSpace: 'nowrap',
         }}
       >
         {positive ? '+' : ''}
         {(v * 100).toFixed(0)}
-      </Typography>
-    </Box>
-  );
-}
-
-function RouteHistoryChart({ flight, t }: { flight: Flight; t: Tokens }) {
-  const data = flight.history;
-  const w = 100;
-  const h = 160;
-  const stepX = w / (data.length - 1);
-  const points = data.map((v, i) => [i * stepX, h - (v / 100) * h]);
-  const areaD =
-    points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`).join(' ') +
-    ` L ${w} ${h} L 0 ${h} Z`;
-  const lineD = points
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`)
-    .join(' ');
-  return (
-    <Box sx={{ position: 'relative', width: '100%', height: h }}>
-      <svg
-        viewBox={`0 0 ${w} ${h}`}
-        preserveAspectRatio='none'
-        width='100%'
-        height={h}
-        style={{ display: 'block' }}
-      >
-        {[0, 25, 50, 75, 100].map((y) => (
-          <line
-            key={y}
-            x1='0'
-            x2={w}
-            y1={h - (y / 100) * h}
-            y2={h - (y / 100) * h}
-            stroke={t.lineSoft}
-            strokeWidth='0.3'
-          />
-        ))}
-        <line
-          x1='0'
-          x2={w}
-          y1={h - 0.8 * h}
-          y2={h - 0.8 * h}
-          stroke={t.line}
-          strokeWidth='0.4'
-          strokeDasharray='2 1.5'
-        />
-        <path d={areaD} fill={t.lineSoft} />
-        <path
-          d={lineD}
-          stroke={t.ink}
-          strokeWidth='0.6'
-          fill='none'
-          vectorEffect='non-scaling-stroke'
-        />
-        {points.map((p, i) => (
-          <circle
-            key={i}
-            cx={p[0]}
-            cy={p[1]}
-            r='0.8'
-            fill={t.bg}
-            stroke={t.ink}
-            strokeWidth='0.4'
-            vectorEffect='non-scaling-stroke'
-          />
-        ))}
-      </svg>
-      <Typography
-        sx={{
-          position: 'absolute',
-          right: 0,
-          top: h - 0.8 * h - 10,
-          fontSize: 10,
-          color: t.inkMuted,
-          fontFamily: monoFont,
-        }}
-      >
-        80% target
       </Typography>
     </Box>
   );
@@ -675,7 +602,12 @@ function NetworkMap({ t, height = 280 }: { t: Tokens; height?: number }) {
           [t.warn, '15–30m'],
           [t.bad, '30m+'],
         ].map(([col, label]) => (
-          <Stack key={label} direction='row' spacing='4px' sx={{ alignItems: 'center' }}>
+          <Stack
+            key={label}
+            direction='row'
+            spacing='4px'
+            sx={{ alignItems: 'center' }}
+          >
             <Box
               sx={{
                 width: 6,
@@ -988,14 +920,25 @@ const KPI_FALLBACK = [
 
 // ─── Hero section ─────────────────────────────────────────────────────────────
 
+interface PredictBody {
+  flight_id: string; // composite: {carrier}{flight_number}_{date}_{dep_time}
+  origin: string;
+  dest: string;
+  carrier: string;
+  route_key: string;
+  tail_number?: string;
+}
+
+function getFlightCompositeId(flight: Flight) {
+  return `${flight.code}${flight.number}_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`; // → "AA123_20240503"
+}
+
 interface HeroProps {
   t: Tokens;
   isDark: boolean;
   flight: Flight;
   onPickFlight: (f: Flight) => void;
   onPredict: (p: PredictResponse) => void;
-  predicting: boolean;
-  setPredicting: (v: boolean) => void;
 }
 
 function HeroSection({
@@ -1004,20 +947,9 @@ function HeroSection({
   flight,
   onPickFlight,
   onPredict,
-  predicting,
-  setPredicting,
 }: HeroProps) {
-  const handlePredict = async () => {
-    setPredicting(true);
-    try {
-      const body = {
-        flight_id: `${flight.code}${flight.number}_${Date.now()}`,
-        origin: flight.from.code,
-        dest: flight.to.code,
-        carrier: flight.code,
-        tail_number: 'N00000',
-        route_key: `${flight.from.code}-${flight.to.code}`,
-      };
+  const { mutate: predict, isPending } = useMutation({
+    mutationFn: async (body: PredictBody) => {
       const res = await apiFetch('/predict', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1025,11 +957,25 @@ function HeroSection({
       });
       if (res.ok) {
         const data = (await res.json()) as PredictResponse;
-        onPredict(data);
+        return data;
+      } else {
+        throw new Error();
       }
-    } finally {
-      setPredicting(false);
-    }
+    },
+    onSuccess: (data) => {
+      onPredict(data);
+    },
+  });
+
+  const handlePredict = () => {
+    const body: PredictBody = {
+      flight_id: getFlightCompositeId(flight),
+      origin: flight.from.code,
+      dest: flight.to.code,
+      carrier: flight.code,
+      route_key: `${flight.from.code}-${flight.to.code}`,
+    };
+    predict(body);
   };
 
   return (
@@ -1072,7 +1018,15 @@ function HeroSection({
           minHeight: 520,
         }}
       >
-        <Box>
+        <Box
+          sx={{
+            alignSelf: 'stretch',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            justifyContent: 'flex-start',
+          }}
+        >
           <Stack
             direction='row'
             sx={{ mb: 2, fontFamily: monoFont, alignItems: 'center' }}
@@ -1131,6 +1085,7 @@ function HeroSection({
               maxWidth: 480,
               lineHeight: 1.55,
               fontFamily: 'Inter, sans-serif',
+              flexGrow: 1,
             }}
           >
             Holdline's ensemble model fuses METAR, TAF, ground-stop bulletins,
@@ -1242,7 +1197,9 @@ function HeroSection({
             ))}
             <Button
               onClick={handlePredict}
-              disabled={predicting}
+              loading={isPending}
+              loadingPosition='end'
+              endIcon={'→'}
               variant='contained'
               disableElevation
               sx={{
@@ -1257,7 +1214,8 @@ function HeroSection({
                 '&.Mui-disabled': { bgcolor: t.inkMuted, color: t.bg },
               }}
             >
-              {predicting ? '…' : 'Predict →'}
+              {/* {isPending ? '…' : 'Predict →'} */}
+              Predict
             </Button>
           </Box>
           <Box sx={{ mt: '14px' }}>
@@ -1387,8 +1345,8 @@ function PredictionHeadline({
               fontFamily: 'Inter, sans-serif',
             }}
           >
-            {flight.from.city} → {flight.to.city} · {flight.sched.date} · dep{' '}
-            {flight.sched.dep} {flight.from.tz}
+            {flight.from.city} → {flight.to.city} · {flight.scheduled.date} ·
+            dep {flight.scheduled.dep} {flight.from.tz}
           </Typography>
           {prediction && (
             <Chip
@@ -1525,7 +1483,11 @@ function PredictionHeadline({
               <Stack
                 key={label}
                 direction='row'
-                sx={{ py: '4px', borderBottom: `1px solid ${t.lineSoft}`, justifyContent: 'space-between' }}
+                sx={{
+                  py: '4px',
+                  borderBottom: `1px solid ${t.lineSoft}`,
+                  justifyContent: 'space-between',
+                }}
               >
                 <Typography
                   sx={{
@@ -1611,6 +1573,7 @@ function AttributionAndHistory({ t, flight }: { t: Tokens; flight: Flight }) {
   const avgOtp = Math.round(
     flight.history.reduce((a, b) => a + b, 0) / flight.history.length,
   );
+
   return (
     <Box
       component='section'
@@ -1633,7 +1596,11 @@ function AttributionAndHistory({ t, flight }: { t: Tokens; flight: Flight }) {
       >
         <Stack
           direction='row'
-          sx={{ mb: '18px', justifyContent: 'space-between', alignItems: 'baseline' }}
+          sx={{
+            mb: '18px',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+          }}
         >
           <Box>
             <Typography
@@ -1683,7 +1650,11 @@ function AttributionAndHistory({ t, flight }: { t: Tokens; flight: Flight }) {
       >
         <Stack
           direction='row'
-          sx={{ mb: '18px', justifyContent: 'space-between', alignItems: 'baseline' }}
+          sx={{
+            mb: '18px',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+          }}
         >
           <Box>
             <Typography
@@ -1721,7 +1692,33 @@ function AttributionAndHistory({ t, flight }: { t: Tokens; flight: Flight }) {
             </Box>
           </Typography>
         </Stack>
-        <RouteHistoryChart flight={flight} t={t} />
+        <ErrorBoundary
+          fallbackRender={({ error }) => {
+            console.log('Route history error: ', error);
+            return (
+              <Typography
+                variant='body2'
+                color='error'
+              >{`Failed to load route history. ${error instanceof Error ? error.message : ''}`}</Typography>
+            );
+          }}
+        >
+          <Suspense
+            fallback={
+              <Box
+                sx={{ position: 'relative', width: '100%', height: 160 }}
+              ></Box>
+            }
+          >
+            <RouteHistoryChart
+              origin={flight.from.code}
+              dest={flight.to.code}
+              days={14}
+              t={t}
+            />
+          </Suspense>
+        </ErrorBoundary>
+
         <Stack
           direction='row'
           sx={{
@@ -1749,6 +1746,110 @@ function AttributionAndHistory({ t, flight }: { t: Tokens; flight: Flight }) {
           </Typography>
         </Stack>
       </Paper>
+    </Box>
+  );
+}
+
+interface RouteHistoryResponse {
+  route_key: string;
+  history: number[];
+  days: number;
+}
+
+function RouteHistoryChart({
+  origin,
+  dest,
+  days = 14,
+  t,
+}: {
+  origin: string;
+  dest: string;
+  days?: number;
+  t: Tokens;
+}) {
+  // apiFetch(`/api/routes/${flight.from.code}-${flight.to.code}/history?days=14`).then(r => r.json())
+  const { data: historyData } = useSuspenseQuery({
+    queryKey: ['routes', origin, dest, 'history', days],
+    queryFn: () =>
+      apiFetch(`/api/routes/${origin}-${dest}/history?days=${days}`).then(
+        (r) => r.json() as Promise<RouteHistoryResponse>,
+      ),
+  });
+  console.log('FLIGHT HISTORY: ', historyData);
+  const data = historyData?.history || [];
+  const w = 100;
+  const h = 160;
+  const stepX = w / (data.length - 1);
+  const points = data.map((v, i) => [i * stepX, h - (v / 100) * h]);
+  const areaD =
+    points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`).join(' ') +
+    ` L ${w} ${h} L 0 ${h} Z`;
+  const lineD = points
+    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`)
+    .join(' ');
+
+  return (
+    <Box sx={{ position: 'relative', width: '100%', height: h }}>
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        preserveAspectRatio='none'
+        width='100%'
+        height={h}
+        style={{ display: 'block' }}
+      >
+        {[0, 25, 50, 75, 100].map((y) => (
+          <line
+            key={y}
+            x1='0'
+            x2={w}
+            y1={h - (y / 100) * h}
+            y2={h - (y / 100) * h}
+            stroke={t.lineSoft}
+            strokeWidth='0.3'
+          />
+        ))}
+        <line
+          x1='0'
+          x2={w}
+          y1={h - 0.8 * h}
+          y2={h - 0.8 * h}
+          stroke={t.line}
+          strokeWidth='0.4'
+          strokeDasharray='2 1.5'
+        />
+        <path d={areaD} fill={t.lineSoft} />
+        <path
+          d={lineD}
+          stroke={t.ink}
+          strokeWidth='0.6'
+          fill='none'
+          vectorEffect='non-scaling-stroke'
+        />
+        {points.map((p, i) => (
+          <circle
+            key={i}
+            cx={p[0]}
+            cy={p[1]}
+            r='0.8'
+            fill={t.bg}
+            stroke={t.ink}
+            strokeWidth='0.4'
+            vectorEffect='non-scaling-stroke'
+          />
+        ))}
+      </svg>
+      <Typography
+        sx={{
+          position: 'absolute',
+          right: 0,
+          top: h - 0.8 * h - 10,
+          fontSize: 10,
+          color: t.inkMuted,
+          fontFamily: monoFont,
+        }}
+      >
+        80% target
+      </Typography>
     </Box>
   );
 }
@@ -1802,68 +1903,16 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
       }}
     >
       {cards.map((c, i) => (
-        <Paper
-          key={i}
-          variant='outlined'
-          sx={{
-            bgcolor: t.panel,
-            borderColor: t.lineSoft,
-            borderRadius: '4px',
-            p: '18px',
-          }}
-        >
-          <Stack
-            direction='row'
-            sx={{ justifyContent: 'space-between', alignItems: 'baseline' }}
-          >
-            <Typography
-              sx={{
-                fontFamily: monoFont,
-                fontSize: 10,
-                color: t.inkMuted,
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-              }}
-            >
-              {c.l}
-            </Typography>
-            <Typography
-              sx={{ fontFamily: monoFont, fontSize: 11, color: t.inkSoft }}
-            >
-              {c.code}
-            </Typography>
-          </Stack>
-          <Typography
-            sx={{
-              fontFamily: serifFont,
-              fontSize: 22,
-              mt: 1,
-              color: c.col,
-              letterSpacing: '-0.01em',
-            }}
-          >
-            {c.top}
-          </Typography>
-          <Typography
-            sx={{
-              fontFamily: monoFont,
-              fontSize: 11,
-              color: t.inkSoft,
-              mt: '4px',
-            }}
-          >
-            {c.sub}
-          </Typography>
-          <Box sx={{ mt: '14px' }}>
-            <Sparkline
-              values={c.spark}
-              color={c.col}
-              fill={t.lineSoft}
-              width={200}
-              height={30}
-            />
-          </Box>
-        </Paper>
+        <StatCard
+          key={`stat-${1}`}
+          label={c.l}
+          code={c.code}
+          value={c.top}
+          subtitle={c.sub}
+          spark={c.spark}
+          color={c.col}
+          fill={t.lineSoft}
+        />
       ))}
     </Box>
   );
@@ -2009,10 +2058,9 @@ function PageFooter({ t }: { t: Tokens }) {
 function IndexAlt() {
   const [flight, setFlight] = useState<Flight>(FLIGHTS[0]);
   const [prediction, setPrediction] = useState<PredictResponse | null>(null);
-  const [predicting, setPredicting] = useState(false);
-  const { mode } = useColorScheme();
-  const isDark = mode === 'dark';
-  const t = isDark ? TOKENS.dark : TOKENS.light;
+  // const [predicting, setPredicting] = useState(false);
+  const mode = useResolvedMode();
+  const t = mode === 'dark' ? TOKENS.dark : TOKENS.light;
 
   const onTimeProb = prediction
     ? 1 - prediction.delay_probability
@@ -2032,12 +2080,12 @@ function IndexAlt() {
     <Box sx={{ bgcolor: 'background.default', color: 'text.primary' }}>
       <HeroSection
         t={t}
-        isDark={isDark}
+        isDark={mode === 'dark'}
         flight={flight}
         onPickFlight={(f) => setFlight(f)}
         onPredict={(p) => setPrediction(p)}
-        predicting={predicting}
-        setPredicting={setPredicting}
+        // predicting={predicting}
+        // setPredicting={setPredicting}
       />
       <PredictionHeadline
         t={t}

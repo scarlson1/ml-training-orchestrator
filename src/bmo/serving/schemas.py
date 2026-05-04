@@ -35,7 +35,9 @@ class PredictRequest(BaseModel):
     )
     carrier: str = Field(description='BTS carrier code', json_schema_extra={'example': 'AA'})
     tail_number: str = Field(
-        description='Aircraft tail number', json_schema_extra={'example': 'N12345'}
+        default='',
+        description='Aircraft tail number. Omit or pass empty string when unknown — aircraft features will be imputed as 0.',
+        json_schema_extra={'example': 'N12345'},
     )
     route_key: str = Field(
         description='Composite route key: "{origin}-{dest}"',
@@ -195,3 +197,14 @@ class PredictionsDayResponse(BaseModel):
     n_flights_today: int
     positive_rate_today: float | None
     days_since_retrain: int | None
+
+
+class RouteHistoryRow(BaseModel):
+    score_date: str
+    opt_pct: int
+
+
+class RouteHistoryResponse(BaseModel):
+    route_key: str
+    history: list[int]  # daily OTP %, oldest → newest
+    days: int

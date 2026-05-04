@@ -73,6 +73,7 @@ from bmo.serving.schemas import (
     PredictResponse,
     PsiResponse,
     PsiRow,
+    RouteHistoryResponse,
     ShadowPrediction,
 )
 
@@ -289,10 +290,10 @@ async def predict(
     t_start = time.perf_counter()
 
     t_feat = time.perf_counter()
-    feature_df = await asyncio.to_thread(lambda: client.get_features(request))
+    feature_result = await asyncio.to_thread(lambda: client.get_features(request))
     _feature_latency.observe(time.perf_counter() - t_feat)
 
-    if feature_df is None:
+    if feature_result is None:
         _fail_closed_count.inc()
         _predict_requests.labels(
             model_version=loader.model_version or 'unknown', features_complete='false'
@@ -306,12 +307,16 @@ async def predict(
             ),
         )
 
+    feature_df, features_complete = feature_result
+
     probas = await loader.predict(feature_df)
     primary_proba = float(probas[0])
     primary_is_delayed = primary_proba >= 0.5
 
     model_version = loader.model_version or 'unknown'
-    _predict_requests.labels(model_version=model_version, features_complete='true').inc()
+    _predict_requests.labels(
+        model_version=model_version, features_complete=str(features_complete).lower()
+    ).inc()
     _predict_latency.labels(model_version=model_version).observe(time.perf_counter() - t_start)
 
     if shadow_loader is not None and shadow_loader.is_loaded:
@@ -329,7 +334,7 @@ async def predict(
         delay_probability=round(primary_proba, 4),
         model_name=_MODEL_NAME,
         model_version=model_version,
-        features_complete=True,
+        features_complete=features_complete,
     )
 
 
@@ -416,6 +421,11 @@ def get_db() -> Engine:
 # Don't pool DuckDB connections — they hold a file lock.
 # Open read-only per request; Dagster's write connection can coexist.
 def get_duckdb() -> duckdb.DuckDBPyConnection:
+    if not os.path.exists(settings.duckdb_path):
+        raise HTTPException(
+            status_code=503,
+            detail=f'DuckDB not found at {settings.duckdb_path}. Run dbt to materialize mart_predictions.',
+        )
     return duckdb.connect(settings.duckdb_path, read_only=True)
 
 
@@ -693,7 +703,7 @@ async def preditionstoday(
     loader: ModelLoader = Depends(get_model_loader),
     duck: duckdb.DuckDBPyConnection = Depends(get_duckdb),
 ) -> PredictionsDayResponse:
-    """Get todays predictions (should run 8am cron)"""
+    """Get todays predictions (from 8am cron)"""
 
     def _query() -> tuple[int, float] | None:
         row = duck.execute(
@@ -724,3 +734,40 @@ async def preditionstoday(
         positive_rate_today=round(today[1], 4) if today and today[1] is not None else None,
         days_since_retrain=days_since_retrain,
     )
+
+
+@app.get('/api/routes/{route_key}/history', response_model=RouteHistoryResponse, tags=['api'])
+async def routehistory(
+    route_key: str,
+    days: int = 14,
+    duck: duckdb.DuckDBPyConnection = Depends(get_duckdb),
+) -> RouteHistoryResponse:
+    """Route delay history"""
+
+    def _query() -> list[int]:
+        rows = cast(
+            list[dict[str, Any]],
+            duck.execute(
+                """
+                SELECT
+                    score_date::text AS score_date,
+                    ROUND(AVG((1 - predicted_is_delayed) * 100))::INTEGER AS otp_pct
+                FROM mart_predictions
+                WHERE (route_key = ? OR (route_key IS NULL AND origin || '-' || dest = ?))
+                    AND score_date >= CURRENT_DATE - INTERVAL (? || ' days')
+                GROUP BY score_date
+                ORDER BY score_date ASC
+                """,
+                [route_key, days],
+            )
+            .df()
+            .to_dict(),
+        )
+        return [int(r['otp_pct']) for r in rows]
+
+    try:
+        result = await asyncio.to_thread(_query)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    return RouteHistoryResponse(route_key=route_key, history=result, days=days)
