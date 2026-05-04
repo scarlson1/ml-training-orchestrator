@@ -46,7 +46,7 @@ jobs:
           # --delete removes local reports that were deleted from S3 (cleanup).
           # --include / --exclude ordering: AWS CLI processes them left-to-right.
           aws s3 sync \
-            s3://${S3_BUCKET_STAGING }/monitoring/reports/ \
+            s3://${S3_BUCKET_STAGING}/monitoring/reports/ \
             docs/evidently-reports/ \
             --exclude "*" \
             --include "*/drift_report.html" \
