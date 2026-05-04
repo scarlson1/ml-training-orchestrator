@@ -8,13 +8,14 @@ export async function apiFetch(
   path: string,
   init?: RequestInit,
 ): Promise<Response> {
-  const response = await fetch(apiUrl(path), init);
+  // const response = await fetch(apiUrl(path), init);
 
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    const detail = body?.detail ?? response.statusText;
-    throw new Error(`${response.status} ${detail}`);
-  }
+  // if (!response.ok) {
+  //   const body = await response.json().catch(() => null);
+  //   const detail = body?.detail ?? response.statusText;
+  //   throw new Error(`${response.status} ${detail}`);
+  // }
 
-  return response;
+  // return response;
+  return fetch(apiUrl(path), init);
 }

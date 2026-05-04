@@ -1809,14 +1809,6 @@ function RouteHistoryChart({
 
   const areaD = `${lineD} L ${w} ${h} L 0 ${h} Z`;
 
-  // const areaD =
-  //   points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`).join(' ') +
-  //   ` L ${w} ${h} L 0 ${h} Z`;
-
-  // const lineD = points
-  //   .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`)
-  //   .join(' ');
-
   return (
     <Box sx={{ position: 'relative', width: '100%', height: h }}>
       <svg
