@@ -1,14 +1,20 @@
-import { CircularProgress, Fade } from '@mui/material';
+import { OpenInNewRounded } from '@mui/icons-material';
+import { CircularProgress, Fade, ListItemText, Skeleton } from '@mui/material';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import Typography from '@mui/material/Typography';
+import { useSuspenseQuery } from '@tanstack/react-query';
 import { Link, useRouterState } from '@tanstack/react-router';
-import { Suspense, type ReactNode } from 'react';
+import { Suspense, useState, type ReactNode } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
+import { apiFetch } from '~/api';
 import { ToggleThemeMode } from '~/components/ToggleThemeMode';
 import { monoFont, serifFont } from '~/config/themePrimitives';
 
 const NAV = [
   { label: 'Dashboard', to: '/' },
-  { label: 'Holdline', to: '/indexAlt' },
   { label: 'Predictions', to: '/predictions' },
   { label: 'Models', to: '/models' },
   { label: 'Drift', to: '/drift' },
@@ -80,10 +86,17 @@ function AppHeader() {
           {NAV.map(({ label, to }) => (
             <NavLink key={to} to={to} label={label} />
           ))}
+          <ExternalLinksMenu />
         </Box>
       </Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <StatusPill />
+        <ErrorBoundary fallback={<PillComponent env='--' />}>
+          <Suspense
+            fallback={<Skeleton variant='rounded' height={20} width={72} />}
+          >
+            <StatusPill />
+          </Suspense>
+        </ErrorBoundary>
         <ToggleThemeMode />
       </Box>
     </Box>
@@ -136,7 +149,45 @@ function LogoMark() {
   );
 }
 
+interface ModelInfo {
+  model_name: string;
+  model_version: string;
+  champion_alias: string;
+  loaded_at: string;
+  registered_at: string;
+  training_roc_auc: number;
+  feature_service: string;
+  shadow_version: string | number;
+}
+
 function StatusPill() {
+  const { data } = useSuspenseQuery({
+    queryKey: ['modelInfo'],
+    queryFn: () =>
+      apiFetch('/model-info').then(async (r) => {
+        let res = (await r.json()) as ModelInfo; // as Promise<ModelInfo>
+        if (!r.ok) {
+          console.log(r.statusText);
+          throw new Error(`Failed to load model info.`);
+        }
+        return res;
+      }),
+    staleTime: 60 * 60 * 1000,
+  });
+
+  console.log(data);
+
+  // TODO: wire up actual model version
+  return <PillComponent version={data?.model_version} env='live' />;
+}
+
+function PillComponent({
+  version,
+  env = 'live',
+}: {
+  version?: string;
+  env?: string | null;
+}) {
   return (
     <Box
       sx={{
@@ -163,7 +214,68 @@ function StatusPill() {
           flexShrink: 0,
         }}
       />
-      model v4.3.1 · live
+      {`model v${version || '--'} · ${env}`}
     </Box>
+  );
+}
+
+const links = [
+  { label: 'Dagster', href: import.meta.env.VITE_DAGSTER_URL },
+  { label: 'MLflow', href: import.meta.env.VITE_MLFLOW_DASHBOARD_URL },
+  { label: 'S3 Storage', href: import.meta.env.VITE_S3_DASHBOARD_URL },
+];
+
+function ExternalLinksMenu() {
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const open = Boolean(anchorEl);
+
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  return (
+    <div>
+      <Button
+        id='ext-button'
+        aria-controls={open ? 'basic-menu' : undefined}
+        aria-haspopup='true'
+        aria-expanded={open ? 'true' : undefined}
+        onClick={handleClick}
+        color='inherit'
+        sx={{ color: 'text.secondary' }}
+      >
+        Monitoring
+      </Button>
+      <Menu
+        id='external-menu'
+        anchorEl={anchorEl}
+        open={open}
+        onClose={handleClose}
+        slotProps={{
+          list: {
+            'aria-labelledby': 'ext-button',
+          },
+        }}
+      >
+        {links.map((l) => (
+          <MenuItem
+            component='a'
+            href={l.href}
+            target='_blank'
+            rel='noopener noreferrer'
+            onClick={handleClose}
+          >
+            {/* {l.label} */}
+            <ListItemText sx={{ mr: 2 }}>{l.label}</ListItemText>
+            <Typography variant='body2' sx={{ color: 'text.secondary' }}>
+              <OpenInNewRounded fontSize='inherit' />
+            </Typography>
+          </MenuItem>
+        ))}
+      </Menu>
+    </div>
   );
 }
