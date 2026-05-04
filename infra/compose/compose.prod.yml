@@ -94,7 +94,10 @@ services:
       DUCKDB_PATH: /dagster_home/bmo_features.duckdb
     volumes:
       - dagster_home:/dagster_home
-    # No ports: Caddy proxies to dagster:3000 via the shared Docker network.
+    ports:
+      # Loopback-only — used by deploy health check and VM keepalive cron.
+      # Public access goes through Caddy (DAGSTER_DOMAIN).
+      - '127.0.0.1:3000:3000'
 
   serving:
     # Image built by CI and pushed to GHCR. GHCR_OWNER is your GitHub username, set in .env.
