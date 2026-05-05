@@ -1,13 +1,11 @@
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Iterator, Optional  # , Mapping
+from typing import Any, Iterator  # , Mapping
 
 from dagster import (
-    AssetCheckSeverity,
     AssetDep,
     AssetExecutionContext,
     AssetKey,
-    AssetSpec,
     AutomationCondition,
 )
 from dagster_dbt import (
@@ -64,23 +62,27 @@ class BmoDbtTranslator(DagsterDbtTranslator):
             spec = spec.replace_attributes(deps=[*spec.deps, AssetDep(AssetKey('drift_report'))])
         return spec
 
-    # dagster-dbt doesn't account for severity in dbt schema (errors when set to warn)
-    def get_asset_check_spec(
-        self,
-        asset_spec: AssetSpec,
-        manifest: Mapping[str, Any],
-        unique_id: str,
-        project: Optional['DbtProject'],
-    ):
-        spec = super().get_asset_check_spec(asset_spec, manifest, unique_id, project)
-        if spec is None:
-            return None
+    # # dagster-dbt doesn't account for severity in dbt schema (errors when set to warn)
+    # def get_asset_check_spec(
+    #     self,
+    #     asset_spec: AssetSpec,
+    #     manifest: Mapping[str, Any],
+    #     unique_id: str,
+    #     project: Optional['DbtProject'],
+    # ):
+    #     spec = super().get_asset_check_spec(asset_spec, manifest, unique_id, project)
+    #     if spec is None:
+    #         return None
 
-        node = manifest.get('nodes', {}).get(unique_id, {})
-        # If the dbt test has severity: warn, map to Dagster WARN severity
-        if node.get('config', {}).get('severity') == 'warn':
-            spec = spec._replace(severity=AssetCheckSeverity.WARN)
-        return spec
+    #     node = (
+    #         manifest.get('nodes', {}).get(unique_id)
+    #         or manifest.get('sources', {}).get(unique_id)
+    #         or {}
+    #     )
+    #     # If the dbt test has severity: warn, map to Dagster WARN severity
+    #     if node.get('config', {}).get('severity') == 'warn':
+    #         spec = spec._replace(severity=AssetCheckSeverity.WARN)
+    #     return spec
 
 
 @dbt_assets(
