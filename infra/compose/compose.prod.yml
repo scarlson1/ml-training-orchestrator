@@ -46,8 +46,8 @@ services:
 
   mlflow:
     build:
-      context: ../../infra/docker/mlflow
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: infra/docker/mlflow.Dockerfile
     container_name: ml_flow
     restart: unless-stopped
     mem_limit: 1.5g

@@ -9,7 +9,7 @@ import { useSuspenseQuery } from '@tanstack/react-query';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { Suspense, useState, type ReactNode } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { apiFetch } from '~/api';
+import { modelInfoOptions } from '~/api/queryOptions';
 import { ToggleThemeMode } from '~/components/ToggleThemeMode';
 import { monoFont, serifFont } from '~/config/themePrimitives';
 
@@ -149,35 +149,10 @@ function LogoMark() {
   );
 }
 
-interface ModelInfo {
-  model_name: string;
-  model_version: string;
-  champion_alias: string;
-  loaded_at: string;
-  registered_at: string;
-  training_roc_auc: number;
-  feature_service: string;
-  shadow_version: string | number;
-}
-
 function StatusPill() {
-  const { data } = useSuspenseQuery({
-    queryKey: ['modelInfo'],
-    queryFn: () =>
-      apiFetch('/model-info').then(async (r) => {
-        let res = (await r.json()) as ModelInfo; // as Promise<ModelInfo>
-        if (!r.ok) {
-          console.log(r.statusText);
-          throw new Error(`Failed to load model info.`);
-        }
-        return res;
-      }),
-    staleTime: 60 * 60 * 1000,
-  });
-
+  const { data } = useSuspenseQuery(modelInfoOptions);
   console.log(data);
 
-  // TODO: wire up actual model version
   return <PillComponent version={data?.model_version} env='live' />;
 }
 

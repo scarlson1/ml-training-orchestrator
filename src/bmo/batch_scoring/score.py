@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -10,6 +9,8 @@ import pyarrow.parquet as pq
 import s3fs
 import structlog
 from pydantic import BaseModel
+
+from bmo.training_dataset_builder.pit_join import FeatureViewConfig
 
 log = structlog.get_logger(__name__)
 
@@ -84,7 +85,8 @@ def score_partition(
     model_name: str,
     model_version: str,
     entity_df: pd.DataFrame,
-    feature_store: Any,  # TODO: type
+    # feature_store: Any,  # TODO: type
+    feast_s3_base: str,  # NEW: e.g. s3://staging/feast
     s3_base: str,
     s3_endpoint_url: str,
     s3_access_key_id: str,
@@ -117,29 +119,116 @@ def score_partition(
     Returns:
         BatchScoreResult — logged as Dagster asset metadata by the caller.
     """
+    from datetime import timedelta
+
     from mlflow.pyfunc import load_model
+
+    from bmo.training_dataset_builder.pit_join import (
+        PITJoiner,
+    )
 
     scored_at = datetime.now(timezone.utc)
     log.info('batch score start', score_date=str(score_date), n_flights=len(entity_df))
+
+    # BUG: get_historical_features hangs in dev environment
+    # Feature view configs match feature_repo/feature_views.py
+    # These must stay in sync with BATCH_FEATURE_REFS above.
+    feature_views = [
+        FeatureViewConfig(
+            name='origin_airport_features',
+            parquet_path=f'{feast_s3_base}/origin_airport/data.parquet',
+            entity_col='origin',
+            label_entity_col='origin',
+            ttl=timedelta(hours=26),
+            feature_cols=[
+                'origin_flight_count_1h',
+                'origin_avg_dep_delay_1h',
+                'origin_pct_delayed_1h',
+                'origin_avg_dep_delay_24h',
+                'origin_pct_cancelled_24h',
+                'origin_avg_dep_delay_7d',
+                'origin_pct_delayed_7d',
+                'origin_congestion_score_1h',
+            ],
+        ),
+        FeatureViewConfig(
+            name='dest_airport_features',
+            parquet_path=f'{feast_s3_base}/dest_airport/data.parquet',
+            entity_col='dest',
+            label_entity_col='dest',
+            ttl=timedelta(hours=26),
+            feature_cols=[
+                'dest_avg_arr_delay_1h',
+                'dest_pct_delayed_1h',
+                'dest_avg_arr_delay_24h',
+                'dest_pct_diverted_24h',
+            ],
+        ),
+        FeatureViewConfig(
+            name='carrier_features',
+            parquet_path=f'{feast_s3_base}/carrier/data.parquet',
+            entity_col='carrier',
+            label_entity_col='carrier',
+            ttl=timedelta(days=8),
+            feature_cols=[
+                'carrier_on_time_pct_7d',
+                'carrier_cancellation_rate_7d',
+                'carrier_avg_delay_7d',
+                'carrier_flight_count_7d',
+            ],
+        ),
+        FeatureViewConfig(
+            name='route_features',
+            parquet_path=f'{feast_s3_base}/route/data.parquet',
+            entity_col='route_key',
+            label_entity_col='route_key',
+            ttl=timedelta(days=8),
+            feature_cols=[
+                'route_avg_dep_delay_7d',
+                'route_avg_arr_delay_7d',
+                'route_pct_delayed_7d',
+                'route_cancellation_rate_7d',
+                'route_avg_elapsed_7d',
+                'route_distance_mi',
+            ],
+        ),
+        FeatureViewConfig(
+            name='aircraft_features',
+            parquet_path=f'{feast_s3_base}/aircraft/data.parquet',
+            entity_col='tail_number',
+            label_entity_col='tail_number',
+            ttl=timedelta(hours=12),
+            feature_cols=[
+                'cascading_delay_min',
+                'turnaround_min',
+            ],
+        ),
+    ]
+
+    # PIT join via DuckDB — same logic as training dataset builder
+    joiner = PITJoiner(feature_views=feature_views, use_s3=True)
+    feature_df = joiner.join(entity_df)
+
+    log.info('feature retrieval complete via DuckDB PIT join', rows=len(feature_df))
 
     # PIT feature retrieval via Feast offline store
     # get_historical_features performs a point-in-time join:
     # for each row in entity_df, it finds the latest feature value where
     # feature_ts <= entity_df.event_timestamp. Identical to build_dataset() in training
-    feature_df = feature_store.get_historical_features(
-        entity_df=entity_df[
-            [
-                'flight_id',
-                'origin',
-                'dest',
-                'carrier',
-                'tail_number',
-                'route_key',
-                'event_timestamp',
-            ]
-        ],
-        features=BATCH_FEATURE_REFS,
-    ).to_df()
+    # feature_df = feature_store.get_historical_features(
+    #     entity_df=entity_df[
+    #         [
+    #             'flight_id',
+    #             'origin',
+    #             'dest',
+    #             'carrier',
+    #             'tail_number',
+    #             'route_key',
+    #             'event_timestamp',
+    #         ]
+    #     ],
+    #     features=BATCH_FEATURE_REFS,
+    # ).to_df()
 
     log.info('feast feature retrieval complete', rows=len(feature_df))
 
@@ -157,23 +246,43 @@ def score_partition(
     # with mlflow.xgboost.log_model and the booster objective is binary:logistic.
     raw_preds = model.predict(pd.DataFrame(X, columns=FEATURE_COLUMNS))
 
+    print('raw predictions complete')
+
     probas: np.ndarray = raw_preds[:, 1] if raw_preds.ndim == 2 else raw_preds
 
-    entity_aligned = feature_df.merge(
-        entity_df[['flight_id', 'scheduled_departure_utc']],
-        on='flight_id',
-        how='left',
-    )
+    # entity_aligned = feature_df.merge(
+    #     entity_df[['flight_id', 'scheduled_departure_utc']],
+    #     on='flight_id',
+    #     how='left',
+    # )
+
+    # output_df = pd.DataFrame(
+    #     {
+    #         'flight_id': entity_aligned['flight_id'],
+    #         'origin': entity_aligned['origin'],
+    #         'dest': entity_aligned['dest'],
+    #         'carrier': entity_aligned['carrier'],
+    #         'tail_number': entity_aligned['tail_number'],
+    #         'route_key': entity_aligned['route_key'],
+    #         'scheduled_departure_utc': entity_aligned['scheduled_departure_utc'],
+    #         'predicted_delay_proba': probas.astype(np.float32),
+    #         'predicted_is_delayed': (probas >= delay_threshold).astype(np.int8),
+    #         'model_name': model_name,
+    #         'model_version': model_version,
+    #         'score_date': str(score_date),
+    #         'scored_at': scored_at.isoformat(),
+    #     }
+    # )
 
     output_df = pd.DataFrame(
         {
-            'flight_id': entity_aligned['flight_id'],
-            'origin': entity_aligned['origin'],
-            'dest': entity_aligned['dest'],
-            'carrier': entity_aligned['carrier'],
-            'tail_number': entity_aligned['tail_number'],
-            'route_key': entity_aligned['route_key'],
-            'scheduled_departure_utc': entity_aligned['scheduled_departure_utc'],
+            'flight_id': entity_df['flight_id'],
+            'origin': entity_df['origin'],
+            'dest': entity_df['dest'],
+            'carrier': entity_df['carrier'],
+            'tail_number': entity_df['tail_number'],
+            'route_key': entity_df['route_key'],
+            'scheduled_departure_utc': entity_df['scheduled_departure_utc'],
             'predicted_delay_proba': probas.astype(np.float32),
             'predicted_is_delayed': (probas >= delay_threshold).astype(np.int8),
             'model_name': model_name,
@@ -182,6 +291,8 @@ def score_partition(
             'scored_at': scored_at.isoformat(),
         }
     )
+
+    print('output_df columns', output_df.columns)
 
     # Write to S3 (Parquet, Hive-partitioned by date)
     storage_path = _write_predictions(
@@ -193,6 +304,8 @@ def score_partition(
         secret_access_key=s3_secret_access_key,
         region=s3_region,
     )
+
+    print('batch score complete')
 
     positive_rate = float(output_df['predicted_is_delayed'].mean())
     log.info(

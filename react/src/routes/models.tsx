@@ -4,7 +4,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { apiFetch } from '~/api';
+import { modelStatsOptions, type ModelStats } from '~/api/queryOptions';
 import { Sparkline } from '~/components/Sparkline';
 import { monoFont, serifFont } from '~/config/themePrimitives';
 
@@ -18,43 +18,15 @@ import { monoFont, serifFont } from '~/config/themePrimitives';
 
 export const Route = createFileRoute('/models')({
   component: Models,
+  loader: ({ context: { queryClient } }) =>
+    queryClient.prefetchQuery(modelStatsOptions(false)),
 });
-
-interface ModelStats {
-  model_version: string;
-  last_scored: string;
-  avg_roc_auc: number;
-  avg_accuracy: number;
-  avg_precision_score: number;
-  avg_recall_score: number;
-  avg_f1: number;
-  avg_log_loss: number;
-  avg_brier_score: number;
-  avg_positive_rate: number;
-  avg_actual_positive_rate: number;
-  avg_n_flights_scored: number;
-  total_n_flights: number;
-}
 
 function Models() {
   // query: GET /api/model-stats → ModelVersion[]
-  const { data: tmp } = useSuspenseQuery({
-    queryKey: ['models'],
-    queryFn: () =>
-      apiFetch('/api/model-stats').then(
-        (r) => r.json() as Promise<{ rows: ModelStats[] }>,
-      ),
-    staleTime: 60 * 60 * 1000,
-  });
+  const { data: tmp } = useSuspenseQuery(modelStatsOptions(false));
 
-  const { data: championDataTmp } = useSuspenseQuery({
-    queryKey: ['models', 'champion'],
-    queryFn: () =>
-      apiFetch('/api/model-stats?champion=true').then(
-        (r) => r.json() as Promise<{ rows: ModelStats[] }>,
-      ),
-    staleTime: 60 * 60 * 1000,
-  });
+  const { data: championDataTmp } = useSuspenseQuery(modelStatsOptions(true));
 
   // TODO: delete
   let data =

@@ -76,14 +76,14 @@ services:
     # networks:
     #   - ml_orchestration
 
-  # dagster:
-  #   image:
-  #   container_name:
-
   mlflow:
+    #   image: ghcr.io/mlflow/mlflow:v3.11.1 (build docker image - need psycopg2-binary boto3 to support postgres instead of sqlite)
     build:
-      context: ../../infra/docker/mlflow
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: infra/docker/mlflow.Dockerfile
+    # build:
+    #   context: ../../infra/docker/mlflow
+    #   dockerfile: Dockerfile
     container_name: ml_flow
     depends_on:
       postgres:
@@ -92,28 +92,19 @@ services:
       MLFLOW_S3_ENDPOINT_URL: http://minio:9000
       AWS_ACCESS_KEY_ID: admin
       AWS_SECRET_ACCESS_KEY: password123
+
     command: >
       mlflow server
       --backend-store-uri postgresql://user:password@postgres:5432/bmo
       --artifacts-destination s3://mlflow-artifacts/
       --host 0.0.0.0
+      --port 5000
+      --workers 1
+      --allowed-hosts "*"
     ports:
       - '5000:5000'
 
-  # mlflow:
-  #   image: ghcr.io/mlflow/mlflow:v3.11.1
-  #   container_name: ml_flow
-  #   environment:
-  #     S3_ACCESS_KEY_ID: admin
-  #     S3_SECRET_ACCESS_KEY: password123
-  #     MLFLOW_S3_ENDPOINT_URL: http://minio:9000
-  #   command: >
-  #     mlflow server
-  #     --backend-store-uri postgresql://user:password@postgres:5432/bmo
-  #     --artifacts-destination s3://mlflow-artifacts/
-  #     --host 0.0.0.0
-  #   ports:
-  #     - '5000:5000'
+# --allowed-hosts "localhost,127.0.0.1,localhost:5000"
 
 # networks:
 #   ml_orchestration:

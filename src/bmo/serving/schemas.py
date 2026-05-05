@@ -208,3 +208,25 @@ class RouteHistoryResponse(BaseModel):
     route_key: str
     history: list[int]  # daily OTP %, oldest → newest
     days: int
+
+
+class CarrierPerformance(BaseModel):
+    carrier: str
+    otp: float
+    avg_delay: float
+
+
+class CarrierComparisonResponse(BaseModel):
+    days: int
+    carriers: list[CarrierPerformance]
+
+
+class OriginPerformance(BaseModel):
+    origin: str
+    otp: float
+    avg_delay_min: float
+    status_indicator: str
+
+
+class NetworkResponse(BaseModel):
+    rows: list[OriginPerformance]

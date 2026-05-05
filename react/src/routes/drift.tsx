@@ -3,7 +3,7 @@ import Typography from '@mui/material/Typography';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { useMemo } from 'react';
-import { apiFetch } from '~/api';
+import { driftMetricsOptions } from '~/api/queryOptions';
 import { monoFont, serifFont } from '~/config/themePrimitives';
 
 /*
@@ -22,22 +22,10 @@ export const Route = createFileRoute('/drift')({
     end: (search.end as string) ?? undefined,
   }),
   component: Drift,
+  loaderDeps: ({ search: { start, end } }) => ({ start, end }),
+  loader: ({ context: { queryClient }, deps }) =>
+    queryClient.prefetchQuery(driftMetricsOptions(deps.start, deps.end)),
 });
-
-interface DriftRow {
-  report_date: string;
-  feature_name: string;
-  psi_score: number;
-  kl_divergence: number | null;
-  rank: number;
-  is_breached: boolean;
-}
-
-interface DriftResponse {
-  rows: DriftRow[];
-  report_date: string;
-  n_breached: number;
-}
 
 function psiSeverity(psi: number): 'green' | 'amber' | 'red' {
   if (psi >= 0.2) return 'red';
@@ -52,19 +40,11 @@ function Drift() {
   if (start) params.set('start', start);
   if (end) params.set('end', end);
 
-  // query: GET /api/drift/metrics?start=&end= → DriftMetrics
-  const { data: realData } = useSuspenseQuery({
-    queryKey: ['driftMetrics', { start, end }],
-    queryFn: () =>
-      apiFetch(`/api/drift/metrics?${params}`).then(
-        (r) => r.json() as Promise<DriftResponse>,
-      ),
-    staleTime: 60 * 60 * 1000,
-  });
+  const { data: realData } = useSuspenseQuery(driftMetricsOptions(start, end));
 
   // TODO: delete dummy data
   const data =
-    !realData?.rows.length && import.meta.env.DEV
+    !realData?.rows?.length && import.meta.env.DEV
       ? {
           report_date: '2026-04-28',
           n_breached: 2,

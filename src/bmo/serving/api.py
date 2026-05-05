@@ -58,6 +58,8 @@ from bmo.serving.model_loader import ModelLoader
 from bmo.serving.schemas import (
     AccuracyResponse,
     AccuracyRow,
+    CarrierComparisonResponse,
+    CarrierPerformance,
     DriftFeatureSummary,
     DriftMetricRow,
     DriftResponse,
@@ -66,6 +68,8 @@ from bmo.serving.schemas import (
     ModelInfoResponse,
     ModelRow,
     ModelStatsResponse,
+    NetworkResponse,
+    OriginPerformance,
     PredictionRow,
     PredictionsDayResponse,
     PredictionsResponse,
@@ -457,7 +461,7 @@ def get_duckdb() -> duckdb.DuckDBPyConnection:
 
 
 @app.get('/api/drift/summary', response_model=DriftSummaryResponse, tags=['api'])
-async def driftsummary(db: Engine = Depends(get_db)) -> DriftSummaryResponse:
+async def drift_summary(db: Engine = Depends(get_db)) -> DriftSummaryResponse:
     agg_q = text("""
         SELECT
             report_date::text,
@@ -557,7 +561,7 @@ async def drift(
 
 
 @app.get('/api/model-stats', response_model=ModelStatsResponse, tags=['api'])
-async def modelstats(db: Engine = Depends(get_db), champion: bool = False) -> ModelStatsResponse:
+async def model_stats(db: Engine = Depends(get_db), champion: bool = False) -> ModelStatsResponse:
     """All versions of models with AUC Query monitoring table (live_accuracy) in Postgres"""
 
     filters = 'WHERE model_version = :champion' if champion else ''
@@ -642,7 +646,7 @@ async def accuracy(db: Engine = Depends(get_db)) -> AccuracyResponse:
                     actual_positive_rate,
                     n_with_actuals
                 FROM live_accuracy
-                WHERE score_date >= NOW() - INTERVAL '90 days'
+                WHERE CAST(score_date AS DATE) >= NOW() - INTERVAL '90 days'
                 ORDER BY score_date, model_version
                 """)
 
@@ -700,7 +704,7 @@ async def predictions(
 
 
 @app.get('/api/predictions/today', response_model=PredictionsDayResponse, tags=['api'])
-async def preditionstoday(
+async def predictions_today(
     # loader: ModelLoader = Depends(get_model_loader), # endpoint fails if model unavailable (only need metadata, not inference => can use model_loader without dependency)
     duck: duckdb.DuckDBPyConnection = Depends(get_duckdb),
 ) -> PredictionsDayResponse:
@@ -750,8 +754,9 @@ async def preditionstoday(
     # )
 
 
+# TODO: change to ?origin=&dest= ...
 @app.get('/api/routes/{route_key}/history', response_model=RouteHistoryResponse, tags=['api'])
-async def routehistory(
+async def route_history(
     route_key: str,
     days: int = 14,
     duck: duckdb.DuckDBPyConnection = Depends(get_duckdb),
@@ -797,3 +802,103 @@ async def routehistory(
         raise HTTPException(status_code=500, detail=str(exc))
 
     return RouteHistoryResponse(route_key=normalized_route_key, history=result, days=days)
+
+
+@app.get('/api/carriers/comparison', response_model=CarrierComparisonResponse, tags=['api'])
+async def carrier_comparison(
+    origin: str,
+    dest: str,
+    days: int = 30,
+    duck: duckdb.DuckDBPyConnection = Depends(get_duckdb),
+) -> CarrierComparisonResponse:
+    """show average delays by carrier over the last X days"""
+
+    # avg_delay_min is approximation - no currently storing avg_delay_min in mart_predictions
+    # TODO: use better calc for avg_delay_min (need to add predicted_delay_min ??)
+    def _query() -> list[CarrierPerformance]:
+        rows = cast(
+            list[CarrierPerformance],
+            duck.execute(
+                # _query_str,
+                """
+                SELECT
+                    carrier,
+                    AVG((1 - predicted_is_delayed::int)) AS otp,
+                    AVG(CASE WHEN predicted_is_delayed THEN predicted_delay_proba * 60 ELSE 0 END) AS avg_delay_min
+                FROM mart_predictions
+                WHERE origin = ? AND dest = ?
+                AND CAST(score_date AS DATE) >= CURRENT_DATE - INTERVAL (? || ' days')
+                GROUP BY carrier
+                ORDER BY otp DESC
+                """,
+                [origin, dest, days],
+            )
+            .df()
+            .to_dict('records'),
+        )
+        print(rows)
+
+        return [
+            CarrierPerformance(carrier=r.carrier, otp=r.otp, avg_delay=r.avg_delay) for r in rows
+        ]
+
+    try:
+        result = await asyncio.to_thread(_query)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    return CarrierComparisonResponse(days=days, carriers=result)
+
+
+@app.get('/api/network', response_model=NetworkResponse, tags=['api'])
+async def network(
+    days: int = 7, duck: duckdb.DuckDBPyConnection = Depends(get_duckdb)
+) -> NetworkResponse:
+    """average delay by airport"""
+
+    # calc average delay over X days
+    # from mart_predictions
+    # group by origin
+
+    # { code: 'DCA', x: 0.8, y: 0.46, delay: 11, status: 'green' as const },
+
+    def _query() -> list[OriginPerformance]:
+        rows = cast(
+            list[OriginPerformance],
+            duck.execute(
+                """
+            SELECT
+                origin,
+                AVG((1 - predicted_is_delayed::int)) AS otp,
+                AVG(CASE WHEN predicted_is_delayed THEN predicted_delay_proba * 60 ELSE 0 END) AS avg_delay_min,
+                CASE
+                    WHEN AVG(CASE WHEN predicted_is_delayed THEN predicted_delay_proba * 60 ELSE 0 END) < 15 THEN 'green'
+                    WHEN AVG(CASE WHEN predicted_is_delayed THEN predicted_delay_proba * 60 ELSE 0 END) < 15 THEN 'amber'
+                    ELSE 'red'
+                END AS status_indicator
+            FROM mart_predictions
+            WHERE CAST(score_date AS DATE) >= CURRENT_DATE - INTERVAL (? || ' days')
+            GROUP BY origin
+            """,
+                [days],
+            )
+            .df()
+            .to_dict('records'),
+        )
+
+        return [
+            OriginPerformance(
+                origin=r.origin,
+                otp=r.otp,
+                avg_delay_min=r.avg_delay_min,
+                status_indicator=r.status_indicator,
+            )
+            for r in rows
+        ]
+
+    try:
+        result = await asyncio.to_thread(_query)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    return NetworkResponse(rows=result)

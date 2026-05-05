@@ -6,31 +6,53 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
+import { useSuspenseQuery } from '@tanstack/react-query';
+import { carrierComparisonOptions } from '~/api/queryOptions';
 import { monoFont } from '~/config/themePrimitives';
 import type { Tokens } from '~/config/tmpTheme';
 
 const AIRLINE_COMPARISON = [
-  { airline: 'Pacific', code: 'PE', otp: 0.93, avgDelay: 4 },
-  { airline: 'Axiom Air', code: 'AX', otp: 0.86, avgDelay: 8 },
-  { airline: 'Skybridge', code: 'SB', otp: 0.79, avgDelay: 14 },
-  { airline: 'Northbound', code: 'NB', otp: 0.71, avgDelay: 22 },
-  { airline: 'Meridian', code: 'MR', otp: 0.68, avgDelay: 28 },
+  { carrier: 'Pacific', code: 'PE', otp: 0.93, avg_delay: 4 },
+  { carrier: 'Axiom Air', code: 'AX', otp: 0.86, avg_delay: 8 },
+  { carrier: 'Skybridge', code: 'SB', otp: 0.79, avg_delay: 14 },
+  { carrier: 'Northbound', code: 'NB', otp: 0.71, avg_delay: 22 },
+  { carrier: 'Meridian', code: 'MR', otp: 0.68, avg_delay: 28 },
 ];
 
 export function CarrierComparison({
   t,
-  currentCode,
+  // currentCode,
+  currentCarrier,
+  origin,
+  dest,
+  days = 14,
 }: {
   t: Tokens;
-  currentCode: string;
+  currentCarrier?: string | null;
+  // currentCode: string;
+  origin: string;
+  dest: string;
+  days?: number;
 }) {
+  const { data } = useSuspenseQuery(
+    carrierComparisonOptions(origin, dest, days),
+  );
+  console.log('carrier comparison: ', data);
+
+  const comparisonData =
+    !data?.carriers?.length && import.meta.env.DEV
+      ? AIRLINE_COMPARISON
+      : data?.carriers || [];
+
   return (
     <Box>
-      {AIRLINE_COMPARISON.map((a) => {
-        const isCurrent = a.code === currentCode;
+      {comparisonData.map((a) => {
+        // const isCurrent = a.code === currentCode;
+        const isCurrent = a.carrier === currentCarrier;
+
         return (
           <Box
-            key={a.code}
+            key={a.carrier}
             sx={{
               display: 'grid',
               gridTemplateColumns: '20px 1fr 80px 56px 50px',
@@ -54,7 +76,8 @@ export function CarrierComparison({
                 fontWeight: 600,
               }}
             >
-              {a.code}
+              {/* {a.code} */}
+              TODO: carrier code
             </Avatar>
             <Stack direction='row' sx={{ alignItems: 'center' }}>
               <Typography
@@ -64,7 +87,7 @@ export function CarrierComparison({
                   fontWeight: isCurrent ? 600 : 400,
                 }}
               >
-                {a.airline}
+                {a.carrier}
               </Typography>
               {isCurrent && (
                 <Chip
@@ -116,7 +139,7 @@ export function CarrierComparison({
                 textAlign: 'right',
               }}
             >
-              {a.avgDelay}m
+              {a.avg_delay}m
             </Typography>
           </Box>
         );

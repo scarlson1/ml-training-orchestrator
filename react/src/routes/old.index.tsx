@@ -3,7 +3,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { apiFetch } from '~/api';
+import { apiFetch } from '~/api/apiFetch';
 import { monoFont, serifFont } from '~/config/themePrimitives';
 
 export const Route = createFileRoute('/old/')({

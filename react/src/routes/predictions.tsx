@@ -2,7 +2,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { apiFetch } from '~/api';
+import { predictionOptions, type PredictionRun } from '~/api/queryOptions';
 import { Sparkline } from '~/components/Sparkline';
 import { monoFont, serifFont } from '~/config/themePrimitives';
 
@@ -16,27 +16,13 @@ import { monoFont, serifFont } from '~/config/themePrimitives';
 
 export const Route = createFileRoute('/predictions')({
   component: Predictions,
+  loader: ({ context: { queryClient } }) =>
+    queryClient.prefetchQuery(predictionOptions),
 });
-
-type PredictionRun = {
-  score_date: string;
-  model_version: string;
-  n_flights: number;
-  positive_rate: number;
-  avg_proba: number;
-  n_with_actuals: number; // always 0 for today's predictions / last 30 days ??
-};
 
 function Predictions() {
   // returns last 30 days (default) of predictions
-  const { data } = useSuspenseQuery({
-    queryKey: ['predictions'],
-    queryFn: () =>
-      apiFetch('/api/predictions').then(
-        (r) => r.json() as Promise<{ rows: PredictionRun[] }>,
-      ),
-    staleTime: 60 * 60 * 1000,
-  });
+  const { data } = useSuspenseQuery(predictionOptions);
 
   // TODO: remove fake data
   let runs: PredictionRun[] =

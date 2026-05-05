@@ -1,6 +1,10 @@
 import { Box, Paper, Stack, Typography } from '@mui/material';
+import { useSuspenseQuery } from '@tanstack/react-query';
+import { networkDelayOptions } from '~/api/queryOptions';
 import { monoFont } from '~/config/themePrimitives';
 import type { Tokens } from '~/config/tmpTheme';
+
+// TODO: use coordinates instead of x,y ?? use mapbox ??
 
 const NETWORK_AIRPORTS = [
   { code: 'SFO', x: 0.1, y: 0.46, delay: 6, status: 'green' as const },
@@ -21,12 +25,19 @@ const NETWORK_AIRPORTS = [
 export function NetworkMap({
   t,
   height = 280,
+  days = 7,
 }: {
   t: Tokens;
   height?: number;
+  days?: number;
 }) {
+  const { data } = useSuspenseQuery(networkDelayOptions(days));
+
+  console.log('NETWORK MAP: ', data);
+
   const statusColor = (s: 'green' | 'amber' | 'red') =>
     s === 'red' ? t.bad : s === 'amber' ? t.warn : t.good;
+
   return (
     <Paper
       variant='outlined'

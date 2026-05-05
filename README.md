@@ -115,6 +115,7 @@ Feast PIT join rule:
 ## Documentation
 
 - [architecture.md](/docs/architecture.md)
+- [infrastructure.md](/docs/infrastructure.md)
 - [data-ingestion.md](/docs/data-ingestion.md)
 - [data-structure-and-query-guidance.md](/docs/data-structure-and-query-guidance.md)
 - [deployment.md](/docs/deployment.md)
@@ -122,10 +123,8 @@ Feast PIT join rule:
 - [serving.md](/docs/serving.md)
 - [testing.md](/docs/testing.md)
 - [training.md](/docs/training.md)
-<!-- - [](/docs)
-- [](/docs)
-- [](/docs)
-- [](/docs) -->
+- [monitoring.md](/docs/monitoring.md)
+- [runbooks.md](/docs/runbooks.md)
 
 # References
 
@@ -133,36 +132,13 @@ Feast PIT join rule:
 
 ## Screenshots
 
-![Home](docs/screenshot-home.png)
-
-### Storage
-
-Rough estimates per monthly partition:
-
-#### Flights (raw + staged)
-
-- BTS reports ~600–700K domestic flights/month
-- Raw CSV is ~100–200 MB uncompressed; as Parquet + zstd it compresses to ~15–30 MB
-- Staged adds UTC timestamps but drops no rows (validated rows only) — similar size, ~15–25 MB
-- Rejected rows: a small fraction, likely <1 MB
-
-#### Weather (raw + staged)
-
-- ~350–450 NOAA stations × 720 FM-15 obs/station (hourly × 30 days) = ~300K rows
-- 13 narrow columns (mostly float32) — ~3–8 MB as Parquet + zstd
-
-#### Dimension tables (written once, not partitioned)
-
-- dim_airport: ~500 rows — negligible
-- dim_route: ~10K–50K rows — <5 MB
-
-#### Full backfill (2018–2024, 84 months)
-
-- Flights: ~84 × 20 MB = ~1.7 GB raw + ~1.5 GB staged
-- Weather: ~84 × 5 MB = ~420 MB raw + ~350 MB staged
-- Total: ~4 GB, comfortable for a local MinIO instance
-
-One caveat: the raw NOAA layer stores all data that came out of LCD parsing (already filtered to FM-15 + target month), not the full annual CSVs, so it won't balloon. The heavy I/O cost is network (downloading those annual files), not storage.
+![Dagster asset lineage](docs/lineage.svg)
+![Dagster runs](docs/screenshot-dagster-runs.png)
+![mlflow](docs/screenshot-mlflow.png)
+![React home](docs/screenshot-home.png)
+![React predictions](docs/screenshot-predictions.png)
+![React versions](docs/screenshot-versions.png)
+![React drift](docs/screenshot-drift.png)
 
 ## Development
 
@@ -1491,3 +1467,23 @@ r2_endpoint_url = "https://2662189f53004928cc8e89c79f095db9.r2.cloudflarestorage
 
 - debug missing feature views in VM - `batch_predictions` fails b/c Feast has empty feature views
 - dagster resources - wire up dagster resources (duckDB, Feast, S3, mlflow)
+- document need to run feast assets (and prereqs) for each partition before running batch_predict ?? use 'ins' in @asset decorator ??
+- why doesn't mart_predictions have dependency on batch_predictions ??
+
+- document querying S3 in dev:
+
+```bash
+D INSTALL httpfs;
+D LOAD httpfs;
+D INSTALL iceberg;
+D LOAD iceberg;
+D SET s3_endpoint='localhost:9000';
+D SET s3_access_key_id='admin';
+D SET s3_secret_access_key='password123';
+D SET s3_use_ssl=false;
+D SET s3_url_style='path';
+# from S3 path
+D SELECT * FROM read_parquet('s3://staging/iceberg/staged_flights/data/flight_date_month=2025-06/00000-0-a2bc71db-d8fd-4f42-b676-4b037ad81329.parquet') LIMIT 5;
+# using iceberg
+D SELECT * FROM iceberg_scan('s3://staging/iceberg/staged_flights') LIMIT 10;
+```
