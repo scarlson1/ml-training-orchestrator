@@ -646,7 +646,7 @@ async def accuracy(db: Engine = Depends(get_db)) -> AccuracyResponse:
                     actual_positive_rate,
                     n_with_actuals
                 FROM live_accuracy
-                WHERE score_date >= NOW() - INTERVAL '90 days'
+                WHERE CAST(score_date AS DATE) >= NOW() - INTERVAL '90 days'
                 ORDER BY score_date, model_version
                 """)
 

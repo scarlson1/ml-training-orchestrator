@@ -1467,3 +1467,23 @@ r2_endpoint_url = "https://2662189f53004928cc8e89c79f095db9.r2.cloudflarestorage
 
 - debug missing feature views in VM - `batch_predictions` fails b/c Feast has empty feature views
 - dagster resources - wire up dagster resources (duckDB, Feast, S3, mlflow)
+- document need to run feast assets (and prereqs) for each partition before running batch_predict ?? use 'ins' in @asset decorator ??
+- why doesn't mart_predictions have dependency on batch_predictions ??
+
+- document querying S3 in dev:
+
+```bash
+D INSTALL httpfs;
+D LOAD httpfs;
+D INSTALL iceberg;
+D LOAD iceberg;
+D SET s3_endpoint='localhost:9000';
+D SET s3_access_key_id='admin';
+D SET s3_secret_access_key='password123';
+D SET s3_use_ssl=false;
+D SET s3_url_style='path';
+# from S3 path
+D SELECT * FROM read_parquet('s3://staging/iceberg/staged_flights/data/flight_date_month=2025-06/00000-0-a2bc71db-d8fd-4f42-b676-4b037ad81329.parquet') LIMIT 5;
+# using iceberg
+D SELECT * FROM iceberg_scan('s3://staging/iceberg/staged_flights') LIMIT 10;
+```

@@ -12,9 +12,11 @@ from datetime import timedelta
 
 from dagster import (
     AssetExecutionContext,
+    AssetIn,
     FreshnessPolicy,
     MaterializeResult,
     MetadataValue,
+    TimeWindowPartitionMapping,
     asset,
 )
 
@@ -48,13 +50,20 @@ def dim_route(context: AssetExecutionContext) -> MaterializeResult:
 @asset(
     partitions_def=MONTHLY_PARTITIONS,
     group_name='staging',
-    deps=['raw_bts_flights', 'dim_airport'],
+    # deps=['raw_bts_flights', 'dim_airport'],
+    ins={
+        'raw_bts_flights': AssetIn(
+            partition_mapping=TimeWindowPartitionMapping(start_offset=0, end_offset=0)
+        )
+    },
     freshness_policy=FreshnessPolicy.time_window(
         fail_window=timedelta(days=70),  # BTS 2-month publication lag + pipeline buffer
         warn_window=timedelta(days=40),
     ),
 )
-def staged_flights(context: AssetExecutionContext) -> MaterializeResult:
+def staged_flights(
+    context: AssetExecutionContext, raw_bts_flights, dim_airport
+) -> MaterializeResult:
     year_str, month_str, *_ = context.partition_key.split('-')
     year, month = int(year_str), int(month_str)
     store = make_object_store()
@@ -75,13 +84,18 @@ def staged_flights(context: AssetExecutionContext) -> MaterializeResult:
 @asset(
     partitions_def=MONTHLY_PARTITIONS,
     group_name='staging',
-    deps=['raw_noaa_weather'],
+    # deps=['raw_noaa_weather'],
+    ins={
+        'raw_noaa_weather': AssetIn(
+            partition_mapping=TimeWindowPartitionMapping(start_offset=0, end_offset=0)
+        )
+    },
     freshness_policy=FreshnessPolicy.time_window(
         fail_window=timedelta(days=70),
         warn_window=timedelta(days=40),
     ),
 )
-def staged_weather(context: AssetExecutionContext) -> MaterializeResult:
+def staged_weather(context: AssetExecutionContext, raw_noaa_weather) -> MaterializeResult:
     year_str, month_str, *_ = context.partition_key.split('-')
     year, month = int(year_str), int(month_str)
     store = make_object_store()

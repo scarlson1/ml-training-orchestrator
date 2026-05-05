@@ -195,6 +195,8 @@ def batch_predictions(context: AssetExecutionContext) -> MaterializeResult:
 
     store = FeatureStore(repo_path=str(FEATURE_REPO_DIR))
 
+    context.log.info('loaded feature store. scoring partition...')
+
     result = score_partition(
         score_date=score_date,
         model_uri=model_uri,

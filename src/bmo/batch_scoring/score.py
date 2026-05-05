@@ -157,6 +157,8 @@ def score_partition(
     # with mlflow.xgboost.log_model and the booster objective is binary:logistic.
     raw_preds = model.predict(pd.DataFrame(X, columns=FEATURE_COLUMNS))
 
+    print('raw predictions complete')
+
     probas: np.ndarray = raw_preds[:, 1] if raw_preds.ndim == 2 else raw_preds
 
     entity_aligned = feature_df.merge(
@@ -183,6 +185,8 @@ def score_partition(
         }
     )
 
+    print('output_df columns', output_df.columns)
+
     # Write to S3 (Parquet, Hive-partitioned by date)
     storage_path = _write_predictions(
         output_df=output_df,
@@ -193,6 +197,8 @@ def score_partition(
         secret_access_key=s3_secret_access_key,
         region=s3_region,
     )
+
+    print('batch score complete')
 
     positive_rate = float(output_df['predicted_is_delayed'].mean())
     log.info(
