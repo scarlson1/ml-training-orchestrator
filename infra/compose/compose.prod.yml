@@ -105,7 +105,7 @@ services:
     image: ghcr.io/${GHCR_OWNER}/bmo-serving:latest
     container_name: bmo_serving
     restart: unless-stopped
-    mem_limit: 1024m
+    mem_limit: 2g
     depends_on:
       mlflow:
         condition: service_started
