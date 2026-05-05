@@ -244,10 +244,8 @@ def verify_admin_token(authorization: str | None = Header(default=None)) -> None
 
 @app.get('/health', response_model=HealthResponse, tags=['ops'])
 async def health(
-    # loader: ModelLoader = Depends(get_model_loader),
-    # client: FeatureClient = Depends(get_feature_client),
-    loader: ModelLoader | None = Depends(get_model_loader, use_cache=False),
-    client: FeatureClient | None = Depends(get_feature_client, use_cache=False),
+    # loader: ModelLoader | None = Depends(get_model_loader, use_cache=False),
+    # client: FeatureClient | None = Depends(get_feature_client, use_cache=False),
 ) -> HealthResponse:
     """
     Liveness + readiness check.
@@ -255,14 +253,27 @@ async def health(
     replaced. Redis reachability is checked but not fatal (degraded, not unhealthy).
     """
     # redis_ok = await asyncio.to_thread(client.ping_redis)
-    redis_ok = await asyncio.to_thread(client.ping_redis) if client else False
+    global model_loader, feature_client
+
+    model_ok = model_loader is not None and model_loader.is_loaded
+    redis_ok = await asyncio.to_thread(feature_client.ping_redis) if feature_client else False
+
     return HealthResponse(
-        # status='health' if redis_ok else 'degraded',
-        status='health' if (redis_ok and loader and loader.is_loaded) else 'degraded',
-        model_loaded=loader.is_loaded if loader else False,
+        status='health' if (model_ok and redis_ok) else 'degraded',
+        model_loaded=model_ok,
         redis_reachable=redis_ok,
-        model_version=loader.model_version if loader else 'unknown',
+        model_version=model_loader.model_version
+        if model_loader and model_loader.model_version
+        else 'unknown',
     )
+    # redis_ok = await asyncio.to_thread(client.ping_redis) if client else False
+    # return HealthResponse(
+    #     # status='health' if redis_ok else 'degraded',
+    #     status='health' if (redis_ok and loader and loader.is_loaded) else 'degraded',
+    #     model_loaded=loader.is_loaded if loader else False,
+    #     redis_reachable=redis_ok,
+    #     model_version=loader.model_version if loader else 'unknown',
+    # )
 
 
 @app.get('/model-info', response_model=ModelInfoResponse, tags=['ops'])

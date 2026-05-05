@@ -27,11 +27,11 @@ import { StatCard } from '~/components/StatCard';
 import { monoFont, serifFont } from '~/config/themePrimitives';
 import { TOKENS, type Tokens } from '~/config/tmpTheme';
 import { useResolvedMode } from '~/hooks/useResolvedMode';
+import { iataToIcao } from '~/utils/misc';
 import { getWeather } from '~/utils/weather.functions';
-import type { MetarResponse } from '~/utils/weather.server';
 
 export const Route = createFileRoute('/')({
-  component: IndexAlt,
+  component: Index,
   loader: ({ context: { queryClient } }) =>
     Promise.allSettled([
       queryClient.prefetchQuery(todaysPredictionOptions),
@@ -76,9 +76,9 @@ interface Flight {
 
 const FLIGHTS: Flight[] = [
   {
-    id: 'AX2104',
-    airline: 'Axiom Air',
-    code: 'AX',
+    id: 'AA2104',
+    airline: 'American Airlines',
+    code: 'AA',
     number: '2104',
     from: { code: 'SFO', city: 'San Francisco', tz: 'PT' },
     to: { code: 'JFK', city: 'New York', tz: 'ET' },
@@ -114,9 +114,9 @@ const FLIGHTS: Flight[] = [
     history: [82, 76, 88, 91, 84, 79, 86, 90, 87, 83, 78, 85, 89, 92],
   },
   {
-    id: 'NB418',
-    airline: 'Northbound',
-    code: 'NB',
+    id: 'DL418',
+    airline: 'Delta',
+    code: 'DL',
     number: '418',
     from: { code: 'ORD', city: 'Chicago', tz: 'CT' },
     to: { code: 'LHR', city: 'London', tz: 'GMT' },
@@ -156,9 +156,9 @@ const FLIGHTS: Flight[] = [
     history: [62, 58, 71, 65, 59, 63, 70, 55, 68, 72, 60, 57, 64, 66],
   },
   {
-    id: 'MR906',
-    airline: 'Meridian',
-    code: 'MR',
+    id: 'SW906',
+    airline: 'Southwest',
+    code: 'SW',
     number: '906',
     from: { code: 'ATL', city: 'Atlanta', tz: 'ET' },
     to: { code: 'DEN', city: 'Denver', tz: 'MT' },
@@ -194,9 +194,9 @@ const FLIGHTS: Flight[] = [
     history: [54, 48, 62, 41, 38, 45, 52, 39, 44, 50, 46, 42, 36, 49],
   },
   {
-    id: 'PE12',
-    airline: 'Pacific',
-    code: 'PE',
+    id: 'UA12',
+    airline: 'United Airlines',
+    code: 'UA',
     number: '12',
     from: { code: 'NRT', city: 'Tokyo', tz: 'JST' },
     to: { code: 'LAX', city: 'Los Angeles', tz: 'PT' },
@@ -1506,67 +1506,37 @@ function RouteHistoryChart({
 
 // ─── Weather + congestion strip ───────────────────────────────────────────────
 
-const _NONCONTINENTAL_ICAO_TO_IATA: Record<string, string> = {
-  ANC: 'PANC',
-  FAI: 'PAFA',
-  JNU: 'PAJN',
-  BET: 'PABT',
-  KDK: 'PADQ',
-  FBK: 'PAFB',
-  AKN: 'PAKN',
-  OME: 'PAOM',
-  HOM: 'PAHO',
-  ADK: 'PADK',
-  HNL: 'PHNL',
-  OGG: 'PHOG',
-  KOA: 'PHKO',
-  ITO: 'PHTO',
-  SJU: 'TJSJ',
-  BQN: 'TJBQ',
-  PSE: 'TJPS',
-  GUM: 'PGUM',
-};
-
-const iataToIcao = (iata: string): string => {
-  if (Object.keys(_NONCONTINENTAL_ICAO_TO_IATA).includes(iata))
-    return _NONCONTINENTAL_ICAO_TO_IATA[iata];
-  return `K${iata}`;
-};
-
 const useAviationWeather = (endpoint: 'metar' | 'taf', icao: string) => {
   return useSuspenseQuery({
     queryKey: ['weather', endpoint, icao],
-    queryFn: async () => getWeather({ data: { endpoint, icao } }),
+    queryFn: async () => {
+      return await getWeather({ data: { endpoint, icao } });
+      // return res?.length ? res[0] : ({} as MetarResponse);
+    },
   });
 };
 
+// TODO: congestion api: https://airlabs.co/docs/delays
+
 function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
-  const { data: origin } = useAviationWeather(
-    'metar',
-    iataToIcao(flight.from.code),
-  );
-  console.log('weather origin METAR: ', origin);
-
-  const o: MetarResponse = origin?.length ? origin[0] : ({} as MetarResponse);
-
-  // TODO: need to ingest data or call 3rd party api
+  // TODO: need to ingest data or call 3rd party api for congestion calc
   const cards = [
-    {
-      l: 'Origin weather',
-      code: flight.from.code,
-      top: 'VFR · clear',
-      sub: `wind ${o?.wdir || '-'}@${o?.wspd || '-'} 240@8 · vis ${o?.visib || '-'}sm`,
-      spark: [82, 84, 86, 85, 88, 90, 89, 91],
-      col: t.good,
-    },
-    {
-      l: 'Destination weather',
-      code: flight.to.code,
-      top: 'MVFR · scattered',
-      sub: 'wind 290@14G22 · vis 6sm',
-      spark: [88, 84, 80, 76, 72, 70, 68, 71],
-      col: t.warn,
-    },
+    // {
+    //   l: 'Origin weather',
+    //   code: flight.from.code,
+    //   top: 'VFR · clear',
+    //   sub: `wind ${data?.wdir || '-'}@${data?.wspd || '-'} 240@8 · vis ${data?.visib || '-'}sm`,
+    //   spark: [82, 84, 86, 85, 88, 90, 89, 91],
+    //   col: t.good,
+    // },
+    // {
+    //   l: 'Destination weather',
+    //   code: flight.to.code,
+    //   top: 'MVFR · scattered',
+    //   sub: 'wind 290@14G22 · vis 6sm',
+    //   spark: [88, 84, 80, 76, 72, 70, 68, 71],
+    //   col: t.warn,
+    // },
     {
       l: 'Origin congestion',
       code: flight.from.code,
@@ -1584,6 +1554,7 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
       col: t.warn,
     },
   ];
+
   return (
     <Box
       component='section'
@@ -1595,6 +1566,50 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
         borderBottom: `1px solid ${t.line}`,
       }}
     >
+      <ErrorBoundary fallback={null}>
+        <Suspense
+          fallback={
+            <StatCard // @ts-ignore
+              label={<Skeleton width={60} />} // @ts-ignore
+              code={<Skeleton width={40} />} // @ts-ignore
+              value={<Skeleton />} // @ts-ignore
+              subtitle={`wind -- · vis --sm`}
+              spark={[]}
+              color={t.good}
+              fill={t.lineSoft}
+            />
+          }
+        >
+          <WeatherCard
+            label='Origin weather'
+            code={flight.from.code}
+            t={t}
+            color={t.good}
+          />
+        </Suspense>
+      </ErrorBoundary>
+      <ErrorBoundary fallback={null}>
+        <Suspense
+          fallback={
+            <StatCard // @ts-ignore
+              label={<Skeleton width={60} />} // @ts-ignore
+              code={<Skeleton width={40} />} // @ts-ignore
+              value={<Skeleton />} // @ts-ignore
+              subtitle={`wind -- · vis --sm`}
+              spark={[]}
+              color={t.good}
+              fill={t.lineSoft}
+            />
+          }
+        >
+          <WeatherCard
+            label='Destination weather'
+            code={flight.to.code}
+            t={t}
+            color={t.warn}
+          />
+        </Suspense>
+      </ErrorBoundary>
       {cards.map((c, i) => (
         <StatCard
           key={`stat-${i}`}
@@ -1608,6 +1623,36 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
         />
       ))}
     </Box>
+  );
+}
+
+function WeatherCard({
+  t,
+  code,
+  label,
+  color,
+}: {
+  t: Tokens;
+  code: string;
+  label: string;
+  color: string;
+}) {
+  const { data } = useAviationWeather('metar', iataToIcao(code));
+
+  // todo: wire up taf for sparkline ??
+  const { data: taf } = useAviationWeather('taf', iataToIcao(code));
+  console.log('TAF: ', taf);
+
+  return (
+    <StatCard
+      label={label}
+      code={code} // @ts-ignore
+      value={`${data?.fltCat} · ${data?.cover}`} // @ts-ignore
+      subtitle={`wind ${data?.wdir || '-'}@${data?.wspd || '-'} 240@8 · vis ${data?.visib || '-'}sm`}
+      spark={[82, 84, 86, 85, 88, 90, 89, 91]}
+      color={color}
+      fill={t.lineSoft}
+    />
   );
 }
 
@@ -1781,7 +1826,7 @@ function PageFooter({ t }: { t: Tokens }) {
 
 // ─── Root component ───────────────────────────────────────────────────────────
 
-function IndexAlt() {
+function Index() {
   const [flight, setFlight] = useState<Flight>(FLIGHTS[0]);
   const [prediction, setPrediction] = useState<PredictResponse | null>(null);
   // const [predicting, setPredicting] = useState(false);
