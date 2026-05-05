@@ -12,11 +12,11 @@ import { monoFont } from '~/config/themePrimitives';
 import type { Tokens } from '~/config/tmpTheme';
 
 const AIRLINE_COMPARISON = [
-  { carrier: 'Pacific', code: 'PE', otp: 0.93, avg_delay: 4 },
-  { carrier: 'Axiom Air', code: 'AX', otp: 0.86, avg_delay: 8 },
-  { carrier: 'Skybridge', code: 'SB', otp: 0.79, avg_delay: 14 },
-  { carrier: 'Northbound', code: 'NB', otp: 0.71, avg_delay: 22 },
-  { carrier: 'Meridian', code: 'MR', otp: 0.68, avg_delay: 28 },
+  { carrier: 'Delta', code: 'DL', otp: 0.93, avg_delay: 4 },
+  { carrier: 'Southwest', code: 'SW', otp: 0.86, avg_delay: 8 },
+  { carrier: 'American Airlines', code: 'AA', otp: 0.79, avg_delay: 14 },
+  { carrier: 'Jet Blue', code: 'JB', otp: 0.71, avg_delay: 22 },
+  { carrier: 'Spirit', code: 'SA', otp: 0.68, avg_delay: 28 },
 ];
 
 export function CarrierComparison({
