@@ -46,7 +46,6 @@ from dagster import (
     MetadataValue,
     asset,
 )
-from feast import FeatureStore
 from mlflow.exceptions import MlflowException, RestException
 from mlflow.tracking import MlflowClient
 
@@ -166,8 +165,9 @@ def batch_predictions(context: AssetExecutionContext) -> MaterializeResult:
             f'Could not connect to MLflow at {settings.mlflow_tracking_uri}. '
             'Ensure the MLflow tracking server is running.'
         ) from exc
-    model_uri = f'models:/{MODEL_NAME}/@champion'
+
     model_version = champion.version
+    model_uri = f'models:/{MODEL_NAME}/{model_version}'
     context.log.info(f'champion model: version={model_version}, uri={model_uri}')
 
     # read scheduled flights from DuckDB
@@ -193,7 +193,8 @@ def batch_predictions(context: AssetExecutionContext) -> MaterializeResult:
     )
     context.log.info(f'loaded {len(entity_df)} flights from staged_flights')
 
-    store = FeatureStore(repo_path=str(FEATURE_REPO_DIR))
+    # attempting DuckDB join to debug
+    # store = FeatureStore(repo_path=str(FEATURE_REPO_DIR))
 
     context.log.info('loaded feature store. scoring partition...')
 
@@ -203,7 +204,8 @@ def batch_predictions(context: AssetExecutionContext) -> MaterializeResult:
         model_name=MODEL_NAME,
         model_version=model_version,
         entity_df=entity_df,
-        feature_store=store,
+        # feature_store=store,
+        feast_s3_base=f's3://{settings.s3_bucket_staging}/feast',
         s3_base=f's3://{settings.s3_bucket_staging}/predictions',
         s3_endpoint_url=settings.s3_endpoint_url,
         s3_access_key_id=settings.s3_access_key_id,

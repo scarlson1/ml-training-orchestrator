@@ -79,8 +79,11 @@ services:
   mlflow:
     #   image: ghcr.io/mlflow/mlflow:v3.11.1 (build docker image - need psycopg2-binary boto3 to support postgres instead of sqlite)
     build:
-      context: ../../infra/docker/mlflow
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: infra/docker/mlflow.Dockerfile
+    # build:
+    #   context: ../../infra/docker/mlflow
+    #   dockerfile: Dockerfile
     container_name: ml_flow
     depends_on:
       postgres:

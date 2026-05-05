@@ -863,7 +863,8 @@ async def network(
     # { code: 'DCA', x: 0.8, y: 0.46, delay: 11, status: 'green' as const },
 
     def _query() -> list[OriginPerformance]:
-        rows = (
+        rows = cast(
+            list[OriginPerformance],
             duck.execute(
                 """
             SELECT
@@ -882,7 +883,7 @@ async def network(
                 [days],
             )
             .df()
-            .to_dict('records')
+            .to_dict('records'),
         )
 
         return [

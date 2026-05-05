@@ -60,6 +60,7 @@ dbt-bootstrap: dbt-deps dbt-parse
 # 	cd feature_repo && uv run feast apply
 
 # After (runs from project root, passes config explicitly):
+# Creates or updates feature store deployment (feature views, entities, and data sources in feature_repo)
 feast-apply:
 	$(ENV)uv run feast -c feature_repo apply
 

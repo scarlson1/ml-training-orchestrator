@@ -44,7 +44,7 @@ function Drift() {
 
   // TODO: delete dummy data
   const data =
-    !realData?.rows.length && import.meta.env.DEV
+    !realData?.rows?.length && import.meta.env.DEV
       ? {
           report_date: '2026-04-28',
           n_breached: 2,
