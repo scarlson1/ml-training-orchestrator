@@ -21,7 +21,7 @@
 
 {# Check at compile time whether any prediction files exist yet. #}
 {# read_parquet hard-errors on a no-match glob, so we emit an empty typed   #}
-{# SELECT when batch_predictions hasn't run yet.                             #}
+{# SELECT when batch_predictions has not run yet.                             #}
 {% if execute %}
     {% set file_check %}
         SELECT count(*) AS n FROM glob('{{ predictions_glob }}')

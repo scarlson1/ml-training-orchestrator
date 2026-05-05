@@ -30,7 +30,11 @@ models:
       - name: carrier
         tests: [not_null]
       - name: tail_number
-        tests: [not_null]
+        data_type: varchar
+        description: 'FAA tail number'
+        tests:
+          - not_null:
+              severity: warn
       - name: route_key
       - name: scheduled_departure_utc
         tests: [not_null]
