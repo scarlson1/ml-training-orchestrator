@@ -22,6 +22,7 @@ import {
 import { CarrierComparison } from '~/components/CarrierComparison';
 import { Globe } from '~/components/Globe';
 import { NetworkMap } from '~/components/NetworkMap';
+import { RouterButton } from '~/components/RouterButton';
 import { StatCard } from '~/components/StatCard';
 import { monoFont, serifFont } from '~/config/themePrimitives';
 import { TOKENS, type Tokens } from '~/config/tmpTheme';
@@ -1186,7 +1187,8 @@ function PredictionHeadline({
               ? `Scored live. Brier ~0.06. ${prediction.features_complete ? 'All features resolved.' : 'Some features missing.'}`
               : 'Calibrated against 14d holdout. Brier 0.061.'}
           </Typography>
-          <Button
+          <RouterButton
+            to='/models' // TODO: add features route ?? /models/:modelId/features ?? or /models/:modelId ?? or /features ??
             variant='outlined'
             sx={{
               mt: '14px',
@@ -1198,9 +1200,10 @@ function PredictionHeadline({
               fontFamily: 'Inter, sans-serif',
               '&:hover': { borderColor: t.ink, bgcolor: 'transparent' },
             }}
+            endIcon={'→'}
           >
-            Inspect features →
-          </Button>
+            Inspect features
+          </RouterButton>
         </Box>
       </Box>
     </Box>

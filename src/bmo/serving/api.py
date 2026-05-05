@@ -426,12 +426,46 @@ def get_db() -> Engine:
 # Don't pool DuckDB connections — they hold a file lock.
 # Open read-only per request; Dagster's write connection can coexist.
 def get_duckdb() -> duckdb.DuckDBPyConnection:
-    if not os.path.exists(settings.duckdb_path):
-        raise HTTPException(
-            status_code=503,
-            detail=f'DuckDB not found at {settings.duckdb_path}. Run dbt to materialize mart_predictions.',
-        )
-    return duckdb.connect(settings.duckdb_path, read_only=True)
+    # if not os.path.exists(settings.duckdb_path):
+    #     raise HTTPException(
+    #         status_code=503,
+    #         detail=f'DuckDB not found at {settings.duckdb_path}. Run dbt to materialize mart_predictions.',
+    #     )
+    # return duckdb.connect(settings.duckdb_path, read_only=True)
+    """
+    Returns a DuckDB connection pointing at predictions data.
+
+    Priority:
+    1. Local DuckDB file (created by dbt) — fastest, has actuals joined
+    2. Fallback: S3 Parquet directly — survives if dbt hasn't run yet
+
+    The S3 fallback means the dashboard endpoints work even when dbt
+    hasn't materialized mart_predictions yet. The tradeoff: no actuals
+    columns (actual_is_delayed, etc.), so aggregate queries that don't
+    need actuals will still work.
+    """
+    local_path = settings.duckdb_path
+    if os.path.exists(local_path):
+        return duckdb.connect(local_path, read_only=True)
+
+    # Fallback: S3-backed ephemeral session
+    log.info('Local DuckDB not found — querying S3 predictions directly')
+    con = duckdb.connect()
+    con.execute('INSTALL httpfs; LOAD httpfs;')
+    con.execute(f"""
+        SET s3_endpoint = '{settings.s3_endpoint}';
+        SET s3_access_key_id = '{settings.s3_access_key_id}';
+        SET s3_secret_access_key = '{settings.s3_secret_access_key}';
+        SET s3_region = '{settings.s3_region}';
+        SET s3_url_style = 'path';
+        SET s3_use_ssl = 'false';
+    """)
+    # Register a view that mirrors mart_predictions but from raw S3
+    con.execute("""
+        CREATE OR REPLACE VIEW mart_predictions AS
+            SELECT * FROM read_parquet('s3://staging/predictions/**/data.parquet')
+    """)
+    return con
 
 
 # ----- React API ----- #

@@ -25,8 +25,11 @@ export const Route = createFileRoute('/models')({
 function Models() {
   // query: GET /api/model-stats → ModelVersion[]
   const { data: tmp } = useSuspenseQuery(modelStatsOptions(false));
+  console.log('model stats: ', tmp);
 
   const { data: championDataTmp } = useSuspenseQuery(modelStatsOptions(true));
+
+  console.log('model stats / champion model: ', tmp, championDataTmp);
 
   // TODO: delete
   let data =
