@@ -50,7 +50,7 @@ from prometheus_client import (
     Info,
     generate_latest,
 )
-from sqlalchemy import Engine, create_engine, text
+from sqlalchemy import Engine, Executable, create_engine, text
 
 from bmo.common.config import settings
 from bmo.serving.feature_client import FeatureClient
@@ -242,20 +242,24 @@ def verify_admin_token(authorization: str | None = Header(default=None)) -> None
 
 @app.get('/health', response_model=HealthResponse, tags=['ops'])
 async def health(
-    loader: ModelLoader = Depends(get_model_loader),
-    client: FeatureClient = Depends(get_feature_client),
+    # loader: ModelLoader = Depends(get_model_loader),
+    # client: FeatureClient = Depends(get_feature_client),
+    loader: ModelLoader | None = Depends(get_model_loader, use_cache=False),
+    client: FeatureClient | None = Depends(get_feature_client, use_cache=False),
 ) -> HealthResponse:
     """
     Liveness + readiness check.
     Fly.io uses this for health checks — if it returns non-2xx, the machine is
     replaced. Redis reachability is checked but not fatal (degraded, not unhealthy).
     """
-    redis_ok = await asyncio.to_thread(client.ping_redis)
+    # redis_ok = await asyncio.to_thread(client.ping_redis)
+    redis_ok = await asyncio.to_thread(client.ping_redis) if client else False
     return HealthResponse(
-        status='health' if redis_ok else 'degraded',
-        model_loaded=loader.is_loaded,
+        # status='health' if redis_ok else 'degraded',
+        status='health' if (redis_ok and loader and loader.is_loaded) else 'degraded',
+        model_loaded=loader.is_loaded if loader else False,
         redis_reachable=redis_ok,
-        model_version=loader.model_version,
+        model_version=loader.model_version if loader else 'unknown',
     )
 
 
@@ -468,30 +472,31 @@ def get_duckdb() -> duckdb.DuckDBPyConnection:
     return con
 
 
+def _safe_postgres_query(
+    db: Engine,
+    query: Executable,
+    params: dict[str, Any] | None = None,
+    method: str = 'all',
+) -> list[dict[str, Any]]:
+    """
+    Runs a Postgres query and returns results. If the table doesn't exist,
+    returns an empty list instead of crashing. This prevents the serving
+    container from becoming unhealthy when monitoring tables haven't been
+    created yet.
+    """
+    try:
+        with db.connect() as conn:
+            result = conn.execute(query, params or {})
+            if method == 'first':
+                row = result.mappings().first()
+                return [dict(row)] if row else []
+            return [dict(r) for r in result.mappings().all()]
+    except duckdb.ProgrammingError as e:
+        log.warning('postgres query failed (table may not exist yet)', error=str(e))
+        return []
+
+
 # ----- React API ----- #
-
-
-# @app.get('/api/drift/summary', response_model=DriftSummaryResponse, tags=['api'])
-# async def driftsummary(db: Engine = Depends(get_db)) -> DriftSummaryResponse:
-#     """Calc drift aggregates for breach banner"""
-
-#     _query = text("""
-#         SELECT
-#             report_date::text,
-#             COUNT(*) FILTER (WHERE is_breached) AS n_breached,
-#             COUNT(*)                            AS n_features,
-#             ROUND(MAX(psi_score)::numeric, 4)   AS max_psi,
-#             model_version
-#         FROM drift_metrics
-#         WHERE report_date = (SELECT MAX(report_date) FROM drift_metrics)
-#         GROUP BY report_date, model_version
-#     """)
-
-#     with db.connect() as conn:
-#         rows = conn.execute(_query).mappings().all()
-
-#         data = [DriftSummaryRow(**r) for r in rows]
-#         return DriftSummaryResponse(rows=data)
 
 
 @app.get('/api/drift/summary', response_model=DriftSummaryResponse, tags=['api'])
@@ -521,9 +526,13 @@ async def drift_summary(db: Engine = Depends(get_db)) -> DriftSummaryResponse:
             return 'amber'
         return 'green'
 
-    with db.connect() as conn:
-        agg = conn.execute(agg_q).mappings().first()
-        feature_rows = conn.execute(features_q).mappings().all()
+    # with db.connect() as conn:
+    #     agg = conn.execute(agg_q).mappings().first()
+    #     feature_rows = conn.execute(features_q).mappings().all()
+
+    agg_rows = _safe_postgres_query(db, agg_q, method='first')
+    agg = agg_rows[0] if agg_rows else None
+    feature_rows = _safe_postgres_query(db, features_q)
 
     if agg is None:
         return DriftSummaryResponse(
@@ -575,15 +584,16 @@ async def drift(
                 ORDER BY report_date DESC, rank ASC
             """)
 
-    with db.connect() as conn:
-        rows = (
-            conn.execute(
-                _query,
-                {'start': start, 'end': end},
-            )
-            .mappings()
-            .all()
-        )
+    # with db.connect() as conn:
+    #     rows = (
+    #         conn.execute(
+    #             _query,
+    #             {'start': start, 'end': end},
+    #         )
+    #         .mappings()
+    #         .all()
+    #     )
+    rows = _safe_postgres_query(db, _query, {'start': start, 'end': end})
 
     data = [DriftMetricRow(**r) for r in rows]
     latest = data[0].report_date if data else str(date.today())
@@ -622,16 +632,16 @@ async def model_stats(db: Engine = Depends(get_db), champion: bool = False) -> M
                 ORDER BY MAX(score_date) DESC
                 """)
 
-    with db.connect() as conn:
-        rows = conn.execute(_query, params).mappings().all()
-
-        data = [
-            ModelRow(
-                **r,
-            )
-            for r in rows
-        ]
-        return ModelStatsResponse(rows=data)
+    # with db.connect() as conn:
+    #     rows = conn.execute(_query, params).mappings().all()
+    rows = _safe_postgres_query(db, _query, params)
+    data = [
+        ModelRow(
+            **r,
+        )
+        for r in rows
+    ]
+    return ModelStatsResponse(rows=data)
 
 
 @app.get('/api/psi/:feature_name', response_model=PsiResponse, tags=['api'])
@@ -684,11 +694,12 @@ async def accuracy(db: Engine = Depends(get_db)) -> AccuracyResponse:
                 ORDER BY score_date, model_version
                 """)
 
-    with db.connect() as conn:
-        rows = conn.execute(_query).mappings().all()
+    # with db.connect() as conn:
+    #     rows = conn.execute(_query).mappings().all()
+    rows = _safe_postgres_query(db, _query)
 
-        data = [AccuracyRow(**r) for r in rows]
-        return AccuracyResponse(rows=data)
+    data = [AccuracyRow(**r) for r in rows]
+    return AccuracyResponse(rows=data)
 
 
 @app.get('/api/predictions', response_model=PredictionsResponse, tags=['api'])
