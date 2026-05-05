@@ -50,7 +50,8 @@ from prometheus_client import (
     Info,
     generate_latest,
 )
-from sqlalchemy import Engine, Executable, create_engine, text
+from sqlalchemy import Engine, create_engine, text
+from sqlalchemy.exc import ProgrammingError
 
 from bmo.common.config import settings
 from bmo.serving.feature_client import FeatureClient
@@ -460,10 +461,10 @@ def get_duckdb() -> duckdb.DuckDBPyConnection:
         SET s3_endpoint = '{settings.s3_endpoint}';
         SET s3_access_key_id = '{settings.s3_access_key_id}';
         SET s3_secret_access_key = '{settings.s3_secret_access_key}';
-        SET s3_region = '{settings.s3_region}';
+        SET s3_region = 'us-east-1';
         SET s3_url_style = 'path';
         SET s3_use_ssl = 'false';
-    """)
+    """)  # SET s3_region = '{settings.s3_region}'; duckDB doesn't support "auto"
     # Register a view that mirrors mart_predictions but from raw S3
     con.execute("""
         CREATE OR REPLACE VIEW mart_predictions AS
@@ -474,7 +475,7 @@ def get_duckdb() -> duckdb.DuckDBPyConnection:
 
 def _safe_postgres_query(
     db: Engine,
-    query: Executable,
+    query: Any,
     params: dict[str, Any] | None = None,
     method: str = 'all',
 ) -> list[dict[str, Any]]:
@@ -491,7 +492,7 @@ def _safe_postgres_query(
                 row = result.mappings().first()
                 return [dict(row)] if row else []
             return [dict(r) for r in result.mappings().all()]
-    except duckdb.ProgrammingError as e:
+    except ProgrammingError as e:
         log.warning('postgres query failed (table may not exist yet)', error=str(e))
         return []
 

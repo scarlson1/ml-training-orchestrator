@@ -192,7 +192,8 @@ module = [
   "fastapi",
   "fastapi.*",
   "prometheus_client",
-  "sqlalchemy"
+  "sqlalchemy",
+  "sqlalchemy.*"
 ]
 ignore_missing_imports = true
 
