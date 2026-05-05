@@ -27,7 +27,7 @@ import { StatCard } from '~/components/StatCard';
 import { monoFont, serifFont } from '~/config/themePrimitives';
 import { TOKENS, type Tokens } from '~/config/tmpTheme';
 import { useResolvedMode } from '~/hooks/useResolvedMode';
-import { getWeather } from '~/utils/weather.server';
+import { getWeather } from '~/utils/weather.functions';
 
 export const Route = createFileRoute('/')({
   component: IndexAlt,
