@@ -1487,3 +1487,26 @@ D SELECT * FROM read_parquet('s3://staging/iceberg/staged_flights/data/flight_da
 # using iceberg
 D SELECT * FROM iceberg_scan('s3://staging/iceberg/staged_flights') LIMIT 10;
 ```
+
+### Improvements
+
+- Add data sources
+  - [fuel costs](https://transtats.bts.gov/databases.asp?f7owrp6_VQ=K&f7owrp6_Qr5p=R0r4tB&Z1qr_VQF=D)
+  - additional weather data - currently stub in `index.tsx`
+    - [Aviation Weather](https://aviationweather.gov/data/api/) - free current & forecast
+      ```python
+      # need to do the reverse of noaa.py's icao_to_iata:
+      # Derive IATA from ICAO. Continental US: strip leading K.
+      # Non-continental airports use the explicit mapping above.
+      def icao_to_iata(icao: str) -> str | None:
+          if pd.isna(icao):
+              return None
+          icao = icao.strip()
+          if icao in _NONCONTINENTAL_ICAO_TO_IATA:
+              return _NONCONTINENTAL_ICAO_TO_IATA[icao]
+          if icao.startswith('K') and len(icao) == 4:
+              return icao[1:]
+          return None
+      ```
+    - [AVWX](https://info.avwx.rest/) - generous free tier
+  -

@@ -22,10 +22,12 @@ import {
 import { CarrierComparison } from '~/components/CarrierComparison';
 import { Globe } from '~/components/Globe';
 import { NetworkMap } from '~/components/NetworkMap';
+import { RouterButton } from '~/components/RouterButton';
 import { StatCard } from '~/components/StatCard';
 import { monoFont, serifFont } from '~/config/themePrimitives';
 import { TOKENS, type Tokens } from '~/config/tmpTheme';
 import { useResolvedMode } from '~/hooks/useResolvedMode';
+import { getWeather } from '~/utils/weather.server';
 
 export const Route = createFileRoute('/')({
   component: IndexAlt,
@@ -1186,7 +1188,8 @@ function PredictionHeadline({
               ? `Scored live. Brier ~0.06. ${prediction.features_complete ? 'All features resolved.' : 'Some features missing.'}`
               : 'Calibrated against 14d holdout. Brier 0.061.'}
           </Typography>
-          <Button
+          <RouterButton
+            to='/models' // TODO: add features route ?? /models/:modelId/features ?? or /models/:modelId ?? or /features ??
             variant='outlined'
             sx={{
               mt: '14px',
@@ -1198,9 +1201,10 @@ function PredictionHeadline({
               fontFamily: 'Inter, sans-serif',
               '&:hover': { borderColor: t.ink, bgcolor: 'transparent' },
             }}
+            endIcon={'→'}
           >
-            Inspect features →
-          </Button>
+            Inspect features
+          </RouterButton>
         </Box>
       </Box>
     </Box>
@@ -1506,7 +1510,18 @@ function RouteHistoryChart({
 
 // ─── Weather + congestion strip ───────────────────────────────────────────────
 
+const useAviationWeather = (endpoint: 'metar' | 'taf', icao: string) => {
+  return useSuspenseQuery({
+    queryKey: ['weather', endpoint, icao],
+    queryFn: async () => getWeather({ data: { endpoint, icao } }),
+  });
+};
+
 function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
+  const { data } = useAviationWeather('metar', 'KBNA');
+  console.log('weather METAR: ', data);
+
+  // TODO: need to ingest data or call 3rd party api
   const cards = [
     {
       l: 'Origin weather',
