@@ -28,6 +28,7 @@ import { monoFont, serifFont } from '~/config/themePrimitives';
 import { TOKENS, type Tokens } from '~/config/tmpTheme';
 import { useResolvedMode } from '~/hooks/useResolvedMode';
 import { getWeather } from '~/utils/weather.functions';
+import type { MetarResponse } from '~/utils/weather.server';
 
 export const Route = createFileRoute('/')({
   component: IndexAlt,
@@ -1510,6 +1511,33 @@ function RouteHistoryChart({
 
 // ─── Weather + congestion strip ───────────────────────────────────────────────
 
+const _NONCONTINENTAL_ICAO_TO_IATA: Record<string, string> = {
+  ANC: 'PANC',
+  FAI: 'PAFA',
+  JNU: 'PAJN',
+  BET: 'PABT',
+  KDK: 'PADQ',
+  FBK: 'PAFB',
+  AKN: 'PAKN',
+  OME: 'PAOM',
+  HOM: 'PAHO',
+  ADK: 'PADK',
+  HNL: 'PHNL',
+  OGG: 'PHOG',
+  KOA: 'PHKO',
+  ITO: 'PHTO',
+  SJU: 'TJSJ',
+  BQN: 'TJBQ',
+  PSE: 'TJPS',
+  GUM: 'PGUM',
+};
+
+const iataToIcao = (iata: string): string => {
+  if (Object.keys(_NONCONTINENTAL_ICAO_TO_IATA).includes(iata))
+    return _NONCONTINENTAL_ICAO_TO_IATA[iata];
+  return `K${iata}`;
+};
+
 const useAviationWeather = (endpoint: 'metar' | 'taf', icao: string) => {
   return useSuspenseQuery({
     queryKey: ['weather', endpoint, icao],
@@ -1518,8 +1546,13 @@ const useAviationWeather = (endpoint: 'metar' | 'taf', icao: string) => {
 };
 
 function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
-  const { data } = useAviationWeather('metar', 'KBNA');
-  console.log('weather METAR: ', data);
+  const { data: origin } = useAviationWeather(
+    'metar',
+    iataToIcao(flight.from.code),
+  );
+  console.log('weather origin METAR: ', origin);
+
+  const o: MetarResponse = origin?.length ? origin[0] : ({} as MetarResponse);
 
   // TODO: need to ingest data or call 3rd party api
   const cards = [
@@ -1527,7 +1560,7 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
       l: 'Origin weather',
       code: flight.from.code,
       top: 'VFR · clear',
-      sub: 'wind 240@8 · vis 10sm',
+      sub: `wind ${o?.wdir || '-'}@${o?.wspd || '-'} 240@8 · vis ${o?.visib || '-'}sm`,
       spark: [82, 84, 86, 85, 88, 90, 89, 91],
       col: t.good,
     },

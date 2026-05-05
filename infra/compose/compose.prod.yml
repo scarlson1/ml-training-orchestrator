@@ -105,7 +105,7 @@ services:
     image: ghcr.io/${GHCR_OWNER}/bmo-serving:latest
     container_name: bmo_serving
     restart: unless-stopped
-    mem_limit: 512m
+    mem_limit: 1024m
     depends_on:
       mlflow:
         condition: service_started
@@ -113,7 +113,10 @@ services:
       - ../../.env
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
+      DUCKDB_PATH: /dagster_home/bmo_features.duckdb
       # REDIS_URL comes from .env (Upstash). Override here only if using local Redis instead.
+    volumes:
+      - dagster_home:/dagster_home:ro
     # No ports: block — serving is not publicly exposed. Caddy proxies to it internally
     # via the shared Docker network using the service name "serving".
     healthcheck:
