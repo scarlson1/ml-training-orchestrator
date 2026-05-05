@@ -27,6 +27,7 @@ import { StatCard } from '~/components/StatCard';
 import { monoFont, serifFont } from '~/config/themePrimitives';
 import { TOKENS, type Tokens } from '~/config/tmpTheme';
 import { useResolvedMode } from '~/hooks/useResolvedMode';
+import { getWeather } from '~/utils/weather.server';
 
 export const Route = createFileRoute('/')({
   component: IndexAlt,
@@ -1509,7 +1510,18 @@ function RouteHistoryChart({
 
 // ─── Weather + congestion strip ───────────────────────────────────────────────
 
+const useAviationWeather = (endpoint: 'metar' | 'taf', icao: string) => {
+  return useSuspenseQuery({
+    queryKey: ['weather', endpoint, icao],
+    queryFn: async () => getWeather({ data: { endpoint, icao } }),
+  });
+};
+
 function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
+  const { data } = useAviationWeather('metar', 'KBNA');
+  console.log('weather METAR: ', data);
+
+  // TODO: need to ingest data or call 3rd party api
   const cards = [
     {
       l: 'Origin weather',

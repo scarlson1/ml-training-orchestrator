@@ -41,9 +41,33 @@
 # SERVING_DOMAIN is injected from .env — e.g. 150.136.1.2.sslip.io or bmo-api.duckdns.org
 # Caddy automatically obtains and renews a Let's Encrypt cert for this domain.
 {$SERVING_DOMAIN} {
+    @allowed_origin {
+        header Origin https://ml-training-orchestrator.vercel.app
+        header Origin https://ml-training-orchestrator-*.vercel.app
+    }
+    # Handle CORS preflight (OPTIONS) requests before they reach upstream
+    @cors_preflight {
+        method OPTIONS
+    }
+    handle @cors_preflight {
+        header @allowed_origin Access-Control-Allow-Origin "{http.request.header.Origin}"
+        header @allowed_origin Vary "Origin"
+        header Access-Control-Allow-Methods "GET, POST, OPTIONS"
+        header Access-Control-Allow-Headers "Content-Type, Authorization"
+        header Access-Control-Max-Age "86400"
+        respond 204
+    }
+
     reverse_proxy serving:8080
 
     encode gzip
+
+
+    # Attach CORS headers to every response from the upstream
+    header @allowed_origin Access-Control-Allow-Origin "{http.request.header.Origin}"
+    header @allowed_origin Vary "Origin"
+    header @allowed_origin Access-Control-Allow-Methods "GET, POST, OPTIONS"
+    header @allowed_origin Access-Control-Allow-Headers "Content-Type, Authorization"
 
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
@@ -61,7 +85,8 @@
     # then reports a misleading CORS error instead of the real 503. Adding these
     # headers here ensures the actual status code is visible in the browser.
     handle_errors {
-        header Access-Control-Allow-Origin "https://ml-training-orchestrator.vercel.app"
+        header @allowed_origin Access-Control-Allow-Origin "{http.request.header.Origin}"
+        header @allowed_origin Vary "Origin"
         header Access-Control-Allow-Methods "GET, POST, OPTIONS"
         header Access-Control-Allow-Headers "Content-Type, Authorization"
         respond "{http.error.status_code} {http.error.status_text}"

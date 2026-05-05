@@ -2,6 +2,7 @@
 BTS Reporting Carrier On-Time Performance ingestion.
 
 Source: https://transtats.bts.gov/PREZIP/
+
 Each monthly file follows this naming pattern (month has no leading zero):
     On_Time_Reporting_Carrier_On_Time_Performance_1987_present_{YYYY}_{M}.zip
 Data is available from 1987 onward. BTS typically publishes with a ~2-month lag,
@@ -51,6 +52,7 @@ from bmo.common.storage import ObjectStore, make_object_store
 
 log = logging.getLogger(__name__)
 
+# https://transtats.bts.gov/Tables.asp?QO_VQ=EFD&QO_anzr=Nv4yv0r%FDb0-gvzr%FDcr4s14zn0pr%FDQn6n&QO_fu146_anzr=b0-gvzr
 BTS_BASE_URL = 'https://transtats.bts.gov/PREZIP'
 BTS_FILE_TEMPLATE = 'On_Time_Reporting_Carrier_On_Time_Performance_1987_present_{year}_{month}.zip'
 
