@@ -13,10 +13,10 @@ export interface PredictionSummary {
 
 export const todaysPredictionOptions = queryOptions({
   queryKey: ['predictions', 'today'],
-  queryFn: () =>
-    apiFetch('/api/predictions/today').then(
-      (r) => r.json() as Promise<PredictionSummary>,
-    ),
+  queryFn: () => apiFetch<PredictionSummary>('/api/predictions/today'),
+  // .then(
+  //   (r) => r.json() as Promise<PredictionSummary>,
+  // ),
   staleTime: 60 * 60 * 1000,
 });
 
@@ -31,10 +31,10 @@ export interface PredictionRun {
 
 export const predictionOptions = queryOptions({
   queryKey: ['predictions'],
-  queryFn: () =>
-    apiFetch('/api/predictions').then(
-      (r) => r.json() as Promise<{ rows: PredictionRun[] }>,
-    ),
+  queryFn: () => apiFetch<{ rows: PredictionRun[] }>('/api/predictions'),
+  // .then(
+  //   (r) => r.json() as Promise<{ rows: PredictionRun[] }>,
+  // ),
   staleTime: 60 * 60 * 1000,
 });
 
@@ -47,10 +47,10 @@ export interface DriftSummary {
 
 export const driftSummaryOptions = queryOptions({
   queryKey: ['drift', 'summary'],
-  queryFn: () =>
-    apiFetch('/api/drift/summary').then(
-      (r) => r.json() as Promise<DriftSummary>,
-    ),
+  queryFn: () => apiFetch<DriftSummary>('/api/drift/summary'),
+  // .then(
+  //   (r) => r.json() as Promise<DriftSummary>,
+  // ),
   staleTime: 60 * 60 * 1000,
 });
 
@@ -73,9 +73,12 @@ export const driftMetricsOptions = (start: string, end: string) =>
   queryOptions({
     queryKey: ['driftMetrics', { start, end }],
     queryFn: () =>
-      apiFetch(`/api/drift/metrics?start=${start || ''}&end=${end || ''}`).then(
-        (r) => r.json() as Promise<DriftResponse>,
+      apiFetch<DriftResponse>(
+        `/api/drift/metrics?start=${start || ''}&end=${end || ''}`,
       ),
+    // .then(
+    //   (r) => r.json() as Promise<DriftResponse>,
+    // ),
     staleTime: 60 * 60 * 1000,
   });
 
@@ -95,9 +98,12 @@ export const routeHistoryOptions = (
   queryOptions({
     queryKey: ['routes', origin, dest, 'history', days],
     queryFn: () =>
-      apiFetch(`/api/routes/${origin}-${dest}/history?days=${days}`).then(
-        (r) => r.json() as Promise<RouteHistoryResponse>,
+      apiFetch<RouteHistoryResponse>(
+        `/api/routes/${origin}-${dest}/history?days=${days}`,
       ),
+    // .then(
+    //   (r) => r.json() as Promise<RouteHistoryResponse>,
+    // ),
   });
 
 export interface NetworkDelayResponse {
@@ -112,10 +118,10 @@ export interface NetworkDelayResponse {
 export const networkDelayOptions = (days: number = 7) =>
   queryOptions({
     queryKey: ['routes', 'network', days],
-    queryFn: () =>
-      apiFetch(`/api/network?days=${days}`).then(
-        (r) => r.json() as Promise<NetworkDelayResponse>,
-      ),
+    queryFn: () => apiFetch<NetworkDelayResponse>(`/api/network?days=${days}`),
+    // .then(
+    //   (r) => r.json() as Promise<NetworkDelayResponse>,
+    // ),
   });
 
 // ----- Carrier queries -----
@@ -133,9 +139,10 @@ export const carrierComparisonOptions = (
   queryOptions({
     queryKey: ['carriers', origin, dest, 'history', days],
     queryFn: () =>
-      apiFetch(
+      apiFetch<CarrierComparisonResponse>(
         `/api/carriers/comparison?origin=${origin}&dest=${dest}&days=${days}`,
-      ).then((r) => r.json() as Promise<CarrierComparisonResponse>),
+      ),
+    // .then((r) => r.json() as Promise<CarrierComparisonResponse>),
   });
 
 // ----- Model queries -----
@@ -153,15 +160,15 @@ export interface ModelInfo {
 
 export const modelInfoOptions = queryOptions({
   queryKey: ['modelInfo'],
-  queryFn: () =>
-    apiFetch('/model-info').then(async (r) => {
-      let res = (await r.json()) as ModelInfo;
-      if (!r.ok) {
-        console.log(r.statusText);
-        throw new Error(`Failed to load model info.`);
-      }
-      return res;
-    }),
+  queryFn: () => apiFetch<ModelInfo>('/model-info'),
+  // .then(async (r) => {
+  //   let res = (await r.json()) as ModelInfo;
+  //   if (!r.ok) {
+  //     console.log(r.statusText);
+  //     throw new Error(`Failed to load model info.`);
+  //   }
+  //   return res;
+  // }),
   staleTime: 60 * 60 * 1000,
 });
 
@@ -185,9 +192,10 @@ export const modelStatsOptions = (champion: boolean = false) =>
   queryOptions({
     queryKey: ['models', { champion }],
     queryFn: () =>
-      apiFetch(`/api/model-stats?champion=${champion}`).then(
-        (r) => r.json() as Promise<{ rows: ModelStats[] }>,
-      ),
+      apiFetch<{ rows: ModelStats[] }>(`/api/model-stats?champion=${champion}`),
+    // .then(
+    //   (r) => r.json() as Promise<{ rows: ModelStats[] }>,
+    // ),
     staleTime: 60 * 60 * 1000,
   });
 
@@ -207,9 +215,9 @@ export interface AccuracyPoint {
 
 export const accuracyOptions = queryOptions({
   queryKey: ['accuracy'],
-  queryFn: () =>
-    apiFetch('/api/accuracy').then(
-      (r) => r.json() as Promise<{ rows: AccuracyPoint[] }>,
-    ),
+  queryFn: () => apiFetch<{ rows: AccuracyPoint[] }>('/api/accuracy'),
+  // .then(
+  //   (r) => r.json() as Promise<{ rows: AccuracyPoint[] }>,
+  // ),
   staleTime: 60 * 60 * 1000,
 });

@@ -593,17 +593,12 @@ function HeroSection({
 }: HeroProps) {
   const { mutate: predict, isPending } = useMutation({
     mutationFn: async (body: PredictBody) => {
-      const res = await apiFetch('/predict', {
+      const data = await apiFetch<PredictResponse>('/predict', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (res.ok) {
-        const data = (await res.json()) as PredictResponse;
-        return data;
-      } else {
-        throw new Error();
-      }
+      return data;
     },
     onSuccess: (data) => {
       onPredict(data);
