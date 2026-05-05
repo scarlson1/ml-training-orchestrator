@@ -64,10 +64,11 @@
 
 
     # Attach CORS headers to every response from the upstream
-    header @allowed_origin Access-Control-Allow-Origin "{http.request.header.Origin}"
-    header @allowed_origin Vary "Origin"
-    header @allowed_origin Access-Control-Allow-Methods "GET, POST, OPTIONS"
-    header @allowed_origin Access-Control-Allow-Headers "Content-Type, Authorization"
+    # HANDLE IN api.py
+    # header @allowed_origin Access-Control-Allow-Origin "{http.request.header.Origin}"
+    # header @allowed_origin Vary "Origin"
+    # header @allowed_origin Access-Control-Allow-Methods "GET, POST, OPTIONS"
+    # header @allowed_origin Access-Control-Allow-Headers "Content-Type, Authorization"
 
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
