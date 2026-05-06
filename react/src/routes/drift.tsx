@@ -23,8 +23,12 @@ export const Route = createFileRoute('/drift')({
   }),
   component: Drift,
   loaderDeps: ({ search: { start, end } }) => ({ start, end }),
-  loader: ({ context: { queryClient }, deps }) =>
-    queryClient.prefetchQuery(driftMetricsOptions(deps.start, deps.end)),
+  loader: ({ context: { queryClient }, deps }) => {
+    const params = new URLSearchParams();
+    if (deps.start) params.set('start', deps.start);
+    if (deps.end) params.set('end', deps.end);
+    queryClient.prefetchQuery(driftMetricsOptions(params));
+  },
 });
 
 function psiSeverity(psi: number): 'green' | 'amber' | 'red' {
@@ -40,7 +44,7 @@ function Drift() {
   if (start) params.set('start', start);
   if (end) params.set('end', end);
 
-  const { data: realData } = useSuspenseQuery(driftMetricsOptions(start, end));
+  const { data: realData } = useSuspenseQuery(driftMetricsOptions(params));
 
   // TODO: delete dummy data
   const data =

@@ -60,7 +60,11 @@ function AppHeader() {
         borderColor: 'divider',
         position: 'sticky',
         top: 0,
-        bgcolor: 'background.default',
+        // bgcolor: 'background.default',
+        // bgcolor: (theme) => alpha(theme.vars.palette.background.default, 0.6),
+        bgcolor: (theme) =>
+          `color-mix(in srgb, ${(theme.vars || theme).palette.background.default}, transparent 92%)`,
+        backdropFilter: 'blur(10px)',
         zIndex: 100,
       }}
     >

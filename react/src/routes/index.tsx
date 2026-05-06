@@ -28,7 +28,8 @@ import { monoFont, serifFont } from '~/config/themePrimitives';
 import { TOKENS, type Tokens } from '~/config/tmpTheme';
 import { useResolvedMode } from '~/hooks/useResolvedMode';
 import { iataToIcao } from '~/utils/misc';
-import { getWeather } from '~/utils/weather.functions';
+import { getDelayStatus, getWeather } from '~/utils/weather.functions';
+import type { GetDelaysOptions } from '~/utils/weather.server';
 
 export const Route = createFileRoute('/')({
   component: Index,
@@ -73,6 +74,8 @@ interface Flight {
   factors: Factor[];
   history: number[];
 }
+
+// TODO: real data
 
 const FLIGHTS: Flight[] = [
   {
@@ -1513,47 +1516,57 @@ const useAviationWeather = (endpoint: 'metar' | 'taf', icao: string) => {
       return await getWeather({ data: { endpoint, icao } });
       // return res?.length ? res[0] : ({} as MetarResponse);
     },
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 15,
+  });
+};
+
+const useDelays = (options: GetDelaysOptions) => {
+  return useSuspenseQuery({
+    queryKey: ['delays', options],
+    queryFn: () => getDelayStatus({ data: options }),
+    staleTime: 1000 * 60 * 15,
+    gcTime: 1000 * 60 * 15,
   });
 };
 
 // TODO: congestion api: https://airlabs.co/docs/delays
 
 function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
-  // TODO: need to ingest data or call 3rd party api for congestion calc
-  const cards = [
-    // {
-    //   l: 'Origin weather',
-    //   code: flight.from.code,
-    //   top: 'VFR · clear',
-    //   sub: `wind ${data?.wdir || '-'}@${data?.wspd || '-'} 240@8 · vis ${data?.visib || '-'}sm`,
-    //   spark: [82, 84, 86, 85, 88, 90, 89, 91],
-    //   col: t.good,
-    // },
-    // {
-    //   l: 'Destination weather',
-    //   code: flight.to.code,
-    //   top: 'MVFR · scattered',
-    //   sub: 'wind 290@14G22 · vis 6sm',
-    //   spark: [88, 84, 80, 76, 72, 70, 68, 71],
-    //   col: t.warn,
-    // },
-    {
-      l: 'Origin congestion',
-      code: flight.from.code,
-      top: 'Normal',
-      sub: 'taxi 18m · queue 4',
-      spark: [12, 14, 16, 15, 18, 17, 19, 18],
-      col: t.ink,
-    },
-    {
-      l: 'Dest congestion',
-      code: flight.to.code,
-      top: 'Elevated',
-      sub: 'taxi 26m · queue 11',
-      spark: [10, 12, 15, 18, 22, 26, 28, 30],
-      col: t.warn,
-    },
-  ];
+  // const cards = [
+  // {
+  //   l: 'Origin weather',
+  //   code: flight.from.code,
+  //   top: 'VFR · clear',
+  //   sub: `wind ${data?.wdir || '-'}@${data?.wspd || '-'} 240@8 · vis ${data?.visib || '-'}sm`,
+  //   spark: [82, 84, 86, 85, 88, 90, 89, 91],
+  //   col: t.good,
+  // },
+  // {
+  //   l: 'Destination weather',
+  //   code: flight.to.code,
+  //   top: 'MVFR · scattered',
+  //   sub: 'wind 290@14G22 · vis 6sm',
+  //   spark: [88, 84, 80, 76, 72, 70, 68, 71],
+  //   col: t.warn,
+  // },
+  //   {
+  //     l: 'Origin congestion',
+  //     code: flight.from.code,
+  //     top: 'Normal',
+  //     sub: 'taxi 18m · queue 4',
+  //     spark: [12, 14, 16, 15, 18, 17, 19, 18],
+  //     col: t.ink,
+  //   },
+  //   {
+  //     l: 'Dest congestion',
+  //     code: flight.to.code,
+  //     top: 'Elevated',
+  //     sub: 'taxi 26m · queue 11',
+  //     spark: [10, 12, 15, 18, 22, 26, 28, 30],
+  //     col: t.warn,
+  //   },
+  // ];
 
   return (
     <Box
@@ -1610,7 +1623,58 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
           />
         </Suspense>
       </ErrorBoundary>
-      {cards.map((c, i) => (
+      <ErrorBoundary fallback={null}>
+        <Suspense
+          fallback={
+            <StatCard // @ts-ignore
+              label={<Skeleton width={60} />} // @ts-ignore
+              code={<Skeleton width={40} />} // @ts-ignore
+              value={<Skeleton />} // @ts-ignore
+              subtitle={`taxi --m · queue --`}
+              spark={[]}
+              color={t.ink}
+              fill={t.lineSoft}
+            />
+          }
+        >
+          <AirportCongestionCard
+            delay={31}
+            type='departures'
+            dep_iata={flight.from.code}
+            label='Origin Congestion'
+            spark={[12, 14, 16, 15, 18, 17, 19, 18]}
+            color={t.ink}
+            t={t}
+          />
+        </Suspense>
+      </ErrorBoundary>
+      <ErrorBoundary fallback={null}>
+        <Suspense
+          fallback={
+            <StatCard // @ts-ignore
+              label={<Skeleton width={60} />} // @ts-ignore
+              code={<Skeleton width={40} />} // @ts-ignore
+              value={<Skeleton />} // @ts-ignore
+              subtitle={`taxi --m · queue --`}
+              spark={[]}
+              color={t.ink}
+              fill={t.lineSoft}
+            />
+          }
+        >
+          <AirportCongestionCard
+            delay={31}
+            type='arrivals'
+            dep_iata={flight.to.code}
+            label='Destination Congestion'
+            color={t.ink}
+            spark={[10, 12, 15, 18, 22, 26, 28, 30]}
+            t={t}
+          />
+        </Suspense>
+      </ErrorBoundary>
+
+      {/* {cards.map((c, i) => (
         <StatCard
           key={`stat-${i}`}
           label={c.l}
@@ -1621,7 +1685,7 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
           color={c.col}
           fill={t.lineSoft}
         />
-      ))}
+      ))} */}
     </Box>
   );
 }
@@ -1651,6 +1715,51 @@ function WeatherCard({
       subtitle={`wind ${data?.wdir || '-'}@${data?.wspd || '-'} 240@8 · vis ${data?.visib || '-'}sm`}
       spark={[82, 84, 86, 85, 88, 90, 89, 91]}
       color={color}
+      fill={t.lineSoft}
+    />
+  );
+}
+
+interface AirportCongestionCardParams extends GetDelaysOptions {
+  label: string;
+  spark: number[];
+  color: string;
+  t: Tokens;
+}
+
+function AirportCongestionCard({
+  label,
+  spark,
+  color,
+  t,
+  ...options
+}: AirportCongestionCardParams) {
+  const { data } = useDelays(options);
+  // console.log(label, data);
+
+  const code = options.dep_iata || options.arr_iata || '';
+
+  const [avgDelayMins, col, congestionLevel] = useMemo(() => {
+    const totalMins = data.reduce((acc, cur) => acc + cur.delayed, 0);
+
+    const avgDelayMins = Math.floor(totalMins / (data.length || 1));
+    const col = avgDelayMins < 60 ? t.good : avgDelayMins < 120 ? t.ink : t.bad;
+    const congestionLevel =
+      avgDelayMins < 60 ? 'Light' : avgDelayMins < 120 ? 'Normal' : 'Elevated';
+
+    return [avgDelayMins, col, congestionLevel] as const;
+  }, [data]); // TODO: format as days hours minutes
+
+  // TODO: find place in queue from index in data ??
+
+  return (
+    <StatCard
+      label={label}
+      code={code}
+      value={congestionLevel}
+      subtitle={`taxi ${avgDelayMins}m · queue --`}
+      spark={spark}
+      color={col} // TODO: calc color from delay
       fill={t.lineSoft}
     />
   );

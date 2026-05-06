@@ -7,8 +7,11 @@ export function apiUrl(path: string): string {
 export async function apiFetch<T>(
   path: string,
   options?: RequestInit,
+  params?: string[][] | Record<string, string> | string | URLSearchParams,
 ): Promise<T> {
-  const res = await fetch(apiUrl(path), options);
+  const url = new URL(apiUrl(path));
+  if (params) url.search = new URLSearchParams(params).toString();
+  const res = await fetch(url, options);
   if (!res.ok) throw new Error(`Response status: ${res.status}`);
 
   return (await res.json()) as T;
