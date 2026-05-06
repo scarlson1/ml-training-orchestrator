@@ -35,6 +35,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import duckdb
+import httpx
 import mlflow
 import pandas as pd
 import s3fs
@@ -193,7 +194,7 @@ def batch_predictions(context: AssetExecutionContext) -> MaterializeResult:
     )
     context.log.info(f'loaded {len(entity_df)} flights from staged_flights')
 
-    # attempting DuckDB join to debug
+    # attempting DuckDB join to debug (.get_historical_features() is hanging)
     # store = FeatureStore(repo_path=str(FEATURE_REPO_DIR))
 
     context.log.info('loaded feature store. scoring partition...')
@@ -284,6 +285,18 @@ def deployed_api(context: AssetExecutionContext) -> MaterializeResult:
         json.dump(config, f, indent=2)
 
     context.log.info(f'Published model config: version={champion.version}, path={config_path}')
+
+    if settings.serving_api_url and settings.admin_token:
+        try:
+            resp = httpx.post(
+                f'{settings.serving_api_url}/admin/reload',
+                headers={'Authorization': f'Bearer {settings.admin_token}'},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            context.log.info(f'hot-swap complete: {resp.json()}')
+        except Exception as exc:
+            context.log.warning(f'admin/reload failed (model config still updated): {exc}')
 
     return MaterializeResult(
         metadata={

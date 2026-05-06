@@ -1470,7 +1470,14 @@ r2_endpoint_url = "https://2662189f53004928cc8e89c79f095db9.r2.cloudflarestorage
 - document need to run feast assets (and prereqs) for each partition before running batch_predict ?? use 'ins' in @asset decorator ??
 - why doesn't mart_predictions have dependency on batch_predictions ??
 
+- update congestion card
+  - use airlabs schedules endpoint to get schedules flights in next hour
+  - use ratio of delayed to schedules to approximate congestion?
+  - or find api for: Airport Acceptance Rate (AAR), which determines the number of arriving aircraft allowed per hour, and the Expect Departure Clearance Times (EDCTs), which are assigned to manage delays when demand exceeds capacity
+  - or: (delayed + cancelled flights) / total scheduled
+
 - need to rethink front end data - bts is behind ~60 days
+  - use streaming / batch api to ingest current data ?? or call 3rd party api ??
   - use other apis: current flights, weather, hub congestion, etc.
     - predict feature still works ? sort of - missing tail number cascading delay
   - calc data from 2+ months back - not very useful ??

@@ -67,6 +67,7 @@ class Settings(BaseSettings):
 
     discord_webhook_url: str | None = None
     admin_token: str | None = None
+    serving_api_url: str | None = None  # e.g. http://localhost:8000 or https://<domain>
 
     # ===== Computed Properties ===== #
 
