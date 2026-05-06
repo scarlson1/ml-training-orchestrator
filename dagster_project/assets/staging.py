@@ -20,19 +20,20 @@ from dagster import (
     asset,
 )
 
-from bmo.common.storage import make_object_store
+from bmo.common.storage import ObjectStore
 from bmo.serving.partitions import MONTHLY_PARTITIONS
 from bmo.staging.dimensions import stage_airports, stage_routes
 from bmo.staging.flights import stage_flights
 from bmo.staging.weather import stage_weather
+from dagster_project.resources.s3_resource import S3Resource
 
 
 @asset(
     group_name='staging',
     deps=['raw_faa_airports', 'station_map'],
 )
-def dim_airport(context: AssetExecutionContext) -> MaterializeResult:
-    store = make_object_store()
+def dim_airport(context: AssetExecutionContext, s3: S3Resource) -> MaterializeResult:
+    store = ObjectStore(client=s3.get_client())
     count = stage_airports(store)
     return MaterializeResult(metadata={'row_count': MetadataValue.int(count)})
 
@@ -41,8 +42,8 @@ def dim_airport(context: AssetExecutionContext) -> MaterializeResult:
     group_name='staging',
     deps=['raw_openflights_routes', 'dim_airport'],
 )
-def dim_route(context: AssetExecutionContext) -> MaterializeResult:
-    store = make_object_store()
+def dim_route(context: AssetExecutionContext, s3: S3Resource) -> MaterializeResult:
+    store = ObjectStore(client=s3.get_client())
     count = stage_routes(store)
     return MaterializeResult(metadata={'row_count': MetadataValue.int(count)})
 
@@ -62,11 +63,11 @@ def dim_route(context: AssetExecutionContext) -> MaterializeResult:
     ),
 )
 def staged_flights(
-    context: AssetExecutionContext, raw_bts_flights, dim_airport
+    context: AssetExecutionContext, s3: S3Resource, raw_bts_flights, dim_airport
 ) -> MaterializeResult:
     year_str, month_str, *_ = context.partition_key.split('-')
     year, month = int(year_str), int(month_str)
-    store = make_object_store()
+    store = ObjectStore(client=s3.get_client())
 
     result = stage_flights(year=year, month=month, store=store)
 
@@ -95,10 +96,12 @@ def staged_flights(
         warn_window=timedelta(days=40),
     ),
 )
-def staged_weather(context: AssetExecutionContext, raw_noaa_weather) -> MaterializeResult:
+def staged_weather(
+    context: AssetExecutionContext, s3: S3Resource, raw_noaa_weather
+) -> MaterializeResult:
     year_str, month_str, *_ = context.partition_key.split('-')
     year, month = int(year_str), int(month_str)
-    store = make_object_store()
+    store = ObjectStore(client=s3.get_client())
 
     result = stage_weather(year=year, month=month, store=store)
 

@@ -34,11 +34,8 @@ import json
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-import duckdb
 import httpx
-import mlflow
 import pandas as pd
-import s3fs
 from dagster import (
     AssetExecutionContext,
     Failure,
@@ -48,12 +45,12 @@ from dagster import (
     asset,
 )
 from mlflow.exceptions import MlflowException, RestException
-from mlflow.tracking import MlflowClient
 
 from bmo.batch_scoring.score import score_partition
 from bmo.common.config import settings
 from bmo.evaluation_gate.gate import MODEL_NAME
 from bmo.serving.partitions import DAILY_PARTITIONS
+from dagster_project.resources import DuckDBResource, MLflowResource, S3Resource
 
 FEATURE_REPO_DIR = Path(__file__).parent.parent.parent / 'feature_repo'
 
@@ -130,7 +127,9 @@ WHERE flight_date = '{score_date}'
         'Idempotent: re-running the same partition overwrites cleanly.'
     ),
 )
-def batch_predictions(context: AssetExecutionContext) -> MaterializeResult:
+def batch_predictions(
+    context: AssetExecutionContext, mlflow: MLflowResource, duckdb: DuckDBResource, s3: S3Resource
+) -> MaterializeResult:
     """
     Score all scheduled flights for the Dagster partition date.
 
@@ -151,8 +150,10 @@ def batch_predictions(context: AssetExecutionContext) -> MaterializeResult:
 
     context.log.info(f'batch scoring for {score_date_str}, run_time={run_time.isoformat()}')
 
-    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
-    client = MlflowClient()
+    # mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    # client = MlflowClient()
+    mlflow.configure()
+    client = mlflow.get_client()
 
     try:
         champion = client.get_model_version_by_alias(MODEL_NAME, 'champion')
@@ -174,10 +175,13 @@ def batch_predictions(context: AssetExecutionContext) -> MaterializeResult:
     # read scheduled flights from DuckDB
     # duckdb connects to the same file used by dbt feature models
     # staged_flights was populated by the staging asset and contains partitioned flight records
-    con = duckdb.connect(settings.duckdb_path, read_only=True)
-    query = _FLIGHTS_SQL.format(score_date=score_date_str, run_time=run_time.isoformat())
-    entity_df: pd.DataFrame = con.execute(query).df()
-    con.close()
+    with duckdb.get_connection(read_only=True) as con:
+        query = _FLIGHTS_SQL.format(score_date=score_date_str, run_time=run_time.isoformat())
+        entity_df = con.execute(query).df()
+    # con = duckdb.connect(settings.duckdb_path, read_only=True)
+    # query = _FLIGHTS_SQL.format(score_date=score_date_str, run_time=run_time.isoformat())
+    # entity_df: pd.DataFrame = con.execute(query).df()
+    # con.close()
 
     if entity_df.empty:
         context.log.warning(f'No flights found for {score_date_str} - skipping')
@@ -208,10 +212,14 @@ def batch_predictions(context: AssetExecutionContext) -> MaterializeResult:
         # feature_store=store,
         feast_s3_base=f's3://{settings.s3_bucket_staging}/feast',
         s3_base=f's3://{settings.s3_bucket_staging}/predictions',
-        s3_endpoint_url=settings.s3_endpoint_url,
-        s3_access_key_id=settings.s3_access_key_id,
-        s3_secret_access_key=settings.s3_secret_access_key,
-        s3_region=settings.s3_region,
+        s3_endpoint_url=s3.endpoint_url,
+        s3_access_key_id=s3.access_key_id,
+        s3_secret_access_key=s3.secret_access_key,
+        s3_region=s3.region,
+        # s3_endpoint_url=settings.s3_endpoint_url,
+        # s3_access_key_id=settings.s3_access_key_id,
+        # s3_secret_access_key=settings.s3_secret_access_key,
+        # s3_region=settings.s3_region,
     )
 
     return MaterializeResult(
@@ -238,7 +246,9 @@ def batch_predictions(context: AssetExecutionContext) -> MaterializeResult:
         'on the Fly.io machine to hot-swap the model without a container restart.'
     ),
 )
-def deployed_api(context: AssetExecutionContext) -> MaterializeResult:
+def deployed_api(
+    context: AssetExecutionContext, mlflow: MLflowResource, s3: S3Resource
+) -> MaterializeResult:
     """
     Publish champion model metadata to S3 for the FastAPI service to consume.
 
@@ -253,8 +263,10 @@ def deployed_api(context: AssetExecutionContext) -> MaterializeResult:
       4. operator (or automation) calls POST /admin/reload on the Fly.io machine
       5. FastAPI reads the new model_config.json and loads the model from MLflow
     """
-    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
-    client = MlflowClient()
+    # mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    # client = MlflowClient()
+    mlflow.configure()
+    client = mlflow.get_client()
 
     try:
         champion = client.get_model_version_by_alias(MODEL_NAME, 'champion')
@@ -273,12 +285,13 @@ def deployed_api(context: AssetExecutionContext) -> MaterializeResult:
         'published_at': datetime.now(timezone.utc).isoformat(),
     }
 
-    fs = s3fs.S3FileSystem(
-        key=settings.s3_access_key_id,
-        secret=settings.s3_secret_access_key,
-        endpoint_url=settings.s3_endpoint_url,
-        client_kwargs={'region_name': settings.s3_region},
-    )
+    # fs = s3fs.S3FileSystem(
+    #     key=settings.s3_access_key_id,
+    #     secret=settings.s3_secret_access_key,
+    #     endpoint_url=settings.s3_endpoint_url,
+    #     client_kwargs={'region_name': settings.s3_region},
+    # )
+    fs = s3.get_s3fs()
 
     config_path = f's3://{settings.s3_bucket_staging}/serving/model_config.json'
     with fs.open(config_path, 'w') as f:

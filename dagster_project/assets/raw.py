@@ -21,17 +21,18 @@ from dagster import (
 )
 
 from bmo.common.config import settings
-from bmo.common.storage import make_object_store
+from bmo.common.storage import ObjectStore
 from bmo.ingestion.bts import IngestResult, ingest_month
 from bmo.ingestion.faa import ingest_airports, ingest_routes
 from bmo.ingestion.noaa import NoaaIngestResult, build_station_map, ingest_noaa_month
 from bmo.serving.partitions import MONTHLY_PARTITIONS
+from dagster_project.resources.s3_resource import S3Resource
 
 
 @asset(group_name='raw', metadata={'source': 'https://ourairports.com/data/airports.csv'})
-def raw_faa_airports(context: AssetExecutionContext) -> MaterializeResult:
+def raw_faa_airports(context: AssetExecutionContext, s3: S3Resource) -> MaterializeResult:
     """US commercial airports — ICAO/IATA codes, lat/lon, elevation."""
-    store = make_object_store()
+    store = ObjectStore(client=s3.get_client())
     table = ingest_airports(store)  # writes faa/airports.parquet to S3, returns table
     return MaterializeResult(metadata={'row_count': MetadataValue.int(table.num_rows)})
 
@@ -42,10 +43,10 @@ def raw_faa_airports(context: AssetExecutionContext) -> MaterializeResult:
         'source': 'https://raw.githubusercontent.com/jpatokal/openflights/master/data/routes.dat'
     },
 )
-def raw_openflights_routes(context: AssetExecutionContext) -> MaterializeResult:
+def raw_openflights_routes(context: AssetExecutionContext, s3: S3Resource) -> MaterializeResult:
     """Nonstop route graph (airline, origin IATA, dest IATA)."""
 
-    store = make_object_store()
+    store = ObjectStore(client=s3.get_client())
     ingest_routes(store)  # writes openflights/routes.parquet to S3
     # still return materializeResult to tell Dagster we handled storing result
     return MaterializeResult()
@@ -56,13 +57,13 @@ def raw_openflights_routes(context: AssetExecutionContext) -> MaterializeResult:
     deps=[raw_faa_airports],
     group_name='raw',
 )
-def station_map(context: AssetExecutionContext) -> MaterializeResult:
+def station_map(context: AssetExecutionContext, s3: S3Resource) -> MaterializeResult:
     """
     {iata_code: lcd_station_id} mapping built from NOAA ISD history.
     Stored as JSON at raw/noaa/_station_map.json so partitioned NOAA runs
     can read it without re-downloading the ISD file each time.
     """
-    store = make_object_store()
+    store = ObjectStore(client=s3.get_client())
 
     existing = store.read_json_or_none(settings.s3_bucket_raw, 'noaa/_station_map.json')
     if existing is not None:
@@ -97,13 +98,13 @@ def station_map(context: AssetExecutionContext) -> MaterializeResult:
         fail_window=timedelta(days=35), warn_window=timedelta(days=32)
     ),
 )
-def raw_bts_flights(context: AssetExecutionContext) -> MaterializeResult:
+def raw_bts_flights(context: AssetExecutionContext, s3: S3Resource) -> MaterializeResult:
     """Monthly BTS on-time performance data, converted to Parquet."""
     partition_key = context.partition_key  # "2026-01-01"
     # dt = dg.TimeWindow  # not needed - parse directly
     year, month, *_ = (int(x) for x in partition_key.split('-'))
 
-    store = make_object_store()
+    store = ObjectStore(client=s3.get_client())
     result: IngestResult = ingest_month(year=year, month=month, store=store)
 
     return MaterializeResult(
@@ -123,13 +124,13 @@ def raw_bts_flights(context: AssetExecutionContext) -> MaterializeResult:
     group_name='raw',
     metadata={'source': 'https://www.ncei.noaa.gov/data/local-climatological-data'},
 )
-def raw_noaa_weather(context: AssetExecutionContext) -> MaterializeResult:
+def raw_noaa_weather(context: AssetExecutionContext, s3: S3Resource) -> MaterializeResult:
     """Monthly NOAA LCD FM-15 hourly observations for all BTS airports."""
     partition_key = context.partition_key
     year_str, month_str, *_ = partition_key.split('-')
     year, month = int(year_str), int(month_str)
 
-    store = make_object_store()
+    store = ObjectStore(client=s3.get_client())
 
     # Load the station map written by the station_map asset.
     # station_map is unpartitioned, so there's always exactly one version.

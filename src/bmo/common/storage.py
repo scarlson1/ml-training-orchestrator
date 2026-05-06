@@ -36,7 +36,8 @@ class ObjectStore:
             self.client.head_object(Bucket=bucket, Key=key)
             return True
         except ClientError as e:
-            if e.response['Error']['Code'] in ('404', 'NoSuchKey', 'NotFound'):
+            code = e.response.get('Error', {}).get('Code', '')
+            if code in ('404', 'NoSuchKey', 'NotFound'):
                 return False
             raise
 
@@ -46,7 +47,8 @@ class ObjectStore:
             result: dict[str, Any] = json.loads(obj['Body'].read())
             return result
         except ClientError as e:
-            if e.response['Error']['Code'] in ('NoSuchKey', '404'):
+            code = e.response.get('Error', {}).get('Code', '')
+            if code in ('NoSuchKey', '404'):
                 return None
             raise
 

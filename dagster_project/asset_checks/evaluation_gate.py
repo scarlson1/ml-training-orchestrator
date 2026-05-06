@@ -15,7 +15,6 @@ Dagster can display each check independently in the UI and so SliceParityCheck
 
 from typing import Any
 
-import mlflow
 import structlog
 from dagster import (
     AssetCheckExecutionContext,
@@ -26,7 +25,6 @@ from dagster import (
     asset_check,
 )
 
-from bmo.common.config import settings
 from bmo.evaluation_gate.checks import (
     AUCGateCheck,
     CalibrationCheck,
@@ -34,6 +32,7 @@ from bmo.evaluation_gate.checks import (
     SliceParityCheck,
 )
 from bmo.evaluation_gate.gate import load_gate_input
+from dagster_project.resources import MLflowResource
 
 log = structlog.get_logger(__name__)
 
@@ -91,8 +90,9 @@ def _severity_to_dagster(passed: bool, result_severity: str) -> AssetCheckSeveri
         'ERROR: blocks registered_model materialization.'
     ),
 )
-def check_auc_gate(context: AssetCheckExecutionContext) -> AssetCheckResult:
-    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+def check_auc_gate(context: AssetCheckExecutionContext, mlflow: MLflowResource) -> AssetCheckResult:
+    # mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    mlflow.configure()
     run_id = _get_trained_model_run_id(context)
     gate_input = load_gate_input(run_id)
     result = AUCGateCheck().run(gate_input)
@@ -115,8 +115,11 @@ def check_auc_gate(context: AssetCheckExecutionContext) -> AssetCheckResult:
         'ERROR: blocks registered_model materialization.'
     ),
 )
-def check_leakage_sentinel(context: AssetCheckExecutionContext) -> AssetCheckResult:
-    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+def check_leakage_sentinel(
+    context: AssetCheckExecutionContext, mlflow: MLflowResource
+) -> AssetCheckResult:
+    # mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    mlflow.configure()
     run_id = _get_trained_model_run_id(context)
     gate_input = load_gate_input(run_id)
     result = LeakageSentinelCheck().run(gate_input)
@@ -137,8 +140,11 @@ def check_leakage_sentinel(context: AssetCheckExecutionContext) -> AssetCheckRes
         'WARN: surfaces recalibration recommendation but does not block promotion.'
     ),
 )
-def check_calibration(context: AssetCheckExecutionContext) -> AssetCheckResult:
-    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+def check_calibration(
+    context: AssetCheckExecutionContext, mlflow: MLflowResource
+) -> AssetCheckResult:
+    # mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    mlflow.configure()
     run_id = _get_trained_model_run_id(context)
     gate_input = load_gate_input(run_id)
     result = CalibrationCheck().run(gate_input)
@@ -162,8 +168,11 @@ def check_calibration(context: AssetCheckExecutionContext) -> AssetCheckResult:
         'ERROR: blocks registered_model materialization.'
     ),
 )
-def check_slice_parity(context: AssetCheckExecutionContext) -> AssetCheckResult:
-    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+def check_slice_parity(
+    context: AssetCheckExecutionContext, mlflow: MLflowResource
+) -> AssetCheckResult:
+    # mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    mlflow.configure()
     run_id = _get_trained_model_run_id(context)
     gate_input = load_gate_input(run_id)
     result = SliceParityCheck().run(gate_input)
