@@ -768,23 +768,24 @@ async def predictions_today(
 ) -> PredictionsDayResponse:
     """Get todays predictions (from 8am cron)"""
 
-    def _query() -> tuple[int, float] | None:
+    def _query() -> tuple[int, float | None, str | None] | None:
         row = duck.execute(
             """
             SELECT
                 COUNT(*)                               AS n_flights,
-                AVG(predicted_is_delayed::int)         AS positive_rate
+                AVG(predicted_is_delayed::int)         AS positive_rate,
+                MAX(score_date)::text                  AS data_as_of
             FROM mart_predictions
-            WHERE score_date = CURRENT_DATE
-            """,
+            WHERE score_date = (SELECT MAX(score_date) FROM mart_predictions)
+            """,  # WHERE score_date = CURRENT_DATE
         ).fetchone()
         if row is None:
             return None
 
-        return int(row[0]), row[1]
+        return int(row[0]), row[1], row[2]
 
     try:
-        today = await asyncio.to_thread(_query)
+        today = await asyncio.to_thread(_query)  # today = last day of data ingested
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
@@ -801,6 +802,7 @@ async def predictions_today(
         n_flights_today=today[0] if today else 0,
         positive_rate_today=round(today[1], 4) if today and today[1] is not None else None,
         days_since_retrain=days_since_retrain,
+        data_as_of=today[2] if today else None,
     )
     # return PredictionsDayResponse(
     #     model_version=loader.model_version if loader and loader.model_version else None,
@@ -812,54 +814,64 @@ async def predictions_today(
     # )
 
 
-# TODO: change to ?origin=&dest= ...
-@app.get('/api/routes/{route_key}/history', response_model=RouteHistoryResponse, tags=['api'])
+@app.get('/api/routes/history', response_model=RouteHistoryResponse, tags=['api'])
 async def route_history(
-    route_key: str,
+    # route_key: str,
+    origin: str,
+    dest: str,
     days: int = 14,
     duck: duckdb.DuckDBPyConnection = Depends(get_duckdb),
 ) -> RouteHistoryResponse:
     """Route delay history"""
 
-    normalized_route_key = route_key.upper()
-    origin, separator, dest = normalized_route_key.partition('-')
+    # normalized_route_key = route_key.upper()
+    # origin, separator, dest = normalized_route_key.partition('-')
 
-    if separator != '-' or not origin or not dest:
+    # if separator != '-' or not origin or not dest:
+    #     raise HTTPException(
+    #         status_code=422,
+    #         detail='route_key must be formatted as ORIGIN-DEST, for example SFO-JFK',
+    #     )
+    normalized_route_key = f'{origin.upper()}-{dest.upper()}'
+    if not origin or not dest:
         raise HTTPException(
             status_code=422,
-            detail='route_key must be formatted as ORIGIN-DEST, for example SFO-JFK',
+            detail='3 letter origin and dest parameters required, for example ?origin=SFO&dest=JFK',
         )
 
-    def _query() -> list[int]:
-        rows = cast(
-            list[dict[str, Any]],
-            duck.execute(
-                """
-                SELECT
-                    score_date::text AS score_date,
-                    ROUND(AVG((1 - predicted_is_delayed) * 100))::INTEGER AS otp_pct
-                FROM mart_predictions
-                WHERE CAST(score_date AS DATE) >= CURRENT_DATE - (? * INTERVAL '1 day')
-                    AND (
-                        route_key = ?
-                        OR (origin = ? AND dest = ?)
-                    )
-                GROUP BY score_date
-                ORDER BY score_date ASC
-                """,
-                [days, normalized_route_key, origin, dest],
-            )
-            .df()
-            .to_dict('records'),
-        )
-        return [int(r['otp_pct']) for r in rows if r['otp_pct'] is not None]
+    def _query() -> tuple[list[int], str | None]:
+        df = duck.execute(
+            """
+            SELECT
+                score_date::text AS score_date,
+                ROUND(AVG((1 - predicted_is_delayed) * 100))::INTEGER AS otp_pct
+            FROM mart_predictions
+            WHERE CAST(score_date AS DATE) >= (
+                    SELECT MAX(CAST(score_date AS DATE)) FROM mart_predictions
+                ) - (? * INTERVAL '1 day')
+                AND (
+                    route_key = ?
+                    OR (origin = ? AND dest = ?)
+                )
+            GROUP BY score_date
+            ORDER BY score_date ASC
+            """,
+            [days, normalized_route_key, origin, dest],
+        ).df()
+
+        rows = cast(list[dict[str, Any]], df.to_dict('records'))
+        data_as_of = str(df['score_date'].max()) if not df.empty else None
+
+        return [int(r['otp_pct']) for r in rows if r['otp_pct'] is not None], data_as_of
 
     try:
-        result = await asyncio.to_thread(_query)
+        result, data_as_of = await asyncio.to_thread(_query)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
-    return RouteHistoryResponse(route_key=normalized_route_key, history=result, days=days)
+    return RouteHistoryResponse(
+        route_key=normalized_route_key, history=result, days=days, data_as_of=data_as_of
+    )
 
 
 @app.get('/api/carriers/comparison', response_model=CarrierComparisonResponse, tags=['api'])
@@ -873,90 +885,110 @@ async def carrier_comparison(
 
     # avg_delay_min is approximation - no currently storing avg_delay_min in mart_predictions
     # TODO: use better calc for avg_delay_min (need to add predicted_delay_min ??)
-    def _query() -> list[CarrierPerformance]:
-        rows = cast(
-            list[CarrierPerformance],
-            duck.execute(
-                # _query_str,
-                """
-                SELECT
-                    carrier,
-                    AVG((1 - predicted_is_delayed::int)) AS otp,
-                    AVG(CASE WHEN predicted_is_delayed THEN predicted_delay_proba * 60 ELSE 0 END) AS avg_delay_min
-                FROM mart_predictions
-                WHERE origin = ? AND dest = ?
-                AND CAST(score_date AS DATE) >= CURRENT_DATE - INTERVAL (? || ' days')
-                GROUP BY carrier
-                ORDER BY otp DESC
-                """,
-                [origin, dest, days],
-            )
-            .df()
-            .to_dict('records'),
-        )
-        print(rows)
+    def _query() -> tuple[list[CarrierPerformance], str | None]:
+        df = duck.execute(
+            # _query_str,
+            """
+            SELECT
+                carrier,
+                AVG((1 - predicted_is_delayed::int))    AS otp,
+                AVG(
+                    CASE 
+                        WHEN predicted_is_delayed THEN ROUND(predicted_delay_proba * 60) 
+                        ELSE 0 
+                    END)                                AS avg_delay_min,
+                MAX(score_date)::text                   AS data_as_of
+            FROM mart_predictions
+            WHERE origin = ? AND dest = ?
+            AND CAST(score_date AS DATE) >= (
+                SELECT MAX(CAST(score_date AS DATE)) FROM mart_predictions
+            ) - INTERVAL (? || ' days')
+            GROUP BY carrier
+            ORDER BY otp DESC
+            """,
+            [origin, dest, days],
+        ).df()
+        rows = cast(list[dict[str, Any]], df.to_dict('records'))
+        data_as_of = rows[0]['data_as_of'] if rows else None
 
-        return [
-            CarrierPerformance(carrier=r.carrier, otp=r.otp, avg_delay=r.avg_delay) for r in rows
+        carriers = [
+            CarrierPerformance(carrier=r['carrier'], otp=r['otp'], avg_delay=r['avg_delay_min'])
+            for r in rows
         ]
+        return carriers, data_as_of
 
     try:
-        result = await asyncio.to_thread(_query)
+        result, data_as_of = await asyncio.to_thread(_query)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
-    return CarrierComparisonResponse(days=days, carriers=result)
+    return CarrierComparisonResponse(days=days, carriers=result, data_as_of=data_as_of)
 
 
 @app.get('/api/network', response_model=NetworkResponse, tags=['api'])
 async def network(
-    days: int = 7, duck: duckdb.DuckDBPyConnection = Depends(get_duckdb)
+    days: int = 7, limit: int = 12, duck: duckdb.DuckDBPyConnection = Depends(get_duckdb)
 ) -> NetworkResponse:
     """average delay by airport"""
 
-    # calc average delay over X days
-    # from mart_predictions
-    # group by origin
+    # desired format: { code: 'DCA', x: 0.8, y: 0.46, delay: 11, status: 'green' as const },
+    # need lat/lon (join from airports table)
 
-    # { code: 'DCA', x: 0.8, y: 0.46, delay: 11, status: 'green' as const },
-
-    def _query() -> list[OriginPerformance]:
-        rows = cast(
-            list[OriginPerformance],
-            duck.execute(
-                """
+    def _query() -> tuple[list[OriginPerformance], str | None]:
+        df = duck.execute(
+            """
             SELECT
                 origin,
                 AVG((1 - predicted_is_delayed::int)) AS otp,
-                AVG(CASE WHEN predicted_is_delayed THEN predicted_delay_proba * 60 ELSE 0 END) AS avg_delay_min,
+                AVG(
+                    CASE 
+                        WHEN predicted_is_delayed THEN predicted_delay_proba * 60 
+                        ELSE 0 
+                    END
+                )                                   AS avg_delay_min,
                 CASE
-                    WHEN AVG(CASE WHEN predicted_is_delayed THEN predicted_delay_proba * 60 ELSE 0 END) < 15 THEN 'green'
-                    WHEN AVG(CASE WHEN predicted_is_delayed THEN predicted_delay_proba * 60 ELSE 0 END) < 15 THEN 'amber'
+                    WHEN AVG(
+                        CASE 
+                            WHEN predicted_is_delayed THEN predicted_delay_proba * 60 
+                            ELSE 0 
+                        END) < 15 THEN 'green'
+                    WHEN AVG(
+                        CASE 
+                            WHEN predicted_is_delayed THEN predicted_delay_proba * 60 
+                            ELSE 0 
+                        END) < 15 THEN 'amber'
                     ELSE 'red'
-                END AS status_indicator
+                END                                 AS status_indicator,
+                COUNT(*)                            AS total_flights,
+                MAX(score_date)::text               AS data_as_of
             FROM mart_predictions
-            WHERE CAST(score_date AS DATE) >= CURRENT_DATE - INTERVAL (? || ' days')
+            WHERE CAST(score_date AS DATE) >= (
+                SELECT MAX(CAST(score_date AS DATE)) FROM mart_predictions
+            ) - INTERVAL (? || ' days')
             GROUP BY origin
+            ORDER BY total_flights DESC
+            LIMIT ?
             """,
-                [days],
-            )
-            .df()
-            .to_dict('records'),
-        )
+            [days, limit],
+        ).df()
 
-        return [
+        rows = cast(list[dict[str, Any]], df.to_dict('records'))
+        data_as_of = rows[0]['data_as_of'] if rows else None
+        origins = [
             OriginPerformance(
-                origin=r.origin,
-                otp=r.otp,
-                avg_delay_min=r.avg_delay_min,
-                status_indicator=r.status_indicator,
+                origin=r['origin'],
+                otp=r['otp'],
+                avg_delay_min=r['avg_delay_min'],
+                status_indicator=r['status_indicator'],
             )
             for r in rows
         ]
+        return origins, data_as_of
 
     try:
-        result = await asyncio.to_thread(_query)
+        result, data_as_of = await asyncio.to_thread(_query)
     except Exception as exc:
+        print()
         raise HTTPException(status_code=500, detail=str(exc))
 
-    return NetworkResponse(rows=result)
+    return NetworkResponse(rows=result, data_as_of=data_as_of)

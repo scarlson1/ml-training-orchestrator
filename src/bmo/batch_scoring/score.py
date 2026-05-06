@@ -10,8 +10,6 @@ import s3fs
 import structlog
 from pydantic import BaseModel
 
-from bmo.training_dataset_builder.pit_join import FeatureViewConfig
-
 log = structlog.get_logger(__name__)
 
 # These must match ALL_FEATURE_REFS in dagster_project/assets/training.py.
@@ -112,98 +110,100 @@ def score_partition(
                           downstream drift analysis can correlate predictions to models.
         entity_df:        Columns: flight_id, origin, dest, carrier, tail_number,
                           route_key, scheduled_departure_utc, event_timestamp.
-        feature_store:    feast.FeatureStore instance.
+        feast_s3_base:    S3 root for Feast materialized Parquet files, e.g. 's3://staging/feast'.
         s3_base:          Output root, e.g. 's3://staging/predictions'.
         delay_threshold:  Probability cutoff for predicted_is_delayed (default 0.5).
 
     Returns:
         BatchScoreResult — logged as Dagster asset metadata by the caller.
     """
-    from datetime import timedelta
 
     from mlflow.pyfunc import load_model
 
     from bmo.training_dataset_builder.pit_join import (
         PITJoiner,
+        default_feature_view_configs,
     )
 
     scored_at = datetime.now(timezone.utc)
     log.info('batch score start', score_date=str(score_date), n_flights=len(entity_df))
 
-    # BUG: get_historical_features hangs in dev environment
-    # Feature view configs match feature_repo/feature_views.py
-    # These must stay in sync with BATCH_FEATURE_REFS above.
-    feature_views = [
-        FeatureViewConfig(
-            name='origin_airport_features',
-            parquet_path=f'{feast_s3_base}/origin_airport/data.parquet',
-            entity_col='origin',
-            label_entity_col='origin',
-            ttl=timedelta(hours=26),
-            feature_cols=[
-                'origin_flight_count_1h',
-                'origin_avg_dep_delay_1h',
-                'origin_pct_delayed_1h',
-                'origin_avg_dep_delay_24h',
-                'origin_pct_cancelled_24h',
-                'origin_avg_dep_delay_7d',
-                'origin_pct_delayed_7d',
-                'origin_congestion_score_1h',
-            ],
-        ),
-        FeatureViewConfig(
-            name='dest_airport_features',
-            parquet_path=f'{feast_s3_base}/dest_airport/data.parquet',
-            entity_col='dest',
-            label_entity_col='dest',
-            ttl=timedelta(hours=26),
-            feature_cols=[
-                'dest_avg_arr_delay_1h',
-                'dest_pct_delayed_1h',
-                'dest_avg_arr_delay_24h',
-                'dest_pct_diverted_24h',
-            ],
-        ),
-        FeatureViewConfig(
-            name='carrier_features',
-            parquet_path=f'{feast_s3_base}/carrier/data.parquet',
-            entity_col='carrier',
-            label_entity_col='carrier',
-            ttl=timedelta(days=8),
-            feature_cols=[
-                'carrier_on_time_pct_7d',
-                'carrier_cancellation_rate_7d',
-                'carrier_avg_delay_7d',
-                'carrier_flight_count_7d',
-            ],
-        ),
-        FeatureViewConfig(
-            name='route_features',
-            parquet_path=f'{feast_s3_base}/route/data.parquet',
-            entity_col='route_key',
-            label_entity_col='route_key',
-            ttl=timedelta(days=8),
-            feature_cols=[
-                'route_avg_dep_delay_7d',
-                'route_avg_arr_delay_7d',
-                'route_pct_delayed_7d',
-                'route_cancellation_rate_7d',
-                'route_avg_elapsed_7d',
-                'route_distance_mi',
-            ],
-        ),
-        FeatureViewConfig(
-            name='aircraft_features',
-            parquet_path=f'{feast_s3_base}/aircraft/data.parquet',
-            entity_col='tail_number',
-            label_entity_col='tail_number',
-            ttl=timedelta(hours=12),
-            feature_cols=[
-                'cascading_delay_min',
-                'turnaround_min',
-            ],
-        ),
-    ]
+    # # BUG: get_historical_features hangs in dev environment
+    # # Feature view configs match feature_repo/feature_views.py
+    # # These must stay in sync with BATCH_FEATURE_REFS above.
+    # feature_views = [
+    #     FeatureViewConfig(
+    #         name='origin_airport_features',
+    #         parquet_path=f'{feast_s3_base}/origin_airport/data.parquet',
+    #         entity_col='origin',
+    #         label_entity_col='origin',
+    #         ttl=timedelta(hours=26),
+    #         feature_cols=[
+    #             'origin_flight_count_1h',
+    #             'origin_avg_dep_delay_1h',
+    #             'origin_pct_delayed_1h',
+    #             'origin_avg_dep_delay_24h',
+    #             'origin_pct_cancelled_24h',
+    #             'origin_avg_dep_delay_7d',
+    #             'origin_pct_delayed_7d',
+    #             'origin_congestion_score_1h',
+    #         ],
+    #     ),
+    #     FeatureViewConfig(
+    #         name='dest_airport_features',
+    #         parquet_path=f'{feast_s3_base}/dest_airport/data.parquet',
+    #         entity_col='dest',
+    #         label_entity_col='dest',
+    #         ttl=timedelta(hours=26),
+    #         feature_cols=[
+    #             'dest_avg_arr_delay_1h',
+    #             'dest_pct_delayed_1h',
+    #             'dest_avg_arr_delay_24h',
+    #             'dest_pct_diverted_24h',
+    #         ],
+    #     ),
+    #     FeatureViewConfig(
+    #         name='carrier_features',
+    #         parquet_path=f'{feast_s3_base}/carrier/data.parquet',
+    #         entity_col='carrier',
+    #         label_entity_col='carrier',
+    #         ttl=timedelta(days=8),
+    #         feature_cols=[
+    #             'carrier_on_time_pct_7d',
+    #             'carrier_cancellation_rate_7d',
+    #             'carrier_avg_delay_7d',
+    #             'carrier_flight_count_7d',
+    #         ],
+    #     ),
+    #     FeatureViewConfig(
+    #         name='route_features',
+    #         parquet_path=f'{feast_s3_base}/route/data.parquet',
+    #         entity_col='route_key',
+    #         label_entity_col='route_key',
+    #         ttl=timedelta(days=8),
+    #         feature_cols=[
+    #             'route_avg_dep_delay_7d',
+    #             'route_avg_arr_delay_7d',
+    #             'route_pct_delayed_7d',
+    #             'route_cancellation_rate_7d',
+    #             'route_avg_elapsed_7d',
+    #             'route_distance_mi',
+    #         ],
+    #     ),
+    #     FeatureViewConfig(
+    #         name='aircraft_features',
+    #         parquet_path=f'{feast_s3_base}/aircraft/data.parquet',
+    #         entity_col='tail_number',
+    #         label_entity_col='tail_number',
+    #         ttl=timedelta(hours=12),
+    #         feature_cols=[
+    #             'cascading_delay_min',
+    #             'turnaround_min',
+    #         ],
+    #     ),
+    # ]
+
+    feature_views = default_feature_view_configs(feast_s3_base)
 
     # PIT join via DuckDB — same logic as training dataset builder
     joiner = PITJoiner(feature_views=feature_views, use_s3=True)
@@ -230,8 +230,6 @@ def score_partition(
     #     features=BATCH_FEATURE_REFS,
     # ).to_df()
 
-    log.info('feast feature retrieval complete', rows=len(feature_df))
-
     # Count null rows before fill (doesn't exist or removed bc of TTL)
     null_feature_rows = int(feature_df[FEATURE_COLUMNS].isna().any(axis=1).sum())
     if null_feature_rows > 0:
@@ -245,8 +243,6 @@ def score_partition(
     # XGBoost pyfunc returns probabilities directly when the model was logged
     # with mlflow.xgboost.log_model and the booster objective is binary:logistic.
     raw_preds = model.predict(pd.DataFrame(X, columns=FEATURE_COLUMNS))
-
-    print('raw predictions complete')
 
     probas: np.ndarray = raw_preds[:, 1] if raw_preds.ndim == 2 else raw_preds
 
@@ -274,15 +270,30 @@ def score_partition(
     #     }
     # )
 
+    # USE APPROACH BELOW TO AVOID MISALIGNMENT BETWEEN feature_df & entity_df
+    # (predictions array mis-aligns with entity metadata if PITJoiner.join() drops or reorders)
+
+    # output_df = pd.DataFrame(
+    #     {
+    #         'flight_id': entity_df['flight_id'],
+    #         'origin': entity_df['origin'],
+    #         'dest': entity_df['dest'],
+    #         'carrier': entity_df['carrier'],
+    #         'tail_number': entity_df['tail_number'],
+    #         'route_key': entity_df['route_key'],
+    #         'scheduled_departure_utc': entity_df['scheduled_departure_utc'],
+    #         'predicted_delay_proba': probas.astype(np.float32),
+    #         'predicted_is_delayed': (probas >= delay_threshold).astype(np.int8),
+    #         'model_name': model_name,
+    #         'model_version': model_version,
+    #         'score_date': str(score_date),
+    #         'scored_at': scored_at.isoformat(),
+    #     }
+    # )
+
     output_df = pd.DataFrame(
         {
-            'flight_id': entity_df['flight_id'],
-            'origin': entity_df['origin'],
-            'dest': entity_df['dest'],
-            'carrier': entity_df['carrier'],
-            'tail_number': entity_df['tail_number'],
-            'route_key': entity_df['route_key'],
-            'scheduled_departure_utc': entity_df['scheduled_departure_utc'],
+            'flight_id': feature_df['flight_id'],
             'predicted_delay_proba': probas.astype(np.float32),
             'predicted_is_delayed': (probas >= delay_threshold).astype(np.int8),
             'model_name': model_name,
@@ -290,6 +301,21 @@ def score_partition(
             'score_date': str(score_date),
             'scored_at': scored_at.isoformat(),
         }
+    )
+    output_df = output_df.merge(
+        entity_df[
+            [
+                'flight_id',
+                'origin',
+                'dest',
+                'carrier',
+                'tail_number',
+                'route_key',
+                'scheduled_departure_utc',
+            ]
+        ],
+        on='flight_id',
+        how='left',
     )
 
     print('output_df columns', output_df.columns)

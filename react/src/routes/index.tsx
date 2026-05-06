@@ -1,4 +1,3 @@
-import { CircularProgress } from '@mui/material';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -79,27 +78,27 @@ interface Flight {
 
 const FLIGHTS: Flight[] = [
   {
-    id: 'AA2104',
-    airline: 'American Airlines',
-    code: 'AA',
-    number: '2104',
-    from: { code: 'SFO', city: 'San Francisco', tz: 'PT' },
-    to: { code: 'JFK', city: 'New York', tz: 'ET' },
-    scheduled: { dep: '07:45', arr: '16:18', date: 'Thu, 1 May' },
-    aircraft: 'A321neo',
-    onTimeProb: 0.83,
-    delayMin: { p50: 6, p90: 24 },
-    cancelProb: 0.012,
+    id: 'UA1315',
+    airline: 'United Airlines',
+    code: 'UA',
+    number: '1315',
+    from: { code: 'ORD', city: 'Chicago', tz: 'CT' },
+    to: { code: 'LGA', city: 'New York', tz: 'ET' },
+    scheduled: { dep: '07:00', arr: '10:15', date: 'Sun, 1 Jun' },
+    aircraft: 'B737-800',
+    onTimeProb: 0.8,
+    delayMin: { p50: 9, p90: 38 },
+    cancelProb: 0.018,
     factors: [
       {
         name: 'Origin congestion',
         value: -0.12,
-        detail: 'SFO ground stop risk · low',
+        detail: 'ORD ground stop risk · low',
       },
       {
         name: 'Destination weather',
         value: -0.08,
-        detail: 'JFK · scattered TS after 18:00z',
+        detail: 'LGA · scattered TS after 18:00z',
       },
       {
         name: 'Carrier on-time history',
@@ -114,30 +113,30 @@ const FLIGHTS: Flight[] = [
       { name: 'Day of week', value: -0.02, detail: 'Thursday · neutral' },
       { name: 'Time of day', value: +0.07, detail: 'Morning bank · favorable' },
     ],
-    history: [82, 76, 88, 91, 84, 79, 86, 90, 87, 83, 78, 85, 89, 92],
+    history: [82, 76, 88, 91, 84, 79, 86, 90, 87, 83, 78, 85, 89, 80],
   },
   {
-    id: 'DL418',
-    airline: 'Delta',
-    code: 'DL',
-    number: '418',
-    from: { code: 'ORD', city: 'Chicago', tz: 'CT' },
-    to: { code: 'LHR', city: 'London', tz: 'GMT' },
-    scheduled: { dep: '20:15', arr: '10:05', date: 'Thu, 1 May' },
-    aircraft: 'B787-9',
-    onTimeProb: 0.61,
-    delayMin: { p50: 22, p90: 78 },
-    cancelProb: 0.024,
+    id: 'AA1407',
+    airline: 'American Airlines',
+    code: 'AA',
+    number: '1407',
+    from: { code: 'DFW', city: 'Dallas', tz: 'CT' },
+    to: { code: 'LAX', city: 'Los Angeles', tz: 'PT' },
+    scheduled: { dep: '08:30', arr: '09:55', date: 'Sun, 1 Jun' },
+    aircraft: 'B737-800',
+    onTimeProb: 0.57,
+    delayMin: { p50: 28, p90: 85 },
+    cancelProb: 0.031,
     factors: [
       {
         name: 'Origin congestion',
         value: -0.28,
-        detail: 'ORD evening bank · high traffic',
+        detail: 'DFW evening bank · high traffic',
       },
       {
         name: 'Destination weather',
         value: -0.04,
-        detail: 'LHR · light rain, CAT I',
+        detail: 'LAX · light rain, CAT I',
       },
       {
         name: 'Carrier on-time history',
@@ -156,26 +155,26 @@ const FLIGHTS: Flight[] = [
         detail: 'Evening departure · congested',
       },
     ],
-    history: [62, 58, 71, 65, 59, 63, 70, 55, 68, 72, 60, 57, 64, 66],
+    history: [62, 58, 71, 65, 59, 63, 70, 55, 68, 57, 60, 57, 64, 57],
   },
   {
-    id: 'SW906',
-    airline: 'Southwest',
-    code: 'SW',
-    number: '906',
+    id: 'DL1420',
+    airline: 'Delta',
+    code: 'DL',
+    number: '1420',
     from: { code: 'ATL', city: 'Atlanta', tz: 'ET' },
-    to: { code: 'DEN', city: 'Denver', tz: 'MT' },
-    scheduled: { dep: '13:30', arr: '15:02', date: 'Thu, 1 May' },
-    aircraft: 'B737-800',
-    onTimeProb: 0.42,
-    delayMin: { p50: 38, p90: 112 },
-    cancelProb: 0.061,
+    to: { code: 'MCO', city: 'Orlando', tz: 'ET' },
+    scheduled: { dep: '09:15', arr: '10:42', date: 'Sun, 1 Jun' },
+    aircraft: 'B737-900',
+    onTimeProb: 0.63,
+    delayMin: { p50: 22, p90: 71 },
+    cancelProb: 0.024,
     factors: [
       { name: 'Origin congestion', value: -0.09, detail: 'ATL · normal' },
       {
         name: 'Destination weather',
         value: -0.34,
-        detail: 'DEN · convective SIGMET, gusts 38kt',
+        detail: 'MCO · convective SIGMET, gusts 38kt',
       },
       {
         name: 'Carrier on-time history',
@@ -194,30 +193,30 @@ const FLIGHTS: Flight[] = [
         detail: 'Afternoon thunderstorm window',
       },
     ],
-    history: [54, 48, 62, 41, 38, 45, 52, 39, 44, 50, 46, 42, 36, 49],
+    history: [62, 58, 71, 65, 59, 63, 70, 55, 68, 72, 60, 63, 64, 63],
   },
   {
-    id: 'UA12',
-    airline: 'United Airlines',
-    code: 'UA',
-    number: '12',
-    from: { code: 'NRT', city: 'Tokyo', tz: 'JST' },
-    to: { code: 'LAX', city: 'Los Angeles', tz: 'PT' },
-    scheduled: { dep: '17:00', arr: '10:35', date: 'Thu, 1 May' },
-    aircraft: 'B777-300ER',
-    onTimeProb: 0.91,
-    delayMin: { p50: 2, p90: 11 },
-    cancelProb: 0.004,
+    id: 'WN123',
+    airline: 'Southwest',
+    code: 'WN',
+    number: '123',
+    from: { code: 'LAS', city: 'Las Vegas', tz: 'PT' },
+    to: { code: 'OAK', city: 'Oakland', tz: 'PT' },
+    scheduled: { dep: '11:00', arr: '12:10', date: 'Sun, 1 Jun' },
+    aircraft: 'B737-700',
+    onTimeProb: 0.23,
+    delayMin: { p50: 55, p90: 130 },
+    cancelProb: 0.072,
     factors: [
       {
         name: 'Origin congestion',
         value: +0.08,
-        detail: 'NRT · light traffic',
+        detail: 'LAS · light traffic',
       },
       {
         name: 'Destination weather',
         value: +0.06,
-        detail: 'LAX · clear, marine layer 06z',
+        detail: 'OAK · clear, marine layer 06z',
       },
       {
         name: 'Carrier on-time history',
@@ -236,7 +235,7 @@ const FLIGHTS: Flight[] = [
         detail: 'Evening departure · favorable',
       },
     ],
-    history: [88, 92, 91, 89, 94, 90, 93, 95, 91, 90, 92, 94, 89, 93],
+    history: [54, 48, 32, 41, 28, 35, 42, 29, 34, 40, 26, 32, 36, 23],
   },
 ];
 
@@ -521,9 +520,9 @@ function KpiStrip({ t }: { t: Tokens }) {
 
   const kpis = [
     {
-      l: 'In flight today',
+      l: 'Flights scored',
       v: nFlights ? nFlights.toLocaleString() : '—',
-      s: 'flights scored',
+      s: 'in scored partition',
     },
     {
       l: 'Predicted on-time',
@@ -543,17 +542,32 @@ function KpiStrip({ t }: { t: Tokens }) {
   ];
 
   return (
-    <Stack direction='row' spacing='28px' sx={{ mt: '28px' }}>
-      {kpis.map((k, i) => (
-        <KpiItem
-          key={`kpi-${i}`}
-          title={k.l}
-          value={k.v}
-          subtitle={k.s}
-          t={t}
-        />
-      ))}
-    </Stack>
+    <Box sx={{ mt: '28px' }}>
+      <Stack direction='row' spacing='28px'>
+        {kpis.map((k, i) => (
+          <KpiItem
+            key={`kpi-${i}`}
+            title={k.l}
+            value={k.v}
+            subtitle={k.s}
+            t={t}
+          />
+        ))}
+      </Stack>
+      {pred?.data_as_of && (
+        <Typography
+          sx={{
+            mt: '10px',
+            fontFamily: monoFont,
+            fontSize: 10,
+            color: t.inkMuted,
+            letterSpacing: '0.08em',
+          }}
+        >
+          Data as of {pred.data_as_of} · BTS reporting lag ~60d
+        </Typography>
+      )}
+    </Box>
   );
 }
 
@@ -731,7 +745,7 @@ function HeroSection({
           >
             Holdline's ensemble model fuses METAR, TAF, ground-stop bulletins,
             fleet rotation, and 9 years of carrier OTP data into a calibrated
-            probability — refreshed every 90 seconds.
+            probability — features refreshed hourly via Feast.
           </Typography>
 
           <ErrorBoundary
@@ -1361,33 +1375,6 @@ function AttributionAndHistory({ t, flight }: { t: Tokens; flight: Flight }) {
             />
           </Suspense>
         </ErrorBoundary>
-
-        <Stack
-          direction='row'
-          sx={{
-            mt: '12px',
-            fontFamily: monoFont,
-            fontSize: 10,
-            color: t.inkMuted,
-            justifyContent: 'space-between',
-          }}
-        >
-          <Typography
-            sx={{ fontFamily: monoFont, fontSize: 10, color: t.inkMuted }}
-          >
-            14d ago
-          </Typography>
-          <Typography
-            sx={{ fontFamily: monoFont, fontSize: 10, color: t.inkMuted }}
-          >
-            7d ago
-          </Typography>
-          <Typography
-            sx={{ fontFamily: monoFont, fontSize: 10, color: t.inkMuted }}
-          >
-            today
-          </Typography>
-        </Stack>
       </Paper>
     </Box>
   );
@@ -1407,7 +1394,7 @@ function RouteHistoryChart({
   const { data: historyData } = useSuspenseQuery(
     routeHistoryOptions(origin, dest, days),
   );
-  console.log('FLIGHT HISTORY: ', historyData);
+  // console.log('FLIGHT HISTORY: ', historyData);
   const data = historyData?.history || [];
 
   const w = 100;
@@ -1442,68 +1429,96 @@ function RouteHistoryChart({
   const areaD = `${lineD} L ${w} ${h} L 0 ${h} Z`;
 
   return (
-    <Box sx={{ position: 'relative', width: '100%', height: h }}>
-      <svg
-        viewBox={`0 0 ${w} ${h}`}
-        preserveAspectRatio='none'
-        width='100%'
-        height={h}
-        style={{ display: 'block' }}
-      >
-        {[0, 25, 50, 75, 100].map((y) => (
+    <>
+      <Box sx={{ position: 'relative', width: '100%', height: h }}>
+        <svg
+          viewBox={`0 0 ${w} ${h}`}
+          preserveAspectRatio='none'
+          width='100%'
+          height={h}
+          style={{ display: 'block' }}
+        >
+          {[0, 25, 50, 75, 100].map((y) => (
+            <line
+              key={y}
+              x1='0'
+              x2={w}
+              y1={h - (y / 100) * h}
+              y2={h - (y / 100) * h}
+              stroke={t.lineSoft}
+              strokeWidth='0.3'
+            />
+          ))}
           <line
-            key={y}
             x1='0'
             x2={w}
-            y1={h - (y / 100) * h}
-            y2={h - (y / 100) * h}
-            stroke={t.lineSoft}
-            strokeWidth='0.3'
-          />
-        ))}
-        <line
-          x1='0'
-          x2={w}
-          y1={h - 0.8 * h}
-          y2={h - 0.8 * h}
-          stroke={t.line}
-          strokeWidth='0.4'
-          strokeDasharray='2 1.5'
-        />
-        <path d={areaD} fill={t.lineSoft} />
-        <path
-          d={lineD}
-          stroke={t.ink}
-          strokeWidth='0.6'
-          fill='none'
-          vectorEffect='non-scaling-stroke'
-        />
-        {points.map((p, i) => (
-          <circle
-            key={i}
-            cx={p[0]}
-            cy={p[1]}
-            r='0.8'
-            fill={t.bg}
-            stroke={t.ink}
+            y1={h - 0.8 * h}
+            y2={h - 0.8 * h}
+            stroke={t.line}
             strokeWidth='0.4'
+            strokeDasharray='2 1.5'
+          />
+          <path d={areaD} fill={t.lineSoft} />
+          <path
+            d={lineD}
+            stroke={t.ink}
+            strokeWidth='0.6'
+            fill='none'
             vectorEffect='non-scaling-stroke'
           />
-        ))}
-      </svg>
-      <Typography
+          {points.map((p, i) => (
+            <circle
+              key={i}
+              cx={p[0]}
+              cy={p[1]}
+              r='0.8'
+              fill={t.bg}
+              stroke={t.ink}
+              strokeWidth='0.4'
+              vectorEffect='non-scaling-stroke'
+            />
+          ))}
+        </svg>
+        <Typography
+          sx={{
+            position: 'absolute',
+            right: 0,
+            top: h - 0.8 * h - 10,
+            fontSize: 10,
+            color: t.inkMuted,
+            fontFamily: monoFont,
+          }}
+        >
+          80% target
+        </Typography>
+      </Box>
+      <Stack
+        direction='row'
         sx={{
-          position: 'absolute',
-          right: 0,
-          top: h - 0.8 * h - 10,
+          mt: '12px',
+          fontFamily: monoFont,
           fontSize: 10,
           color: t.inkMuted,
-          fontFamily: monoFont,
+          justifyContent: 'space-between',
         }}
       >
-        80% target
-      </Typography>
-    </Box>
+        <Typography
+          sx={{ fontFamily: monoFont, fontSize: 10, color: t.inkMuted }}
+        >
+          14d prior
+        </Typography>
+        <Typography
+          sx={{ fontFamily: monoFont, fontSize: 10, color: t.inkMuted }}
+        >
+          7d prior
+        </Typography>
+        <Typography
+          sx={{ fontFamily: monoFont, fontSize: 10, color: t.inkMuted }}
+        >
+          {historyData?.data_as_of ?? 'latest'}
+        </Typography>
+      </Stack>
+    </>
   );
 }
 
@@ -1579,13 +1594,29 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
         borderBottom: `1px solid ${t.line}`,
       }}
     >
-      <ErrorBoundary fallback={null}>
+      <ErrorBoundary
+        fallback={
+          <StatCard
+            label='Origin Weather'
+            code={flight.from.code} // @ts-ignore
+            value={
+              <Typography variant='body2' color='error'>
+                Error loading weather
+              </Typography>
+            }
+            subtitle={`wind -- · vis --sm`}
+            spark={[]}
+            color={t.ink}
+            fill={t.lineSoft}
+          />
+        }
+      >
         <Suspense
           fallback={
-            <StatCard // @ts-ignore
-              label={<Skeleton width={60} />} // @ts-ignore
-              code={<Skeleton width={40} />} // @ts-ignore
-              value={<Skeleton />} // @ts-ignore
+            <StatCard
+              label='Origin Weather'
+              code={flight.from.code} // @ts-ignore
+              value={<Skeleton />}
               subtitle={`wind -- · vis --sm`}
               spark={[]}
               color={t.good}
@@ -1601,13 +1632,29 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
           />
         </Suspense>
       </ErrorBoundary>
-      <ErrorBoundary fallback={null}>
+      <ErrorBoundary
+        fallback={
+          <StatCard
+            label='Destination Weather'
+            code={flight.to.code} // @ts-ignore
+            value={
+              <Typography variant='body2' color='error'>
+                Error loading weather
+              </Typography>
+            }
+            subtitle={`wind -- · vis --sm`}
+            spark={[]}
+            color={t.ink}
+            fill={t.lineSoft}
+          />
+        }
+      >
         <Suspense
           fallback={
-            <StatCard // @ts-ignore
-              label={<Skeleton width={60} />} // @ts-ignore
-              code={<Skeleton width={40} />} // @ts-ignore
-              value={<Skeleton />} // @ts-ignore
+            <StatCard
+              label='Destination weather'
+              code={flight.to.code} // @ts-ignore
+              value={<Skeleton />}
               subtitle={`wind -- · vis --sm`}
               spark={[]}
               color={t.good}
@@ -1623,13 +1670,29 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
           />
         </Suspense>
       </ErrorBoundary>
-      <ErrorBoundary fallback={null}>
+      <ErrorBoundary
+        fallback={
+          <StatCard
+            label='Origin Congestion'
+            code={flight.to.code} // @ts-ignore
+            value={
+              <Typography variant='body2' color='error'>
+                Error loading congestion
+              </Typography>
+            }
+            subtitle={`taxi --m · queue --`}
+            spark={[]}
+            color={t.ink}
+            fill={t.lineSoft}
+          />
+        }
+      >
         <Suspense
           fallback={
-            <StatCard // @ts-ignore
-              label={<Skeleton width={60} />} // @ts-ignore
-              code={<Skeleton width={40} />} // @ts-ignore
-              value={<Skeleton />} // @ts-ignore
+            <StatCard
+              label='Origin Congestion'
+              code={flight.from.code} // @ts-ignore
+              value={<Skeleton />}
               subtitle={`taxi --m · queue --`}
               spark={[]}
               color={t.ink}
@@ -1638,7 +1701,7 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
           }
         >
           <AirportCongestionCard
-            delay={31}
+            delay={30}
             type='departures'
             dep_iata={flight.from.code}
             label='Origin Congestion'
@@ -1648,13 +1711,29 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
           />
         </Suspense>
       </ErrorBoundary>
-      <ErrorBoundary fallback={null}>
+      <ErrorBoundary
+        fallback={
+          <StatCard
+            label='Destination Congestion'
+            code={flight.to.code} // @ts-ignore
+            value={
+              <Typography variant='body2' color='error'>
+                Error loading congestion
+              </Typography>
+            }
+            subtitle={`taxi --m · queue --`}
+            spark={[]}
+            color={t.ink}
+            fill={t.lineSoft}
+          />
+        }
+      >
         <Suspense
           fallback={
-            <StatCard // @ts-ignore
-              label={<Skeleton width={60} />} // @ts-ignore
-              code={<Skeleton width={40} />} // @ts-ignore
-              value={<Skeleton />} // @ts-ignore
+            <StatCard
+              label='Destination Congestion'
+              code={flight.to.code} // @ts-ignore
+              value={<Skeleton />}
               subtitle={`taxi --m · queue --`}
               spark={[]}
               color={t.ink}
@@ -1663,7 +1742,7 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
           }
         >
           <AirportCongestionCard
-            delay={31}
+            delay={30}
             type='arrivals'
             dep_iata={flight.to.code}
             label='Destination Congestion'
@@ -1867,22 +1946,33 @@ function NetworkAndAirline({ t, flight }: { t: Tokens; flight: Flight }) {
             fallback={
               <Box
                 sx={{
-                  display: 'flex',
-                  justifyContent: 'center',
+                  display: 'grid',
+                  gridTemplateColumns: '20px 1fr 80px 56px 50px',
+                  gap: '12px',
                   alignItems: 'center',
+                  py: '10px',
+                  borderBottom: `1px solid ${t.lineSoft}`,
                 }}
               >
-                <CircularProgress />
+                <Skeleton variant='circular' height={18} width={18} />
+                <Skeleton variant='rounded' height={10} width={60} />
+                <Skeleton
+                  variant='rounded'
+                  height={8}
+                  width={60}
+                  sx={{ mx: 'auto' }}
+                />
+                <Skeleton variant='rounded' height={14} width={28} />
+                <Skeleton variant='rounded' height={14} width={28} />
               </Box>
             }
           >
             <CarrierComparison
               t={t}
-              // currentCode={flight.code}
               currentCarrier={flight.airline}
               origin={flight.from.code}
               dest={flight.to.code}
-              days={7}
+              days={30}
             />
           </Suspense>
         </ErrorBoundary>

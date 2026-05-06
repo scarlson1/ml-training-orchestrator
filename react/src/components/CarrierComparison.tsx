@@ -25,11 +25,10 @@ export function CarrierComparison({
   currentCarrier,
   origin,
   dest,
-  days = 14,
+  days = 30,
 }: {
   t: Tokens;
   currentCarrier?: string | null;
-  // currentCode: string;
   origin: string;
   dest: string;
   days?: number;
@@ -37,7 +36,7 @@ export function CarrierComparison({
   const { data } = useSuspenseQuery(
     carrierComparisonOptions(origin, dest, days),
   );
-  console.log('carrier comparison: ', data);
+  // console.log('carrier comparison: ', data);
 
   const comparisonData =
     !data?.carriers?.length && import.meta.env.DEV
@@ -144,6 +143,19 @@ export function CarrierComparison({
           </Box>
         );
       })}
+      {data?.data_as_of && (
+        <Typography
+          sx={{
+            mt: '10px',
+            fontFamily: monoFont,
+            fontSize: 10,
+            color: t.inkMuted,
+            letterSpacing: '0.08em',
+          }}
+        >
+          Data as of {data.data_as_of}
+        </Typography>
+      )}
     </Box>
   );
 }

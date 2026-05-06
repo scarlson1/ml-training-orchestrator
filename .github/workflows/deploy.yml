@@ -88,6 +88,7 @@ jobs:
 
             # Serving API
             ADMIN_TOKEN=${{ secrets.ADMIN_TOKEN }}
+            SERVING_API_URL=${{ vars.SERVING_API_URL }}
             MODEL_NAME=bmo_flight_delay
             FEATURE_REPO_DIR=feature_repo/
 

@@ -60,6 +60,10 @@ class BmoDbtTranslator(DagsterDbtTranslator):
         node = manifest.get('nodes', {}).get(unique_id, {})
         if node.get('name') == 'mart_drift_metrics':
             spec = spec.replace_attributes(deps=[*spec.deps, AssetDep(AssetKey('drift_report'))])
+        if node.get('name') == 'mart_predictions':
+            spec = spec.replace_attributes(
+                deps=[*spec.deps, AssetDep(AssetKey('batch_predictions'))]
+            )
         return spec
 
     # # dagster-dbt doesn't account for severity in dbt schema (errors when set to warn)
@@ -99,6 +103,8 @@ def bmo_dbt_assets(context: AssetExecutionContext, dbt: DbtCliResource) -> Itera
     yield from dbt.cli(['build'], context=context).stream()
 
 
+# NOTE: eager will trigger dbt build when any dependency updates --> rebuild whenever daily partition is created by batch_partitions.
+# to dampen it (e.g., only rebuild after a full backfill, not per-partition), switch to AutomationCondition.on_cron(...) instead of eager().
 bmo_dbt_assets = bmo_dbt_assets.with_attributes(automation_condition=AutomationCondition.eager())
 
 # dbt: DbtCliResource must exactly match the key used in definitions.py resources dict ('dbt'). If the names don't match, Dagster raises a missing resource error at startup.

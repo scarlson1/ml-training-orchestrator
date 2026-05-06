@@ -9,6 +9,7 @@ export interface PredictionSummary {
   model_version: string | null;
   days_since_retrain: number | null;
   model_loaded_at: string;
+  data_as_of: string | null;
 }
 
 export const todaysPredictionOptions = queryOptions({
@@ -84,6 +85,7 @@ export interface RouteHistoryResponse {
   route_key: string;
   history: number[];
   days: number;
+  data_as_of: string | null;
 }
 
 export const routeHistoryOptions = (
@@ -92,10 +94,12 @@ export const routeHistoryOptions = (
   days: number = 14,
 ) =>
   queryOptions({
-    queryKey: ['routes', origin, dest, 'history', days],
+    queryKey: ['routes', 'history', { origin, dest, days }],
     queryFn: () =>
       apiFetch<RouteHistoryResponse>(
-        `/api/routes/${origin}-${dest}/history?days=${days}`,
+        `/api/routes/history`,
+        {},
+        { origin, dest, days: days.toString() },
       ),
   });
 
@@ -106,6 +110,7 @@ export interface NetworkDelayResponse {
     avg_delay_min: number;
     status_indicator: string;
   }[];
+  data_as_of: string | null;
 }
 
 export const networkDelayOptions = (days: number = 7) =>
@@ -119,6 +124,7 @@ export const networkDelayOptions = (days: number = 7) =>
 export interface CarrierComparisonResponse {
   days: number;
   carriers: { carrier: string; otp: number; avg_delay: number }[];
+  data_as_of: string | null;
 }
 
 export const carrierComparisonOptions = (

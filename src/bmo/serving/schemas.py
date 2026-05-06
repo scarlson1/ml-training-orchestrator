@@ -197,6 +197,7 @@ class PredictionsDayResponse(BaseModel):
     n_flights_today: int
     positive_rate_today: float | None
     days_since_retrain: int | None
+    data_as_of: str | None  # most recent score_date in mart_predictions
 
 
 class RouteHistoryRow(BaseModel):
@@ -208,6 +209,7 @@ class RouteHistoryResponse(BaseModel):
     route_key: str
     history: list[int]  # daily OTP %, oldest → newest
     days: int
+    data_as_of: str | None
 
 
 class CarrierPerformance(BaseModel):
@@ -219,6 +221,7 @@ class CarrierPerformance(BaseModel):
 class CarrierComparisonResponse(BaseModel):
     days: int
     carriers: list[CarrierPerformance]
+    data_as_of: str | None
 
 
 class OriginPerformance(BaseModel):
@@ -230,3 +233,4 @@ class OriginPerformance(BaseModel):
 
 class NetworkResponse(BaseModel):
     rows: list[OriginPerformance]
+    data_as_of: str | None
