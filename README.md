@@ -1470,6 +1470,11 @@ r2_endpoint_url = "https://2662189f53004928cc8e89c79f095db9.r2.cloudflarestorage
 - document need to run feast assets (and prereqs) for each partition before running batch_predict ?? use 'ins' in @asset decorator ??
 - why doesn't mart_predictions have dependency on batch_predictions ??
 
+- need to rethink front end data - bts is behind ~60 days
+  - use other apis: current flights, weather, hub congestion, etc.
+    - predict feature still works ? sort of - missing tail number cascading delay
+  - calc data from 2+ months back - not very useful ??
+
 - document querying S3 in dev:
 
 ```bash
