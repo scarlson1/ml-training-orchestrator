@@ -32,9 +32,6 @@ export interface PredictionRun {
 export const predictionOptions = queryOptions({
   queryKey: ['predictions'],
   queryFn: () => apiFetch<{ rows: PredictionRun[] }>('/api/predictions'),
-  // .then(
-  //   (r) => r.json() as Promise<{ rows: PredictionRun[] }>,
-  // ),
   staleTime: 60 * 60 * 1000,
 });
 
@@ -48,9 +45,6 @@ export interface DriftSummary {
 export const driftSummaryOptions = queryOptions({
   queryKey: ['drift', 'summary'],
   queryFn: () => apiFetch<DriftSummary>('/api/drift/summary'),
-  // .then(
-  //   (r) => r.json() as Promise<DriftSummary>,
-  // ),
   staleTime: 60 * 60 * 1000,
 });
 
@@ -69,16 +63,18 @@ export interface DriftResponse {
   n_breached: number;
 }
 
-export const driftMetricsOptions = (start: string, end: string) =>
+export const driftMetricsOptions = (
+  params?: URLSearchParams, // start: string, end: string
+) =>
   queryOptions({
-    queryKey: ['driftMetrics', { start, end }],
+    queryKey: ['driftMetrics', params],
     queryFn: () =>
       apiFetch<DriftResponse>(
-        `/api/drift/metrics?start=${start || ''}&end=${end || ''}`,
+        // `/api/drift/metrics?start=${start || ''}&end=${end || ''}`,
+        `/api/drift/metrics`,
+        {},
+        params,
       ),
-    // .then(
-    //   (r) => r.json() as Promise<DriftResponse>,
-    // ),
     staleTime: 60 * 60 * 1000,
   });
 
@@ -101,9 +97,6 @@ export const routeHistoryOptions = (
       apiFetch<RouteHistoryResponse>(
         `/api/routes/${origin}-${dest}/history?days=${days}`,
       ),
-    // .then(
-    //   (r) => r.json() as Promise<RouteHistoryResponse>,
-    // ),
   });
 
 export interface NetworkDelayResponse {
@@ -119,9 +112,6 @@ export const networkDelayOptions = (days: number = 7) =>
   queryOptions({
     queryKey: ['routes', 'network', days],
     queryFn: () => apiFetch<NetworkDelayResponse>(`/api/network?days=${days}`),
-    // .then(
-    //   (r) => r.json() as Promise<NetworkDelayResponse>,
-    // ),
   });
 
 // ----- Carrier queries -----
@@ -142,7 +132,6 @@ export const carrierComparisonOptions = (
       apiFetch<CarrierComparisonResponse>(
         `/api/carriers/comparison?origin=${origin}&dest=${dest}&days=${days}`,
       ),
-    // .then((r) => r.json() as Promise<CarrierComparisonResponse>),
   });
 
 // ----- Model queries -----
