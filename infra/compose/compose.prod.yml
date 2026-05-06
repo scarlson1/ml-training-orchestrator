@@ -6,7 +6,7 @@ services:
     image: postgres:17
     container_name: postgres
     restart: unless-stopped
-    mem_limit: 512m
+    mem_limit: 256m # used for metadata only
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -50,7 +50,7 @@ services:
       dockerfile: infra/docker/mlflow.Dockerfile
     container_name: ml_flow
     restart: unless-stopped
-    mem_limit: 1.5g
+    mem_limit: 1g # 2 workers; no artifacts in RAM
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,7 +76,7 @@ services:
     image: ghcr.io/${GHCR_OWNER}/bmo-dagster:latest
     container_name: bmo_dagster
     restart: unless-stopped
-    mem_limit: 5g
+    mem_limit: 4.5g
     depends_on:
       postgres:
         condition: service_healthy
@@ -95,7 +95,7 @@ services:
       DUCKDB_PATH: /dagster_home/bmo_features.duckdb
     volumes:
       - dagster_home:/dagster_home
-      - ../../infra/docker/dagster.yaml:/dagster_home/dagster.yaml:ro
+      - ../../dagster_home/dagster.yaml:/dagster_home/dagster.yaml:ro
     ports:
       # Loopback-only — used by deploy health check and VM keepalive cron.
       # Public access goes through Caddy (DAGSTER_DOMAIN).
@@ -106,7 +106,7 @@ services:
     image: ghcr.io/${GHCR_OWNER}/bmo-serving:latest
     container_name: bmo_serving
     restart: unless-stopped
-    mem_limit: 2g
+    mem_limit: 1g
     depends_on:
       mlflow:
         condition: service_started
@@ -131,7 +131,7 @@ services:
     image: caddy:alpine
     container_name: bmo_caddy
     restart: unless-stopped
-    mem_limit: 512m
+    mem_limit: 256m
     depends_on:
       serving:
         condition: service_started

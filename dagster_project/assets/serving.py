@@ -116,6 +116,7 @@ WHERE flight_date = '{score_date}'
     group_name='serving',
     partitions_def=DAILY_PARTITIONS,
     deps=['registered_model', 'feast_materialized_features'],
+    op_tags={'dagster/concurrency_key': 'batch_scoring'},
     freshness_policy=FreshnessPolicy.cron(
         deadline_cron=' 0 7 * * *', lower_bound_delta=timedelta(hours=1)
     ),

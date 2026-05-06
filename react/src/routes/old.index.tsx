@@ -180,10 +180,7 @@ interface PredictionSummary {
 function TodayStats() {
   const { data: realData } = useSuspenseQuery({
     queryKey: ['predictions', 'today'],
-    queryFn: () =>
-      apiFetch('/api/predictions/today').then(
-        (r) => r.json() as Promise<PredictionSummary>,
-      ),
+    queryFn: () => apiFetch<PredictionSummary>('/api/predictions/today'),
     staleTime: 60 * 60 * 1000,
   });
   // TODO: remove temp
@@ -236,8 +233,7 @@ interface ModelInfo {
 function ChampionModelStat() {
   const { data: temp } = useSuspenseQuery({
     queryKey: ['modelInfo'],
-    queryFn: () =>
-      apiFetch('/model-info').then((r) => r.json() as Promise<ModelInfo>),
+    queryFn: () => apiFetch<ModelInfo>('/model-info'),
     staleTime: 60 * 60 * 1000,
   });
 
@@ -349,10 +345,7 @@ interface DriftSummary {
 function FeatureDriftPanel() {
   const { data: temp } = useSuspenseQuery({
     queryKey: ['drift', 'summary'],
-    queryFn: () =>
-      apiFetch('/api/drift/summary').then(
-        (r) => r.json() as Promise<DriftSummary>,
-      ),
+    queryFn: () => apiFetch<DriftSummary>('/api/drift/summary'),
     staleTime: 60 * 60 * 1000,
   });
 
@@ -515,10 +508,7 @@ function DriftRow({ feature }: { feature: DriftFeature }) {
 function PsiStatusCard() {
   const { data: temp } = useSuspenseQuery({
     queryKey: ['drift', 'summary'],
-    queryFn: () =>
-      apiFetch('/api/drift/summary').then(
-        (r) => r.json() as Promise<DriftSummary>,
-      ),
+    queryFn: () => apiFetch<DriftSummary>('/api/drift/summary'),
     staleTime: 60 * 60 * 1000,
   });
 

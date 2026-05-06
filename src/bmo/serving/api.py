@@ -638,7 +638,7 @@ async def model_stats(db: Engine = Depends(get_db), champion: bool = False) -> M
                     AVG(positive_rate)      AS avg_positive_rate,
                     AVG(actual_positive_rate) AS avg_actual_positive_rate,
                     AVG(n_flights)          AS avg_n_flights_scored,
-                    SUM(n_flights)          AS total_flights_scored
+                    SUM(n_flights)          AS total_n_flights
                 FROM live_accuracy
                 {filters}
                 GROUP BY model_version

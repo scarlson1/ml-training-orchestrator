@@ -90,6 +90,7 @@ _PSI_THRESHOLD = PSI_MODERATE  # 0.2
     group_name='monitoring',
     partitions_def=DAILY_PARTITIONS,
     deps=['batch_predictions', 'deployed_api'],
+    op_tags={'dagster/concurrency_key': 'batch_scoring'},
     freshness_policy=FreshnessPolicy.cron(
         deadline_cron='0 10 * * *', lower_bound_delta=timedelta(hours=1)
     ),
