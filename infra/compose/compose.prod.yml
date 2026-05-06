@@ -95,6 +95,7 @@ services:
       DUCKDB_PATH: /dagster_home/bmo_features.duckdb
     volumes:
       - dagster_home:/dagster_home
+      - ../../infra/docker/dagster.yaml:/dagster_home/dagster.yaml:ro
     ports:
       # Loopback-only — used by deploy health check and VM keepalive cron.
       # Public access goes through Caddy (DAGSTER_DOMAIN).

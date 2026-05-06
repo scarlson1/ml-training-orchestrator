@@ -10,6 +10,7 @@ import { useSuspenseQuery } from '@tanstack/react-query';
 import { carrierComparisonOptions } from '~/api/queryOptions';
 import { monoFont } from '~/config/themePrimitives';
 import type { Tokens } from '~/config/tmpTheme';
+import { carrierCodeToName } from '~/utils/misc';
 
 const AIRLINE_COMPARISON = [
   { carrier: 'Delta', code: 'DL', otp: 0.93, avg_delay: 4 },
@@ -75,8 +76,7 @@ export function CarrierComparison({
                 fontWeight: 600,
               }}
             >
-              {/* {a.code} */}
-              TODO: carrier code
+              {a.carrier}
             </Avatar>
             <Stack direction='row' sx={{ alignItems: 'center' }}>
               <Typography
@@ -86,7 +86,7 @@ export function CarrierComparison({
                   fontWeight: isCurrent ? 600 : 400,
                 }}
               >
-                {a.carrier}
+                {carrierCodeToName(a.carrier)}
               </Typography>
               {isCurrent && (
                 <Chip
@@ -138,7 +138,7 @@ export function CarrierComparison({
                 textAlign: 'right',
               }}
             >
-              {a.avg_delay}m
+              {Math.ceil(a.avg_delay)}m
             </Typography>
           </Box>
         );
