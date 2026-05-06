@@ -14,8 +14,6 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 
-import duckdb
-import mlflow
 import pandas as pd
 from dagster import (
     AssetExecutionContext,
@@ -30,6 +28,7 @@ from bmo.common.config import settings
 from bmo.training.hpo import run_hpo
 from bmo.training_dataset_builder import DatasetHandle, LeakageError, build_dataset
 from bmo.training_dataset_builder.pit_join import default_feature_view_configs
+from dagster_project.resources import DuckDBResource, MLflowResource, S3Resource
 
 # all features available from the 5 feature views
 # remove a feature group, retrain, compare AUC
@@ -104,7 +103,7 @@ _HPO_N_TRIALS = int(os.getenv('DAGSTER_HPO_N_TRIALS', '50'))
         'logged as an MLflow parameter on every downstream training run.'
     ),
 )
-def training_dataset(context: AssetExecutionContext) -> MaterializeResult:
+def training_dataset(context: AssetExecutionContext, duckdb: DuckDBResource) -> MaterializeResult:
     """
     Build a PIT-correct training dataset from dbt mart labels + Feast features.
 
@@ -185,7 +184,9 @@ def training_dataset(context: AssetExecutionContext) -> MaterializeResult:
         'Best params re-run has full artifact logging.'
     ),
 )
-def trained_model(context: AssetExecutionContext) -> MaterializeResult:
+def trained_model(
+    context: AssetExecutionContext, s3: S3Resource, mlflow: MLflowResource
+) -> MaterializeResult:
     """
     Run HPO and log the best XGBoost model to MLflow.
 
@@ -207,14 +208,15 @@ def trained_model(context: AssetExecutionContext) -> MaterializeResult:
     version_hash: str = str(metadata['version_hash'].value)
 
     card_path = storage_path.replace('data.parquet', 'card.json')
-    handle = _load_dataset_handle(card_path)
+    handle = _load_dataset_handle(card_path, s3)
 
     context.log.info(
         f'Loaded DatasetHandle {version_hash[:12]}...'
         f'({handle.row_count:,} rows, {len(handle.feature_refs)} features)'
     )
 
-    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    # mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    mlflow.configure()
 
     context.log.info(f'starting HPO sweep: {_HPO_N_TRIALS} trials')
     hpo_result = run_hpo(
@@ -259,15 +261,16 @@ def _entity_col_sql(col: str) -> str:
     return col
 
 
-def _load_dataset_handle(card_path: str) -> DatasetHandle:
+def _load_dataset_handle(card_path: str, s3: S3Resource) -> DatasetHandle:
     if card_path.startswith('s3://'):
-        import s3fs
+        # import s3fs
+        # fs = s3fs.S3FileSystem(
+        #     key=settings.s3_access_key_id,
+        #     secret=settings.s3_secret_access_key,
+        #     endpoint_url=settings.s3_endpoint_url,
+        # )
+        fs = s3.get_s3fs()
 
-        fs = s3fs.S3FileSystem(
-            key=settings.s3_access_key_id,
-            secret=settings.s3_secret_access_key,
-            endpoint_url=settings.s3_endpoint_url,
-        )
         with fs.open(card_path, 'rb') as f:
             data = json.loads(f.read())
     else:
@@ -290,7 +293,7 @@ def _load_dataset_handle(card_path: str) -> DatasetHandle:
         'Generates an Evidently classification report and logs it as an MLflow artifact.'
     ),
 )
-def registered_model(context: AssetExecutionContext) -> MaterializeResult:
+def registered_model(context: AssetExecutionContext, mlflow: MLflowResource) -> MaterializeResult:
     """
     Register the trained model in the MLflow Model Registry.
 
@@ -301,13 +304,13 @@ def registered_model(context: AssetExecutionContext) -> MaterializeResult:
     asset from being auto-materialized if any blocking check failed.
     A defensive lightweight re-check here guards against manual forced runs.
     """
-    from mlflow.tracking import MlflowClient
 
     from bmo.evaluation_gate.checks import AUCGateCheck, LeakageSentinelCheck
     from bmo.evaluation_gate.gate import MODEL_NAME, load_gate_input
     from bmo.evaluation_gate.reports import generate_classification_report
 
-    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    # mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    mlflow.configure()
 
     # get champion run ID logged by trained_model
     latest_event = context.instance.get_latest_materialization_event(AssetKey(['trained_model']))
@@ -333,7 +336,8 @@ def registered_model(context: AssetExecutionContext) -> MaterializeResult:
                 'All blocking asset checks must pass before model registration'
             )
 
-    client = MlflowClient()
+    # client = MlflowClient()
+    client = mlflow.get_client()
 
     try:
         client.create_registered_model(

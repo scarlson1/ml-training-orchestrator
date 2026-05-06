@@ -47,7 +47,6 @@ import pyarrow.parquet as pq
 import s3fs as s3fs_lib
 import structlog
 from dagster import AssetExecutionContext, FreshnessPolicy, MaterializeResult, MetadataValue, asset
-from feast import FeatureStore
 from mlflow.tracking import MlflowClient
 from sklearn.metrics import (
     accuracy_score,
@@ -65,7 +64,7 @@ from bmo.evaluation_gate.gate import MODEL_NAME
 from bmo.monitoring import should_retrain
 from bmo.monitoring.drift import PSI_MODERATE, DriftMetricsRow, DriftReportResult, compute_drift
 from bmo.serving.partitions import DAILY_PARTITIONS
-from dagster_project.resources import DuckDBResource
+from dagster_project.resources import DuckDBResource, FeastResource
 from dagster_project.resources.mlflow_resource import MLflowResource
 from dagster_project.resources.s3_resource import S3Resource
 
@@ -91,6 +90,7 @@ _PSI_THRESHOLD = PSI_MODERATE  # 0.2
     group_name='monitoring',
     partitions_def=DAILY_PARTITIONS,
     deps=['batch_predictions', 'deployed_api'],
+    op_tags={'dagster/concurrency_key': 'batch_scoring'},
     freshness_policy=FreshnessPolicy.cron(
         deadline_cron='0 10 * * *', lower_bound_delta=timedelta(hours=1)
     ),
@@ -105,7 +105,7 @@ def drift_report(
     context: AssetExecutionContext,
     mlflow: MLflowResource,  # noqa: F821 - forward ref avoids circular import at module
     s3: S3Resource,
-    duckdb: DuckDBResource,
+    feast: FeastResource,
 ) -> MaterializeResult:
     """
     Compute daily drift report for the partition date.
@@ -147,7 +147,7 @@ def drift_report(
         return MaterializeResult(metadata={'status': MetadataValue.text('skipped no reference df')})
 
     # load current features (Feast PIT retrieval for recent predictions)
-    current_df = _load_current_features(report_date, context, fs)
+    current_df = _load_current_features(report_date, context, fs, feast)
     if current_df.empty:
         context.log.warning(f'No current features for window ending {report_date_str}')
         return MaterializeResult(
@@ -354,6 +354,7 @@ def _load_current_features(
     report_date: date,
     context: AssetExecutionContext,
     fs: s3fs_lib.S3FileSystem,
+    feast: FeastResource,
 ) -> pd.DataFrame:
     """
     Load production feature values by re-retrieving from Feast for recent predictions.
@@ -403,7 +404,8 @@ def _load_current_features(
 
     entity_df['event_timestamp'] = pd.to_datetime(entity_df['scored_at'], utc=True)
 
-    store = FeatureStore(repo_path=str(FEATURE_REPO_DIR))
+    # store = FeatureStore(repo_path=str(FEATURE_REPO_DIR))
+    store = feast.get_store()
     try:
         feature_df = store.get_historical_features(
             entity_df=entity_df[

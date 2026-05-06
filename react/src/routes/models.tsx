@@ -1,5 +1,5 @@
-import { OpenInNew } from '@mui/icons-material';
-import { Button } from '@mui/material';
+import { OpenInNew, WarningAmberRounded } from '@mui/icons-material';
+import { Button, Stack } from '@mui/material';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useSuspenseQuery } from '@tanstack/react-query';
@@ -31,134 +31,135 @@ function Models() {
 
   console.log('model stats / champion model: ', tmp, championDataTmp);
 
+  const showFakeData = !tmp?.rows?.length && import.meta.env.DEV;
+
   // TODO: delete
-  let data =
-    !tmp?.rows?.length && import.meta.env.DEV
-      ? {
-          rows: [
-            {
-              model_version: '09824435',
-              last_scored: '2026-05-01',
-              avg_roc_auc: 0.9583,
-              avg_accuracy: 0.9241,
-              avg_precision_score: 0.8712,
-              avg_recall_score: 0.7934,
-              avg_f1: 0.8304,
-              avg_log_loss: 0.1872,
-              avg_brier_score: 0.0714,
-              avg_positive_rate: 0.1883,
-              avg_actual_positive_rate: 0.2147,
-              avg_n_flights_scored: 12394,
-              total_n_flights: 42456,
-            },
-            {
-              model_version: '09824434',
-              last_scored: '2026-04-18',
-              avg_roc_auc: 0.9441,
-              avg_accuracy: 0.9118,
-              avg_precision_score: 0.8534,
-              avg_recall_score: 0.7701,
-              avg_f1: 0.8097,
-              avg_log_loss: 0.2214,
-              avg_brier_score: 0.0883,
-              avg_positive_rate: 0.2283,
-              avg_actual_positive_rate: 0.2183,
-              avg_n_flights_scored: 13789,
-              total_n_flights: 124318,
-            },
-            {
-              model_version: '09824433',
-              last_scored: '2026-03-21',
-              avg_roc_auc: 0.9312,
-              avg_accuracy: 0.9034,
-              avg_precision_score: 0.8291,
-              avg_recall_score: 0.7512,
-              avg_f1: 0.7882,
-              avg_log_loss: 0.2589,
-              avg_brier_score: 0.1021,
-              avg_positive_rate: 0.2114,
-              avg_actual_positive_rate: 0.2267,
-              avg_n_flights_scored: 11203,
-              total_n_flights: 89441,
-            },
-            {
-              model_version: '09824432',
-              last_scored: '2026-02-14',
-              avg_roc_auc: 0.9178,
-              avg_accuracy: 0.8967,
-              avg_precision_score: 0.8043,
-              avg_recall_score: 0.7288,
-              avg_f1: 0.7647,
-              avg_log_loss: 0.2934,
-              avg_brier_score: 0.1189,
-              avg_positive_rate: 0.1944,
-              avg_actual_positive_rate: 0.2091,
-              avg_n_flights_scored: 14512,
-              total_n_flights: 173824,
-            },
-            {
-              model_version: '09824431',
-              last_scored: '2026-01-09',
-              avg_roc_auc: 0.9034,
-              avg_accuracy: 0.8812,
-              avg_precision_score: 0.7834,
-              avg_recall_score: 0.7103,
-              avg_f1: 0.7451,
-              avg_log_loss: 0.3341,
-              avg_brier_score: 0.1378,
-              avg_positive_rate: 0.2441,
-              avg_actual_positive_rate: 0.2312,
-              avg_n_flights_scored: 9874,
-              total_n_flights: 69123,
-            },
-            {
-              model_version: '09824430',
-              last_scored: '2025-12-01',
-              avg_roc_auc: 0.8891,
-              avg_accuracy: 0.8634,
-              avg_precision_score: 0.7612,
-              avg_recall_score: 0.6934,
-              avg_f1: 0.7257,
-              avg_log_loss: 0.3812,
-              avg_brier_score: 0.1592,
-              avg_positive_rate: 0.2567,
-              avg_actual_positive_rate: 0.2489,
-              avg_n_flights_scored: 10341,
-              total_n_flights: 51204,
-            },
-            {
-              model_version: '09824429',
-              last_scored: '2025-10-17',
-              avg_roc_auc: 0.8712,
-              avg_accuracy: 0.8441,
-              avg_precision_score: 0.7334,
-              avg_recall_score: 0.6712,
-              avg_f1: 0.7009,
-              avg_log_loss: 0.4234,
-              avg_brier_score: 0.1814,
-              avg_positive_rate: 0.2789,
-              avg_actual_positive_rate: 0.2634,
-              avg_n_flights_scored: 8923,
-              total_n_flights: 35678,
-            },
-            {
-              model_version: '09824428',
-              last_scored: '2025-09-03',
-              avg_roc_auc: 0.8534,
-              avg_accuracy: 0.8223,
-              avg_precision_score: 0.7091,
-              avg_recall_score: 0.6489,
-              avg_f1: 0.6776,
-              avg_log_loss: 0.4712,
-              avg_brier_score: 0.2043,
-              avg_positive_rate: 0.3012,
-              avg_actual_positive_rate: 0.2834,
-              avg_n_flights_scored: 7654,
-              total_n_flights: 23419,
-            },
-          ],
-        }
-      : tmp;
+  let data = showFakeData
+    ? {
+        rows: [
+          {
+            model_version: '09824435',
+            last_scored: '2026-05-01',
+            avg_roc_auc: 0.9583,
+            avg_accuracy: 0.9241,
+            avg_precision_score: 0.8712,
+            avg_recall_score: 0.7934,
+            avg_f1: 0.8304,
+            avg_log_loss: 0.1872,
+            avg_brier_score: 0.0714,
+            avg_positive_rate: 0.1883,
+            avg_actual_positive_rate: 0.2147,
+            avg_n_flights_scored: 12394,
+            total_n_flights: 42456,
+          },
+          {
+            model_version: '09824434',
+            last_scored: '2026-04-18',
+            avg_roc_auc: 0.9441,
+            avg_accuracy: 0.9118,
+            avg_precision_score: 0.8534,
+            avg_recall_score: 0.7701,
+            avg_f1: 0.8097,
+            avg_log_loss: 0.2214,
+            avg_brier_score: 0.0883,
+            avg_positive_rate: 0.2283,
+            avg_actual_positive_rate: 0.2183,
+            avg_n_flights_scored: 13789,
+            total_n_flights: 124318,
+          },
+          {
+            model_version: '09824433',
+            last_scored: '2026-03-21',
+            avg_roc_auc: 0.9312,
+            avg_accuracy: 0.9034,
+            avg_precision_score: 0.8291,
+            avg_recall_score: 0.7512,
+            avg_f1: 0.7882,
+            avg_log_loss: 0.2589,
+            avg_brier_score: 0.1021,
+            avg_positive_rate: 0.2114,
+            avg_actual_positive_rate: 0.2267,
+            avg_n_flights_scored: 11203,
+            total_n_flights: 89441,
+          },
+          {
+            model_version: '09824432',
+            last_scored: '2026-02-14',
+            avg_roc_auc: 0.9178,
+            avg_accuracy: 0.8967,
+            avg_precision_score: 0.8043,
+            avg_recall_score: 0.7288,
+            avg_f1: 0.7647,
+            avg_log_loss: 0.2934,
+            avg_brier_score: 0.1189,
+            avg_positive_rate: 0.1944,
+            avg_actual_positive_rate: 0.2091,
+            avg_n_flights_scored: 14512,
+            total_n_flights: 173824,
+          },
+          {
+            model_version: '09824431',
+            last_scored: '2026-01-09',
+            avg_roc_auc: 0.9034,
+            avg_accuracy: 0.8812,
+            avg_precision_score: 0.7834,
+            avg_recall_score: 0.7103,
+            avg_f1: 0.7451,
+            avg_log_loss: 0.3341,
+            avg_brier_score: 0.1378,
+            avg_positive_rate: 0.2441,
+            avg_actual_positive_rate: 0.2312,
+            avg_n_flights_scored: 9874,
+            total_n_flights: 69123,
+          },
+          {
+            model_version: '09824430',
+            last_scored: '2025-12-01',
+            avg_roc_auc: 0.8891,
+            avg_accuracy: 0.8634,
+            avg_precision_score: 0.7612,
+            avg_recall_score: 0.6934,
+            avg_f1: 0.7257,
+            avg_log_loss: 0.3812,
+            avg_brier_score: 0.1592,
+            avg_positive_rate: 0.2567,
+            avg_actual_positive_rate: 0.2489,
+            avg_n_flights_scored: 10341,
+            total_n_flights: 51204,
+          },
+          {
+            model_version: '09824429',
+            last_scored: '2025-10-17',
+            avg_roc_auc: 0.8712,
+            avg_accuracy: 0.8441,
+            avg_precision_score: 0.7334,
+            avg_recall_score: 0.6712,
+            avg_f1: 0.7009,
+            avg_log_loss: 0.4234,
+            avg_brier_score: 0.1814,
+            avg_positive_rate: 0.2789,
+            avg_actual_positive_rate: 0.2634,
+            avg_n_flights_scored: 8923,
+            total_n_flights: 35678,
+          },
+          {
+            model_version: '09824428',
+            last_scored: '2025-09-03',
+            avg_roc_auc: 0.8534,
+            avg_accuracy: 0.8223,
+            avg_precision_score: 0.7091,
+            avg_recall_score: 0.6489,
+            avg_f1: 0.6776,
+            avg_log_loss: 0.4712,
+            avg_brier_score: 0.2043,
+            avg_positive_rate: 0.3012,
+            avg_actual_positive_rate: 0.2834,
+            avg_n_flights_scored: 7654,
+            total_n_flights: 23419,
+          },
+        ],
+      }
+    : tmp;
 
   let championData =
     !championDataTmp?.rows?.length && import.meta.env.DEV
@@ -209,6 +210,19 @@ function Models() {
           champion is the version currently serving predictions.
         </Typography>
       </Box>
+
+      {showFakeData ? (
+        <Stack
+          spacing={1}
+          direction='row'
+          sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}
+        >
+          <WarningAmberRounded fontSize='small' color='warning' />
+          <Typography color='warning' variant='body2'>
+            Falling back on demo data
+          </Typography>
+        </Stack>
+      ) : null}
 
       <ChampionBanner champion={champion} aucValues={aucValues} />
       <VersionTable versions={versions} />

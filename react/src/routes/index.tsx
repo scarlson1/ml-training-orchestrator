@@ -1531,8 +1531,8 @@ const useAviationWeather = (endpoint: 'metar' | 'taf', icao: string) => {
       return await getWeather({ data: { endpoint, icao } });
       // return res?.length ? res[0] : ({} as MetarResponse);
     },
-    staleTime: 1000 * 60 * 5,
-    gcTime: 1000 * 60 * 15,
+    staleTime: 1000 * 60 * 15,
+    gcTime: 1000 * 60 * 30,
   });
 };
 
@@ -1541,7 +1541,7 @@ const useDelays = (options: GetDelaysOptions) => {
     queryKey: ['delays', options],
     queryFn: () => getDelayStatus({ data: options }),
     staleTime: 1000 * 60 * 15,
-    gcTime: 1000 * 60 * 15,
+    gcTime: 1000 * 60 * 30,
   });
 };
 

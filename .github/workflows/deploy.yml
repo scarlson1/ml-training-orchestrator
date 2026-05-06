@@ -33,7 +33,8 @@ jobs:
               git clone https://github.com/${{ github.repository }}.git ~/ml-training-orchestrator
             fi
             cd ~/ml-training-orchestrator
-            git pull --ff-only origin main
+            git fetch origin main
+            git reset --hard origin/main
 
             # Write .env from GitHub secrets and variables.
             # GitHub Actions resolves expressions before sending this script over SSH,

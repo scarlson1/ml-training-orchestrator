@@ -9,10 +9,10 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import s3fs
 from dagster import AssetExecutionContext, FreshnessPolicy, MaterializeResult, MetadataValue, asset
-from feast import FeatureStore
 
 from bmo.common.config import settings
 from bmo.common.iceberg import make_catalog
+from dagster_project.resources import FeastResource, S3Resource
 from dagster_project.resources.duckdb_resource import DuckDBResource
 
 # dbt models produce DuckDB tables. Feast needs Parquet on S3. This asset bridges the two.
@@ -21,7 +21,7 @@ from dagster_project.resources.duckdb_resource import DuckDBResource
 FEATURE_REPO_DIR = Path(__file__).parent.parent.parent / 'feature_repo'
 
 
-# // TODO: use pydantic for env vars ??
+# // TODO: use pydantic for env vars ?? use dagster resource
 def _get_s3fs() -> s3fs.S3FileSystem:
     """Build an s3fs client using project env vars (MinIO or R2 compatible)."""
     return s3fs.S3FileSystem(
@@ -109,9 +109,10 @@ def _export_cascading_delay(s3: s3fs.S3FileSystem, row_counts: dict) -> None:
     ),
 )
 def feast_feature_export(
-    context: AssetExecutionContext, duckdb: DuckDBResource
+    context: AssetExecutionContext, duckdb: DuckDBResource, s3: S3Resource
 ) -> MaterializeResult:
-    s3 = _get_s3fs()
+    # s3 = _get_s3fs()
+    fs = s3.get_s3fs()
     row_counts: dict[str, int] = {}
 
     exports = [
@@ -174,7 +175,7 @@ def feast_feature_export(
                 table=spec['table'],
                 entity_col=spec['entity_col'],
                 feature_cols=spec['features'],
-                s3=s3,
+                s3=fs,
                 s3_path=spec['s3_path'],
             )
             row_counts[spec['table']] = count
@@ -182,7 +183,7 @@ def feast_feature_export(
 
     # cascading delay comes from the iceberg table written by PySpark job,
     # not from DuckDB. Read via PyArrow/s3fs directly
-    _export_cascading_delay(s3, row_counts)
+    _export_cascading_delay(fs, row_counts)
 
     return MaterializeResult(
         metadata={name: MetadataValue.int(count) for name, count in row_counts.items()}
@@ -200,8 +201,11 @@ def feast_feature_export(
         deadline_cron='0 * * * *', lower_bound_delta=timedelta(minutes=55)
     ),
 )
-def feast_materialized_features(context: AssetExecutionContext) -> MaterializeResult:
-    store = FeatureStore(repo_path=str(FEATURE_REPO_DIR))
+def feast_materialized_features(
+    context: AssetExecutionContext, feast: FeastResource
+) -> MaterializeResult:
+    # store = FeatureStore(repo_path=str(FEATURE_REPO_DIR))
+    store = feast.get_store()
     end_date = datetime.now(timezone.utc)
 
     # materialize_incremental only processes data newer than the last materialization

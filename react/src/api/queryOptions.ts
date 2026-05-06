@@ -18,7 +18,7 @@ export const todaysPredictionOptions = queryOptions({
   // .then(
   //   (r) => r.json() as Promise<PredictionSummary>,
   // ),
-  staleTime: 60 * 60 * 1000,
+  staleTime: 60 * 30 * 1000,
 });
 
 export interface PredictionRun {
@@ -33,7 +33,7 @@ export interface PredictionRun {
 export const predictionOptions = queryOptions({
   queryKey: ['predictions'],
   queryFn: () => apiFetch<{ rows: PredictionRun[] }>('/api/predictions'),
-  staleTime: 60 * 60 * 1000,
+  staleTime: 60 * 30 * 1000,
 });
 
 // ----- Drift queries -----
@@ -46,7 +46,7 @@ export interface DriftSummary {
 export const driftSummaryOptions = queryOptions({
   queryKey: ['drift', 'summary'],
   queryFn: () => apiFetch<DriftSummary>('/api/drift/summary'),
-  staleTime: 60 * 60 * 1000,
+  staleTime: 60 * 30 * 1000,
 });
 
 export interface DriftRow {
@@ -76,7 +76,7 @@ export const driftMetricsOptions = (
         {},
         params,
       ),
-    staleTime: 60 * 60 * 1000,
+    staleTime: 60 * 30 * 1000,
   });
 
 // ----- Route queries -----
@@ -101,6 +101,7 @@ export const routeHistoryOptions = (
         {},
         { origin, dest, days: days.toString() },
       ),
+    staleTime: 60 * 10 * 1000,
   });
 
 export interface NetworkDelayResponse {
@@ -117,6 +118,7 @@ export const networkDelayOptions = (days: number = 7) =>
   queryOptions({
     queryKey: ['routes', 'network', days],
     queryFn: () => apiFetch<NetworkDelayResponse>(`/api/network?days=${days}`),
+    staleTime: 60 * 10 * 1000,
   });
 
 // ----- Carrier queries -----
@@ -138,6 +140,7 @@ export const carrierComparisonOptions = (
       apiFetch<CarrierComparisonResponse>(
         `/api/carriers/comparison?origin=${origin}&dest=${dest}&days=${days}`,
       ),
+    staleTime: 60 * 10 * 1000,
   });
 
 // ----- Model queries -----
@@ -164,7 +167,7 @@ export const modelInfoOptions = queryOptions({
   //   }
   //   return res;
   // }),
-  staleTime: 60 * 60 * 1000,
+  staleTime: 60 * 10 * 1000,
 });
 
 export interface ModelStats {
@@ -191,7 +194,7 @@ export const modelStatsOptions = (champion: boolean = false) =>
     // .then(
     //   (r) => r.json() as Promise<{ rows: ModelStats[] }>,
     // ),
-    staleTime: 60 * 60 * 1000,
+    staleTime: 60 * 10 * 1000,
   });
 
 // ----- Accuracy queries -----
@@ -214,5 +217,5 @@ export const accuracyOptions = queryOptions({
   // .then(
   //   (r) => r.json() as Promise<{ rows: AccuracyPoint[] }>,
   // ),
-  staleTime: 60 * 60 * 1000,
+  staleTime: 60 * 30 * 1000,
 });
