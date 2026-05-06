@@ -102,6 +102,9 @@ spark-warehouse/
 # Dagster runtime artifacts (DAGSTER_HOME=dagster_home/)
 dagster_home/storage/
 dagster_home/logs/
+dagster_home/.telemetry/
+dagster_home/.nux/
+dagster_home/.logs_queue/
 
 # Terraform
 infra/terraform/.terraform/

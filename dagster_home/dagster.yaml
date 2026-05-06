@@ -14,7 +14,7 @@ run_coordinator:
   module: dagster.core.run_coordinator
   class: QueuedRunCoordinator
   config:
-    max_concurrent_runs: 2
+    max_concurrent_runs: 2 # allow two runs concurrently
 
 concurrency:
-  default_op_concurrency_limit: 1
+  default_op_concurrency_limit: 1 # only allow one concurrent run of any single asset ??
