@@ -1,5 +1,22 @@
 import { alpha } from '@mui/material/styles';
 
+declare module '@mui/material/styles' {
+  interface Palette {
+    custom: {
+      panelAlt: string;
+      lineSoft: string;
+      chipBg: string;
+    };
+  }
+  interface PaletteOptions {
+    custom?: {
+      panelAlt?: string;
+      lineSoft?: string;
+      chipBg?: string;
+    };
+  }
+}
+
 // ─── Holdline editorial theme ─────────────────────────────────────────────────
 // Warm parchment palette. Light+dark. Inter body, Source Serif 4 display,
 // JetBrains Mono for numeric/data labels.
@@ -7,6 +24,11 @@ import { alpha } from '@mui/material/styles';
 export const holdlineColorSchemes = {
   light: {
     palette: {
+      custom: {
+        panelAlt: '#F4F2EC',
+        lineSoft: '#EFEBE0',
+        chipBg: '#F1EEE5',
+      },
       primary: {
         main: '#2B6BFF',
         light: '#7DA8FF',
@@ -63,6 +85,11 @@ export const holdlineColorSchemes = {
   },
   dark: {
     palette: {
+      custom: {
+        panelAlt: '#1A1A18',
+        lineSoft: '#1F1E18',
+        chipBg: '#1C1B15',
+      },
       primary: {
         main: '#7DA8FF',
         light: '#B3CCFF',

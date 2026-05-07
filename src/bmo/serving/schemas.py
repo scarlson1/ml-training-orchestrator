@@ -132,7 +132,7 @@ class DriftResponse(BaseModel):
 
 class ModelRow(BaseModel):
     model_version: str
-    last_scored: str  # float ??
+    last_scored: date
     avg_roc_auc: float
     avg_accuracy: float
     avg_precision_score: float
@@ -142,7 +142,7 @@ class ModelRow(BaseModel):
     avg_brier_score: float
     avg_positive_rate: float
     avg_actual_positive_rate: float
-    avg_n_flights_scored: int
+    avg_n_flights_scored: float
     total_n_flights: int
 
 

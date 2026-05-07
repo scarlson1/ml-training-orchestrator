@@ -1,7 +1,6 @@
 import { Box, Paper, Stack, Typography } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { monoFont, serifFont } from '~/config/themePrimitives';
-import { TOKENS } from '~/config/tmpTheme';
-import { useResolvedMode } from '~/hooks/useResolvedMode';
 
 interface StatCardProps {
   label: string;
@@ -22,15 +21,14 @@ export const StatCard = ({
   color,
   fill,
 }: StatCardProps) => {
-  const mode = useResolvedMode();
-  const t = mode === 'dark' ? TOKENS.dark : TOKENS.light;
+  const p = useTheme().vars.palette;
 
   return (
     <Paper
       variant='outlined'
       sx={{
-        bgcolor: t.panel,
-        borderColor: t.lineSoft,
+        bgcolor: p.background.paper,
+        borderColor: p.custom.lineSoft,
         borderRadius: '4px',
         p: '18px',
       }}
@@ -43,7 +41,7 @@ export const StatCard = ({
           sx={{
             fontFamily: monoFont,
             fontSize: 10,
-            color: t.inkMuted,
+            color: p.text.disabled,
             letterSpacing: '0.1em',
             textTransform: 'uppercase',
           }}
@@ -51,7 +49,7 @@ export const StatCard = ({
           {label}
         </Typography>
         <Typography
-          sx={{ fontFamily: monoFont, fontSize: 11, color: t.inkSoft }}
+          sx={{ fontFamily: monoFont, fontSize: 11, color: p.text.secondary }}
         >
           {code}
         </Typography>
@@ -71,7 +69,7 @@ export const StatCard = ({
         sx={{
           fontFamily: monoFont,
           fontSize: 11,
-          color: t.inkSoft,
+          color: p.text.secondary,
           mt: '4px',
         }}
       >

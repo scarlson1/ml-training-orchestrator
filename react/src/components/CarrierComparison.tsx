@@ -8,8 +8,8 @@ import {
 } from '@mui/material';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { carrierComparisonOptions } from '~/api/queryOptions';
+import { useTheme } from '@mui/material/styles';
 import { monoFont } from '~/config/themePrimitives';
-import type { Tokens } from '~/config/tmpTheme';
 import { carrierCodeToName } from '~/utils/misc';
 
 const AIRLINE_COMPARISON = [
@@ -21,19 +21,18 @@ const AIRLINE_COMPARISON = [
 ];
 
 export function CarrierComparison({
-  t,
   // currentCode,
   currentCarrier,
   origin,
   dest,
   days = 30,
 }: {
-  t: Tokens;
   currentCarrier?: string | null;
   origin: string;
   dest: string;
   days?: number;
 }) {
+  const p = useTheme().vars.palette;
   const { data } = useSuspenseQuery(
     carrierComparisonOptions(origin, dest, days),
   );
@@ -59,7 +58,7 @@ export function CarrierComparison({
               gap: '12px',
               alignItems: 'center',
               py: '10px',
-              borderBottom: `1px solid ${t.lineSoft}`,
+              borderBottom: `1px solid ${p.custom.lineSoft}`,
               opacity: isCurrent ? 1 : 0.78,
             }}
           >
@@ -69,8 +68,8 @@ export function CarrierComparison({
                 width: 18,
                 height: 18,
                 borderRadius: '2px',
-                bgcolor: t.chipBg,
-                color: t.inkSoft,
+                bgcolor: p.custom.chipBg,
+                color: p.text.secondary,
                 fontFamily: monoFont,
                 fontSize: 9,
                 fontWeight: 600,
@@ -82,7 +81,7 @@ export function CarrierComparison({
               <Typography
                 sx={{
                   fontSize: 13,
-                  color: t.ink,
+                  color: p.text.primary,
                   fontWeight: isCurrent ? 600 : 400,
                 }}
               >
@@ -96,7 +95,7 @@ export function CarrierComparison({
                     ml: 1,
                     height: 16,
                     fontSize: 10,
-                    color: t.accent,
+                    color: p.primary.main,
                     fontFamily: monoFont,
                     letterSpacing: '0.08em',
                     textTransform: 'uppercase',
@@ -113,9 +112,9 @@ export function CarrierComparison({
               sx={{
                 height: 4,
                 borderRadius: '1px',
-                bgcolor: t.lineSoft,
+                bgcolor: p.custom.lineSoft,
                 '& .MuiLinearProgress-bar': {
-                  bgcolor: t.ink,
+                  bgcolor: p.text.primary,
                   borderRadius: '1px',
                 },
               }}
@@ -124,7 +123,7 @@ export function CarrierComparison({
               sx={{
                 fontFamily: monoFont,
                 fontSize: 12,
-                color: t.ink,
+                color: p.text.primary,
                 textAlign: 'right',
               }}
             >
@@ -134,7 +133,7 @@ export function CarrierComparison({
               sx={{
                 fontFamily: monoFont,
                 fontSize: 12,
-                color: t.inkSoft,
+                color: p.text.secondary,
                 textAlign: 'right',
               }}
             >
@@ -149,7 +148,7 @@ export function CarrierComparison({
             mt: '10px',
             fontFamily: monoFont,
             fontSize: 10,
-            color: t.inkMuted,
+            color: p.text.disabled,
             letterSpacing: '0.08em',
           }}
         >
