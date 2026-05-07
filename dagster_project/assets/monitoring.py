@@ -58,13 +58,13 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-from bmo.batch_scoring.score import BATCH_FEATURE_REFS, FEATURE_COLUMNS
+from bmo.batch_scoring.score import FEATURE_COLUMNS
 from bmo.common.config import settings
 from bmo.evaluation_gate.gate import MODEL_NAME
 from bmo.monitoring import should_retrain
 from bmo.monitoring.drift import PSI_MODERATE, DriftMetricsRow, DriftReportResult, compute_drift
 from bmo.serving.partitions import DAILY_PARTITIONS
-from dagster_project.resources import DuckDBResource, FeastResource
+from dagster_project.resources import DuckDBResource
 from dagster_project.resources.mlflow_resource import MLflowResource
 from dagster_project.resources.s3_resource import S3Resource
 
@@ -105,7 +105,6 @@ def drift_report(
     context: AssetExecutionContext,
     mlflow: MLflowResource,  # noqa: F821 - forward ref avoids circular import at module
     s3: S3Resource,
-    feast: FeastResource,
 ) -> MaterializeResult:
     """
     Compute daily drift report for the partition date.
@@ -147,7 +146,7 @@ def drift_report(
         return MaterializeResult(metadata={'status': MetadataValue.text('skipped no reference df')})
 
     # load current features (Feast PIT retrieval for recent predictions)
-    current_df = _load_current_features(report_date, context, fs, feast)
+    current_df = _load_current_features(report_date, context, fs)
     if current_df.empty:
         context.log.warning(f'No current features for window ending {report_date_str}')
         return MaterializeResult(
@@ -354,22 +353,14 @@ def _load_current_features(
     report_date: date,
     context: AssetExecutionContext,
     fs: s3fs_lib.S3FileSystem,
-    feast: FeastResource,
 ) -> pd.DataFrame:
     """
-    Load production feature values by re-retrieving from Feast for recent predictions.
+    Load production feature values for drift comparison.
 
-    For each day in the lookback window:
-      1. Read entity IDs and timestamps from the predictions Parquet.
-      2. Call get_historical_features() with scored_at as the event_timestamp.
-         This gives us the feature values that were available at prediction time —
-         the same PIT logic used in batch_predictions and training.
-
-    Why re-retrieve from Feast instead of reading cached feature values?
-      - score.py doesn't write feature values to the output Parquet (only predictions).
-      - Feast's offline store retains historical snapshots, so re-retrieval is
-        possible and gives values identical to the originals.
-      - This approach keeps score.py simple and avoids bloating the predictions output.
+    Reads entity IDs from the predictions Parquet for the lookback window, then
+    joins directly against the latest Feast offline parquet snapshots per entity key.
+    Avoids get_historical_features() which loads the full feature history into memory
+    and cross-joins against all entities — O(n*m) memory blowup.
     """
     entity_frames: list[pd.DataFrame] = []
 
@@ -399,34 +390,53 @@ def _load_current_features(
     if not entity_frames:
         return pd.DataFrame()
 
-    # remove any duplicates flights that may have made it into multiple partitions
     entity_df = pd.concat(entity_frames, ignore_index=True).drop_duplicates('flight_id')
 
-    entity_df['event_timestamp'] = pd.to_datetime(entity_df['scored_at'], utc=True)
+    # entity_df['event_timestamp'] = pd.to_datetime(entity_df['scored_at'], utc=True)
 
-    # store = FeatureStore(repo_path=str(FEATURE_REPO_DIR))
-    store = feast.get_store()
-    try:
-        feature_df = store.get_historical_features(
-            entity_df=entity_df[
-                [
-                    'flight_id',
-                    'origin',
-                    'dest',
-                    'carrier',
-                    'tail_number',
-                    'route_key',
-                    'event_timestamp',
-                ]
-            ],
-            features=BATCH_FEATURE_REFS,
-        ).to_df()
-    except Exception as exc:
-        context.log.warning(f'Feast feature retrieval failed: {exc}')
-        return pd.DataFrame()
+    # # store = FeatureStore(repo_path=str(FEATURE_REPO_DIR))
+    # store = feast.get_store()
+    # try:
+    #     feature_df = store.get_historical_features(
+    #         entity_df=entity_df[
+    #             [
+    #                 'flight_id',
+    #                 'origin',
+    #                 'dest',
+    #                 'carrier',
+    #                 'tail_number',
+    #                 'route_key',
+    #                 'event_timestamp',
+    #             ]
+    #         ],
+    #         features=BATCH_FEATURE_REFS,
+    #     ).to_df()
+    # except Exception as exc:
+    #     context.log.warning(f'Feast feature retrieval failed: {exc}')
+    #     return pd.DataFrame()
 
-    valid_feature_cols = [c for c in FEATURE_COLUMNS if c in feature_df.columns]
-    return feature_df[valid_feature_cols].dropna(how='all')
+    feast_base = settings.feast_s3_base
+    for fv_path, entity_col in [
+        (f'{feast_base}/origin_airport/data.parquet', 'origin'),
+        (f'{feast_base}/dest_airport/data.parquet', 'dest'),
+        (f'{feast_base}/carrier/data.parquet', 'carrier'),
+        (f'{feast_base}/route/data.parquet', 'route_key'),
+        (f'{feast_base}/aircraft/data.parquet', 'tail_number'),
+    ]:
+        if not fs.exists(fv_path):
+            context.log.warning(f'feast parquet not found: {fv_path}')
+            continue
+        with fs.open(fv_path, 'rb') as f:
+            fv_df = pq.read_table(f).to_pandas()
+        fv_df = (
+            fv_df.sort_values('event_ts')
+            .drop_duplicates(entity_col, keep='last')
+            .drop(columns=['event_ts'])
+        )
+        entity_df = entity_df.merge(fv_df, on=entity_col, how='left')
+
+    valid_feature_cols = [c for c in FEATURE_COLUMNS if c in entity_df.columns]
+    return entity_df[valid_feature_cols].dropna(how='all')
 
 
 def _load_feature_importance(
