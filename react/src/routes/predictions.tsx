@@ -1,10 +1,9 @@
-import { WarningAmberRounded } from '@mui/icons-material';
-import { Stack } from '@mui/material';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { predictionOptions, type PredictionRun } from '~/api/queryOptions';
+import { FallingBackOnDemo } from '~/components/FallingBackOnDemo';
 import { Sparkline } from '~/components/Sparkline';
 import { monoFont, serifFont } from '~/config/themePrimitives';
 
@@ -284,18 +283,7 @@ function Predictions() {
         description='Flights scored per run, delay positive rate, and null feature rows. Spikes in null rows indicate upstream feature pipeline failures.'
       />
       <ScoringMetricsStrip runs={runs} />
-      {showFakeData ? (
-        <Stack
-          spacing={1}
-          direction='row'
-          sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}
-        >
-          <WarningAmberRounded fontSize='small' color='warning' />
-          <Typography color='warning' variant='body2'>
-            Falling back on demo data
-          </Typography>
-        </Stack>
-      ) : null}
+      <FallingBackOnDemo show={showFakeData} />
       <RunsTable runs={runs} />
     </>
   );
@@ -347,7 +335,11 @@ function ScoringMetricsStrip({ runs }: { runs: PredictionRun[] }) {
     >
       <MetricCard
         label='Flights scored'
-        value={latest ? String(latest.n_flights) : '—'}
+        value={
+          typeof latest?.n_flights == 'number'
+            ? String(latest?.n_flights?.toLocaleString())
+            : '—'
+        }
         sub='latest run'
         sparkValues={runs.map((r) => r.n_flights)}
         alert={false}
@@ -361,7 +353,7 @@ function ScoringMetricsStrip({ runs }: { runs: PredictionRun[] }) {
       />
       <MetricCard
         label='Average Proba'
-        value={latest ? String(latest.avg_proba) : '—'}
+        value={latest ? String(latest.avg_proba?.toFixed(4)) : '—'}
         sub='latest run'
         sparkValues={runs.map((r) => r.avg_proba)}
         alert={!!latest?.avg_proba && latest.avg_proba > 0.3}

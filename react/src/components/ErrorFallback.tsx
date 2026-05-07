@@ -9,7 +9,10 @@ export function ErrorFallback({ error }: FallbackProps) {
     error instanceof Error ? error.message : 'An unknown error occurred.';
 
   return (
-    <div role='alert'>
+    <div
+      role='alert'
+      style={{ marginLeft: 'auto', marginRight: 'auto', padding: '8px' }}
+    >
       <p>Something went wrong:</p>
       <pre style={{ color: 'red' }}>{msg}</pre>
     </div>

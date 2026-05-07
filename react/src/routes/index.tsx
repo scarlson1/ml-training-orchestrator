@@ -1,3 +1,4 @@
+import { GitHub } from '@mui/icons-material';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -2004,6 +2005,17 @@ function PageFooter({ t }: { t: Tokens }) {
         © 2026 Holdline · ML predictions are probabilistic, not guarantees.
       </Typography>
       <Stack direction='row' spacing='18px'>
+        <Button
+          component='a'
+          href='https://github.com/scarlson1/ml-training-orchestrator'
+          rel='noopener noreferrer'
+          target='_blank'
+          startIcon={<GitHub fontSize='small' />}
+          endIcon={'↗'}
+          size='small'
+        >
+          Github
+        </Button>
         {['Status', 'Changelog', 'Pricing', 'API reference'].map((label) => (
           <Link
             key={label}
