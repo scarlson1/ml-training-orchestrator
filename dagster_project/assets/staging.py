@@ -11,8 +11,8 @@ Dependency order:
 from datetime import timedelta
 
 from dagster import (
+    AssetDep,
     AssetExecutionContext,
-    AssetIn,
     FreshnessPolicy,
     MaterializeResult,
     MetadataValue,
@@ -51,20 +51,19 @@ def dim_route(context: AssetExecutionContext, s3: S3Resource) -> MaterializeResu
 @asset(
     partitions_def=MONTHLY_PARTITIONS,
     group_name='staging',
-    # deps=['raw_bts_flights', 'dim_airport'],
-    ins={
-        'raw_bts_flights': AssetIn(
-            partition_mapping=TimeWindowPartitionMapping(start_offset=0, end_offset=0)
-        )
-    },
+    deps=[
+        'dim_airport',
+        AssetDep(
+            'raw_bts_flights',
+            partition_mapping=TimeWindowPartitionMapping(start_offset=0, end_offset=0),
+        ),
+    ],
     freshness_policy=FreshnessPolicy.time_window(
         fail_window=timedelta(days=70),  # BTS 2-month publication lag + pipeline buffer
         warn_window=timedelta(days=40),
     ),
 )
-def staged_flights(
-    context: AssetExecutionContext, s3: S3Resource, raw_bts_flights, dim_airport
-) -> MaterializeResult:
+def staged_flights(context: AssetExecutionContext, s3: S3Resource) -> MaterializeResult:
     year_str, month_str, *_ = context.partition_key.split('-')
     year, month = int(year_str), int(month_str)
     store = ObjectStore(client=s3.get_client())
@@ -85,20 +84,18 @@ def staged_flights(
 @asset(
     partitions_def=MONTHLY_PARTITIONS,
     group_name='staging',
-    # deps=['raw_noaa_weather'],
-    ins={
-        'raw_noaa_weather': AssetIn(
-            partition_mapping=TimeWindowPartitionMapping(start_offset=0, end_offset=0)
-        )
-    },
+    deps=[
+        AssetDep(
+            'raw_noaa_weather',
+            partition_mapping=TimeWindowPartitionMapping(start_offset=0, end_offset=0),
+        ),
+    ],
     freshness_policy=FreshnessPolicy.time_window(
         fail_window=timedelta(days=70),
         warn_window=timedelta(days=40),
     ),
 )
-def staged_weather(
-    context: AssetExecutionContext, s3: S3Resource, raw_noaa_weather
-) -> MaterializeResult:
+def staged_weather(context: AssetExecutionContext, s3: S3Resource) -> MaterializeResult:
     year_str, month_str, *_ = context.partition_key.split('-')
     year, month = int(year_str), int(month_str)
     store = ObjectStore(client=s3.get_client())

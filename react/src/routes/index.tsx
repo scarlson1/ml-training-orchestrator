@@ -2,7 +2,6 @@ import { GitHub } from '@mui/icons-material';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
-import Link from '@mui/material/Link';
 import Paper from '@mui/material/Paper';
 import Skeleton from '@mui/material/Skeleton';
 import Stack from '@mui/material/Stack';
@@ -2011,12 +2010,12 @@ function PageFooter({ t }: { t: Tokens }) {
           rel='noopener noreferrer'
           target='_blank'
           startIcon={<GitHub fontSize='small' />}
-          endIcon={'↗'}
+          // endIcon={'↗'}
           size='small'
         >
           Github
         </Button>
-        {['Status', 'Changelog', 'Pricing', 'API reference'].map((label) => (
+        {/* {['Status', 'Changelog', 'Pricing', 'API reference'].map((label) => (
           <Link
             key={label}
             underline='hover'
@@ -2029,7 +2028,7 @@ function PageFooter({ t }: { t: Tokens }) {
           >
             {label}
           </Link>
-        ))}
+        ))} */}
       </Stack>
     </Box>
   );
