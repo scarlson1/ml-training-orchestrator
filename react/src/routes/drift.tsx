@@ -1,11 +1,10 @@
-import { WarningAmberRounded } from '@mui/icons-material';
-import { Stack } from '@mui/material';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { useMemo } from 'react';
 import { driftMetricsOptions } from '~/api/queryOptions';
+import { FallingBackOnDemo } from '~/components/FallingBackOnDemo';
 import { monoFont, serifFont } from '~/config/themePrimitives';
 
 /*
@@ -331,20 +330,8 @@ function Drift() {
         </Typography>
       </Box>
 
-      {showFakeData ? (
-        <Stack
-          spacing={1}
-          direction='row'
-          sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}
-        >
-          <WarningAmberRounded fontSize='small' color='warning' />
-          <Typography color='warning' variant='body2'>
-            Falling back on demo data
-          </Typography>
-        </Stack>
-      ) : null}
-
       <PsiLegend />
+      <FallingBackOnDemo show={showFakeData} />
       <DriftHeatmap features={features} dates={dates} psi={psi} />
     </>
   );

@@ -1500,6 +1500,27 @@ D SELECT * FROM read_parquet('s3://staging/iceberg/staged_flights/data/flight_da
 D SELECT * FROM iceberg_scan('s3://staging/iceberg/staged_flights') LIMIT 10;
 ```
 
+#### Document PIT JOINs & why Feast's `get_historical_features()` doesn't scale
+
+Why get_historical_features() is a memory bomb
+
+Feast's PIT join for FileSource works like this:
+
+Load the entire feature parquet into memory for each feature view
+Sort both the entity_df and feature_df by entity key + timestamp
+For each entity row, binary-search for the latest feature row where event_ts <= entity_timestamp
+The problem is step 1. Look at feast_feature_export:
+
+df = con.execute(f'SELECT {cols} FROM {table}').df() # no WHERE clause
+It dumps the entire DuckDB table with no date filter. If feat_origin_airport_windowed has been running for a year with hourly snapshots:
+
+500 airports × 24h × 365 days = 4.38 million rows
+feat_route_rolling: 5,000–10,000 routes × 365 days = 5.5M rows
+5 feature views loaded simultaneously = potentially several GB just for feature data
+Then Feast joins that against 210K entity rows, creating large intermediate DataFrames in pandas. Combined with pandas' copy-on-write behavior and macOS virtual memory (what Activity Monitor shows as "memory" includes swap-backed pages), you get the 99→159GB number.
+
+PIT correctness doesn't matter for drift - only training & inference
+
 ### Improvements
 
 - Add data sources

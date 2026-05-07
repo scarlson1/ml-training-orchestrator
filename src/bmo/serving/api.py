@@ -40,9 +40,9 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
 import structlog
-from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from prometheus_client import (
     CONTENT_TYPE_LATEST,
     Counter,
@@ -198,6 +198,13 @@ app = FastAPI(
     version='1.0.0',
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    log.exception('unhandled exception', path=str(request.url.path), method=request.method)
+    return JSONResponse(status_code=500, content={'detail': 'Internal server error'})
+
 
 # HANDLE CORS IN CADDY
 _CORS_ORIGINS = [
@@ -466,9 +473,13 @@ def get_duckdb() -> duckdb.DuckDBPyConnection:
         return duckdb.connect(local_path, read_only=True)
 
     # Fallback: S3-backed ephemeral session
-    log.info('Local DuckDB not found — querying S3 predictions directly')
+    log.info('local DuckDB not found — querying S3 predictions directly', path=local_path)
     con = duckdb.connect()
-    con.execute('INSTALL httpfs; LOAD httpfs;')
+    try:
+        con.execute('INSTALL httpfs; LOAD httpfs;')
+    except Exception:
+        log.exception('DuckDB httpfs extension unavailable — S3 fallback will fail')
+        raise
     con.execute(f"""
         SET s3_endpoint = '{settings.s3_endpoint}';
         SET s3_access_key_id = '{settings.s3_access_key_id}';
@@ -478,9 +489,12 @@ def get_duckdb() -> duckdb.DuckDBPyConnection:
         SET s3_use_ssl = 'false';
     """)  # SET s3_region = '{settings.s3_region}'; duckDB doesn't support "auto"
     # Register a view that mirrors mart_predictions but from raw S3
+    # actual_is_delayed only exists after the dbt join with actuals — stub it
+    # as NULL so queries that reference it (n_with_actuals) work without error.
     con.execute("""
         CREATE OR REPLACE VIEW mart_predictions AS
-            SELECT * FROM read_parquet('s3://staging/predictions/**/data.parquet')
+            SELECT *, NULL::BOOLEAN AS actual_is_delayed
+            FROM read_parquet('s3://staging/predictions/**/data.parquet')
     """)
     return con
 
@@ -703,7 +717,7 @@ async def accuracy(db: Engine = Depends(get_db)) -> AccuracyResponse:
                     actual_positive_rate,
                     n_with_actuals
                 FROM live_accuracy
-                WHERE CAST(score_date AS DATE) >= NOW() - INTERVAL '90 days'
+                WHERE CAST(score_date AS DATE) >= (SELECT MAX(CAST(score_date AS DATE)) FROM live_accuracy) - INTERVAL '90 days'
                 ORDER BY score_date, model_version
                 """)
 
@@ -741,7 +755,9 @@ async def predictions(
                         AVG(predicted_delay_proba)                     AS avg_proba,
                         COUNT(*) FILTER (WHERE actual_is_delayed IS NOT NULL) AS n_with_actuals
                     FROM mart_predictions
-                    WHERE CAST(score_date AS DATE) >= CURRENT_DATE - INTERVAL (? || ' days')
+                    WHERE CAST(score_date AS DATE) >= (
+                        SELECT MAX(CAST(score_date AS DATE)) FROM mart_predictions
+                    ) - INTERVAL (? || ' days')
                     GROUP BY score_date, model_version
                     ORDER BY score_date DESC
                     """,
@@ -757,6 +773,7 @@ async def predictions(
     try:
         rows = await asyncio.to_thread(_query)
     except Exception as exc:
+        log.exception('predictions query failed', days=days)
         raise HTTPException(status_code=500, detail=str(exc))
     return PredictionsResponse(rows=[PredictionRow(**r) for r in rows])
 

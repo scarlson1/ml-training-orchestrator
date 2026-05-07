@@ -1,10 +1,9 @@
-import { WarningAmberRounded } from '@mui/icons-material';
-import { Stack } from '@mui/material';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { accuracyOptions, type AccuracyPoint } from '~/api/queryOptions';
+import { FallingBackOnDemo } from '~/components/FallingBackOnDemo';
 import { Sparkline } from '~/components/Sparkline';
 import { monoFont, serifFont } from '~/config/themePrimitives';
 
@@ -304,18 +303,7 @@ function Accuracy() {
           be pending.
         </Typography>
 
-        {showFakeData ? (
-          <Stack
-            spacing={1}
-            direction='row'
-            sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}
-          >
-            <WarningAmberRounded fontSize='small' color='warning' />
-            <Typography color='warning' variant='body2'>
-              Falling back on demo data
-            </Typography>
-          </Stack>
-        ) : null}
+        <FallingBackOnDemo show={showFakeData} />
       </Box>
 
       <MetricsRow latest={latest} />
