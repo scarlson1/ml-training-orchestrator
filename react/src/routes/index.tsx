@@ -2012,6 +2012,7 @@ function PageFooter({ t }: { t: Tokens }) {
           startIcon={<GitHub fontSize='small' />}
           // endIcon={'↗'}
           size='small'
+          color='inherit'
         >
           Github
         </Button>

@@ -10,6 +10,7 @@ Pydantic v2 docs: https://docs.pydantic.dev/latest/
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -150,7 +151,7 @@ class ModelStatsResponse(BaseModel):
 
 
 class PsiRow(BaseModel):
-    report_date: str
+    report_date: date
     psi_score: float
     kl_divergence: float | None
     is_breached: bool
@@ -161,7 +162,7 @@ class PsiResponse(BaseModel):
 
 
 class AccuracyRow(BaseModel):
-    score_date: str
+    score_date: date
     model_version: str
     roc_auc: float
     f1: float
@@ -178,7 +179,7 @@ class AccuracyResponse(BaseModel):
 
 
 class PredictionRow(BaseModel):
-    score_date: str
+    score_date: date
     model_version: str
     n_flights: int
     avg_proba: float
@@ -201,7 +202,7 @@ class PredictionsDayResponse(BaseModel):
 
 
 class RouteHistoryRow(BaseModel):
-    score_date: str
+    score_date: date
     opt_pct: int
 
 

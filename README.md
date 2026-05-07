@@ -1469,6 +1469,7 @@ r2_endpoint_url = "https://2662189f53004928cc8e89c79f095db9.r2.cloudflarestorage
 - dagster resources - wire up dagster resources (duckDB, Feast, S3, mlflow)
 - document need to run feast assets (and prereqs) for each partition before running batch_predict ?? use 'ins' in @asset decorator ??
 - why doesn't mart_predictions have dependency on batch_predictions ??
+- resources health status in react (dagster, vm memory usage, etc.)
 
 - update congestion card
   - use airlabs schedules endpoint to get schedules flights in next hour

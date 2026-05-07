@@ -595,5 +595,6 @@ def _upsert_live_accuracy(rows: list[dict], postgres_url: str) -> None:
                     positive_rate        = EXCLUDED.positive_rate,
                     actual_positive_rate = EXCLUDED.actual_positive_rate,
                     computed_at          = NOW()
-            """)
+            """),
+            rows,
         )
