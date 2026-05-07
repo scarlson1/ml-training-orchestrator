@@ -264,17 +264,17 @@ def _generate_evidently_html(
 
     Docs: https://docs.evidentlyai.com/presets/data-drift
     """
-    from evidently.metric_preset import DataDriftPreset  # pyright: ignore[reportMissingImports]
-    from evidently.report import Report  # pyright: ignore[reportMissingImports]
+    from evidently import Report  # pyright: ignore[reportMissingImports]
+    from evidently.presets import DataDriftPreset  # pyright: ignore[reportMissingImports]
 
-    report = Report(metrics=[DataDriftPreset(stattest='psi', stattest_threshold=psi_threshold)])
-    report.run(reference_data=reference_df, current_data=current_df)
+    report = Report(metrics=[DataDriftPreset(method='psi', threshold=psi_threshold)])
+    snapshot = report.run(reference_data=reference_df, current_data=current_df)
 
     with tempfile.NamedTemporaryFile(suffix='.html', delete=False, mode='w') as f:
         tmp_path = f.name
 
     try:
-        report.save_html(tmp_path)
+        snapshot.save_html(tmp_path)
         with open(tmp_path) as f:
             html = f.read()
     finally:

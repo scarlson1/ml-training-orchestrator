@@ -8,6 +8,7 @@ import Stack from '@mui/material/Stack';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
+import { useTheme } from '@mui/material/styles';
 import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { Suspense, useEffect, useMemo, useState } from 'react';
@@ -24,7 +25,6 @@ import { NetworkMap } from '~/components/NetworkMap';
 import { RouterButton } from '~/components/RouterButton';
 import { StatCard } from '~/components/StatCard';
 import { monoFont, serifFont } from '~/config/themePrimitives';
-import { TOKENS, type Tokens } from '~/config/tmpTheme';
 import { useResolvedMode } from '~/hooks/useResolvedMode';
 import { iataToIcao } from '~/utils/misc';
 import { getDelayStatus, getWeather } from '~/utils/weather.functions';
@@ -243,13 +243,12 @@ const FLIGHTS: Flight[] = [
 
 function ProbabilityArc({
   prob,
-  t,
   size = 200,
 }: {
   prob: number;
-  t: Tokens;
   size?: number;
 }) {
+  const p = useTheme().vars.palette;
   const r = size / 2 - 18;
   const cx = size / 2;
   const cy = size / 2;
@@ -270,19 +269,19 @@ function ProbabilityArc({
     <svg width={size} height={size} style={{ display: 'block' }}>
       <path
         d={`M ${x1} ${y1} A ${r} ${r} 0 1 1 ${bx} ${by}`}
-        stroke={t.lineSoft}
+        stroke={p.custom.lineSoft}
         strokeWidth='2'
         fill='none'
       />
       <path
         d={`M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`}
-        stroke={t.ink}
+        stroke={p.text.primary}
         strokeWidth='2'
         fill='none'
         strokeLinecap='round'
       />
-      {[0, 0.25, 0.5, 0.75, 1].map((p, i) => {
-        const a = startA + total * p;
+      {[0, 0.25, 0.5, 0.75, 1].map((pv, i) => {
+        const a = startA + total * pv;
         const [tx, ty] = polar(a);
         const [tx2, ty2] = [
           cx + (r - 6) * Math.cos(a),
@@ -295,7 +294,7 @@ function ProbabilityArc({
             y1={ty}
             x2={tx2}
             y2={ty2}
-            stroke={t.line}
+            stroke={p.divider}
             strokeWidth='1'
           />
         );
@@ -304,7 +303,8 @@ function ProbabilityArc({
   );
 }
 
-function FactorBar({ factor, t }: { factor: Factor; t: Tokens }) {
+function FactorBar({ factor }: { factor: Factor }) {
+  const p = useTheme().vars.palette;
   const v = factor.value;
   const pct = Math.min(Math.abs(v) / 0.4, 1) * 50;
   const positive = v >= 0;
@@ -316,14 +316,14 @@ function FactorBar({ factor, t }: { factor: Factor; t: Tokens }) {
         alignItems: 'center',
         gap: 2,
         py: '10px',
-        borderBottom: `1px solid ${t.lineSoft}`,
+        borderBottom: `1px solid ${p.custom.lineSoft}`,
       }}
     >
       <Box sx={{ flex: '1 1 0', minWidth: 0, overflow: 'hidden' }}>
         <Typography
           sx={{
             fontSize: 13,
-            color: t.ink,
+            color: p.text.primary,
             fontWeight: 500,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
@@ -335,7 +335,7 @@ function FactorBar({ factor, t }: { factor: Factor; t: Tokens }) {
         <Typography
           sx={{
             fontSize: 11,
-            color: t.inkMuted,
+            color: p.text.disabled,
             mt: '2px',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
@@ -350,7 +350,7 @@ function FactorBar({ factor, t }: { factor: Factor; t: Tokens }) {
           flex: '2 1 0',
           position: 'relative',
           height: 6,
-          bgcolor: t.lineSoft,
+          bgcolor: p.custom.lineSoft,
           borderRadius: '1px',
           minWidth: 0,
         }}
@@ -362,7 +362,7 @@ function FactorBar({ factor, t }: { factor: Factor; t: Tokens }) {
             bottom: 0,
             left: '50%',
             width: '1px',
-            bgcolor: t.line,
+            bgcolor: p.divider,
           }}
         />
         <Box
@@ -372,7 +372,7 @@ function FactorBar({ factor, t }: { factor: Factor; t: Tokens }) {
             bottom: 0,
             left: positive ? '50%' : `${50 - pct}%`,
             width: `${pct}%`,
-            bgcolor: positive ? t.good : t.bad,
+            bgcolor: positive ? p.success.main : p.error.main,
             borderRadius: '1px',
           }}
         />
@@ -383,7 +383,7 @@ function FactorBar({ factor, t }: { factor: Factor; t: Tokens }) {
           fontFamily: monoFont,
           fontSize: 11,
           textAlign: 'right',
-          color: positive ? t.good : t.bad,
+          color: positive ? p.success.main : p.error.main,
           whiteSpace: 'nowrap',
         }}
       >
@@ -400,13 +400,12 @@ function FlightSwitcher({
   flights,
   current,
   onPick,
-  t,
 }: {
   flights: Flight[];
   current: Flight;
   onPick: (f: Flight) => void;
-  t: Tokens;
 }) {
+  const p = useTheme().vars.palette;
   return (
     <ToggleButtonGroup
       value={current.id}
@@ -422,9 +421,9 @@ function FlightSwitcher({
         flexWrap: 'wrap',
         gap: 1,
         '& .MuiToggleButtonGroup-grouped': {
-          border: `1px solid ${t.line} !important`,
+          border: `1px solid ${p.divider} !important`,
           borderRadius: '2px !important',
-          color: t.ink,
+          color: p.text.primary,
           fontFamily: monoFont,
           fontSize: 11,
           letterSpacing: '0.04em',
@@ -432,10 +431,10 @@ function FlightSwitcher({
           py: '6px',
           textTransform: 'none',
           '&.Mui-selected': {
-            bgcolor: t.ink,
-            color: t.bg,
-            borderColor: `${t.ink} !important`,
-            '&:hover': { bgcolor: t.inkSoft },
+            bgcolor: p.text.primary,
+            color: p.background.default,
+            borderColor: `${p.text.primary} !important`,
+            '&:hover': { bgcolor: p.text.secondary },
           },
         },
       }}
@@ -455,20 +454,19 @@ function KpiItem({
   title,
   value,
   subtitle,
-  t,
 }: {
   title: string;
   value: string | number | null | undefined;
   subtitle: string;
-  t: Tokens;
 }) {
+  const p = useTheme().vars.palette;
   return (
-    <Box sx={{ borderLeft: `1px solid ${t.line}`, pl: '14px' }}>
+    <Box sx={{ borderLeft: `1px solid ${p.divider}`, pl: '14px' }}>
       <Typography
         sx={{
           fontFamily: monoFont,
           fontSize: 9,
-          color: t.inkMuted,
+          color: p.text.disabled,
           letterSpacing: '0.12em',
           textTransform: 'uppercase',
         }}
@@ -479,7 +477,7 @@ function KpiItem({
         sx={{
           fontFamily: serifFont,
           fontSize: 26,
-          color: t.ink,
+          color: p.text.primary,
           letterSpacing: '-0.02em',
           mt: '2px',
         }}
@@ -490,7 +488,7 @@ function KpiItem({
         sx={{
           fontFamily: monoFont,
           fontSize: 10,
-          color: t.inkMuted,
+          color: p.text.disabled,
           mt: '2px',
         }}
       >
@@ -500,7 +498,8 @@ function KpiItem({
   );
 }
 
-function KpiStrip({ t }: { t: Tokens }) {
+function KpiStrip() {
+  const p = useTheme().vars.palette;
   const { data: pred } = useSuspenseQuery({
     ...todaysPredictionOptions,
     retry: false,
@@ -550,7 +549,7 @@ function KpiStrip({ t }: { t: Tokens }) {
             title={k.l}
             value={k.v}
             subtitle={k.s}
-            t={t}
+
           />
         ))}
       </Stack>
@@ -560,7 +559,7 @@ function KpiStrip({ t }: { t: Tokens }) {
             mt: '10px',
             fontFamily: monoFont,
             fontSize: 10,
-            color: t.inkMuted,
+            color: p.text.disabled,
             letterSpacing: '0.08em',
           }}
         >
@@ -594,20 +593,14 @@ function getFlightCompositeId(flight: Flight) {
 }
 
 interface HeroProps {
-  t: Tokens;
-  isDark: boolean;
   flight: Flight;
   onPickFlight: (f: Flight) => void;
   onPredict: (p: PredictResponse) => void;
 }
 
-function HeroSection({
-  t,
-  isDark,
-  flight,
-  onPickFlight,
-  onPredict,
-}: HeroProps) {
+function HeroSection({ flight, onPickFlight, onPredict }: HeroProps) {
+  const p = useTheme().vars.palette;
+  const isDark = useResolvedMode() === 'dark';
   const { mutate: predict, isPending } = useMutation({
     mutationFn: async (body: PredictBody) => {
       const data = await apiFetch<PredictResponse>('/predict', {
@@ -639,7 +632,7 @@ function HeroSection({
       sx={{
         position: 'relative',
         p: '56px 56px 36px',
-        borderBottom: `1px solid ${t.line}`,
+        borderBottom: `1px solid ${p.divider}`,
         background: isDark
           ? 'radial-gradient(ellipse at 65% 50%, #0A1124 0%, #0F0F0E 65%)'
           : 'radial-gradient(ellipse at 65% 50%, #FFFFFF 0%, #FBFAF7 65%)',
@@ -693,7 +686,7 @@ function HeroSection({
                 width: 6,
                 height: 6,
                 borderRadius: '50%',
-                bgcolor: t.good,
+                bgcolor: p.success.main,
                 mr: 1,
                 flexShrink: 0,
               }}
@@ -702,7 +695,7 @@ function HeroSection({
               sx={{
                 fontFamily: monoFont,
                 fontSize: 11,
-                color: t.inkMuted,
+                color: p.text.disabled,
                 letterSpacing: '0.12em',
                 textTransform: 'uppercase',
               }}
@@ -719,13 +712,13 @@ function HeroSection({
               lineHeight: 0.98,
               letterSpacing: '-0.025em',
               fontWeight: 400,
-              color: t.ink,
+              color: p.text.primary,
             }}
           >
             Know whether
             <br />
             the flight{' '}
-            <Box component='em' sx={{ fontStyle: 'italic', color: t.inkSoft }}>
+            <Box component='em' sx={{ fontStyle: 'italic', color: p.text.secondary }}>
               will
             </Box>{' '}
             hold —<br />
@@ -736,7 +729,7 @@ function HeroSection({
             sx={{
               mt: '20px',
               fontSize: 15,
-              color: t.inkSoft,
+              color: p.text.secondary,
               maxWidth: 480,
               lineHeight: 1.55,
               fontFamily: 'Inter, sans-serif',
@@ -760,7 +753,7 @@ function HeroSection({
                         title={k.l}
                         value={k.v}
                         subtitle={k.s}
-                        t={t}
+
                       />
                     ))}
                   </Stack>
@@ -777,7 +770,7 @@ function HeroSection({
                   {Array.from({ length: 4 }).map((_, i) => (
                     <Box
                       key={`load-kpi-${i}`}
-                      sx={{ borderLeft: `1px solid ${t.line}`, pl: '14px' }}
+                      sx={{ borderLeft: `1px solid ${p.divider}`, pl: '14px' }}
                     >
                       <Skeleton width={72} height={10} />
                       <Skeleton width={40} height={30} sx={{ mt: '6px' }} />
@@ -787,7 +780,7 @@ function HeroSection({
                 </Stack>
               }
             >
-              <KpiStrip t={t} />
+              <KpiStrip />
             </Suspense>
           </ErrorBoundary>
         </Box>
@@ -796,8 +789,8 @@ function HeroSection({
         <Paper
           variant='outlined'
           sx={{
-            bgcolor: t.panelAlt,
-            borderColor: t.lineSoft,
+            bgcolor: p.custom.panelAlt,
+            borderColor: p.custom.lineSoft,
             borderRadius: '4px',
             p: 3,
           }}
@@ -806,7 +799,7 @@ function HeroSection({
             sx={{
               fontFamily: monoFont,
               fontSize: 10,
-              color: t.inkMuted,
+              color: p.text.disabled,
               letterSpacing: '0.1em',
               textTransform: 'uppercase',
               mb: '14px',
@@ -818,9 +811,9 @@ function HeroSection({
             sx={{
               display: 'grid',
               gridTemplateColumns: '1fr 1fr 1fr auto',
-              border: `1px solid ${t.line}`,
+              border: `1px solid ${p.divider}`,
               borderRadius: '4px',
-              bgcolor: t.panel,
+              bgcolor: p.background.paper,
               overflow: 'hidden',
             }}
           >
@@ -831,12 +824,12 @@ function HeroSection({
             ].map(([label, val]) => (
               <Box
                 key={label}
-                sx={{ p: '10px 14px', borderRight: `1px solid ${t.lineSoft}` }}
+                sx={{ p: '10px 14px', borderRight: `1px solid ${p.custom.lineSoft}` }}
               >
                 <Typography
                   sx={{
                     fontSize: 10,
-                    color: t.inkMuted,
+                    color: p.text.disabled,
                     mb: '2px',
                     fontFamily: 'Inter, sans-serif',
                   }}
@@ -844,7 +837,7 @@ function HeroSection({
                   {label}
                 </Typography>
                 <Typography
-                  sx={{ fontFamily: monoFont, fontSize: 14, color: t.ink }}
+                  sx={{ fontFamily: monoFont, fontSize: 14, color: p.text.primary }}
                 >
                   {val}
                 </Typography>
@@ -858,15 +851,15 @@ function HeroSection({
               variant='contained'
               disableElevation
               sx={{
-                bgcolor: t.ink,
-                color: t.bg,
+                bgcolor: p.text.primary,
+                color: p.background.default,
                 borderRadius: 0,
                 fontSize: 13,
                 px: '22px',
                 fontWeight: 500,
                 textTransform: 'none',
-                '&:hover': { bgcolor: t.inkSoft },
-                '&.Mui-disabled': { bgcolor: t.inkMuted, color: t.bg },
+                '&:hover': { bgcolor: p.text.secondary },
+                '&.Mui-disabled': { bgcolor: p.text.disabled, color: p.background.default },
               }}
             >
               {/* {isPending ? '…' : 'Predict →'} */}
@@ -878,7 +871,7 @@ function HeroSection({
               flights={FLIGHTS}
               current={flight}
               onPick={onPickFlight}
-              t={t}
+
             />
           </Box>
         </Paper>
@@ -890,7 +883,6 @@ function HeroSection({
 // ─── Prediction headline ──────────────────────────────────────────────────────
 
 interface PredHeadlineProps {
-  t: Tokens;
   flight: Flight;
   onTimeProb: number;
   verdict: { label: string; color: string };
@@ -898,12 +890,12 @@ interface PredHeadlineProps {
 }
 
 function PredictionHeadline({
-  t,
   flight,
   onTimeProb,
   verdict,
   prediction,
 }: PredHeadlineProps) {
+  const p = useTheme().vars.palette;
   const delayP50 = prediction
     ? prediction.delay_probability > 0.5
       ? 30
@@ -920,7 +912,7 @@ function PredictionHeadline({
   return (
     <Box
       component='section'
-      sx={{ p: '40px 56px', borderBottom: `1px solid ${t.line}` }}
+      sx={{ p: '40px 56px', borderBottom: `1px solid ${p.divider}` }}
     >
       <Box
         sx={{
@@ -938,14 +930,14 @@ function PredictionHeadline({
             sx={{ mb: 1, alignItems: 'baseline' }}
           >
             <Typography
-              sx={{ fontFamily: monoFont, fontSize: 13, color: t.inkSoft }}
+              sx={{ fontFamily: monoFont, fontSize: 13, color: p.text.secondary }}
             >
               {flight.code} {flight.number}
             </Typography>
             <Typography
               sx={{
                 fontSize: 13,
-                color: t.inkMuted,
+                color: p.text.disabled,
                 fontFamily: 'Inter, sans-serif',
               }}
             >
@@ -959,7 +951,7 @@ function PredictionHeadline({
                 fontSize: 56,
                 lineHeight: 1,
                 letterSpacing: '-0.03em',
-                color: t.ink,
+                color: p.text.primary,
               }}
             >
               {flight.from.code}
@@ -970,13 +962,13 @@ function PredictionHeadline({
                 y1='7'
                 x2='36'
                 y2='7'
-                stroke={t.inkSoft}
+                stroke={p.text.secondary}
                 strokeWidth='1'
               />
               <polyline
                 points='32,3 36,7 32,11'
                 fill='none'
-                stroke={t.inkSoft}
+                stroke={p.text.secondary}
                 strokeWidth='1'
               />
             </svg>
@@ -986,7 +978,7 @@ function PredictionHeadline({
                 fontSize: 56,
                 lineHeight: 1,
                 letterSpacing: '-0.03em',
-                color: t.ink,
+                color: p.text.primary,
               }}
             >
               {flight.to.code}
@@ -996,7 +988,7 @@ function PredictionHeadline({
             sx={{
               mt: 1,
               fontSize: 13,
-              color: t.inkSoft,
+              color: p.text.secondary,
               fontFamily: 'Inter, sans-serif',
             }}
           >
@@ -1012,7 +1004,7 @@ function PredictionHeadline({
                     width: 5,
                     height: 5,
                     borderRadius: '50%',
-                    bgcolor: t.accent,
+                    bgcolor: p.primary.main,
                     ml: '10px !important',
                     flexShrink: 0,
                   }}
@@ -1024,13 +1016,13 @@ function PredictionHeadline({
                 mt: '14px',
                 fontFamily: monoFont,
                 fontSize: 10,
-                color: t.accent,
-                borderColor: t.accent,
+                color: p.primary.main,
+                borderColor: p.primary.main,
                 borderRadius: '3px',
                 height: 'auto',
                 letterSpacing: '0.06em',
                 '& .MuiChip-label': { px: '10px', py: '4px' },
-                '& .MuiChip-icon': { color: t.accent, mr: 0 },
+                '& .MuiChip-icon': { color: p.primary.main, mr: 0 },
               }}
             />
           )}
@@ -1042,7 +1034,7 @@ function PredictionHeadline({
             sx={{
               fontFamily: monoFont,
               fontSize: 10,
-              color: t.inkMuted,
+              color: p.text.disabled,
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
               mb: 1,
@@ -1051,7 +1043,7 @@ function PredictionHeadline({
             On-time probability
           </Typography>
           <Box sx={{ position: 'relative', display: 'inline-block' }}>
-            <ProbabilityArc prob={onTimeProb} t={t} size={180} />
+            <ProbabilityArc prob={onTimeProb} size={180} />
             <Box
               sx={{
                 position: 'absolute',
@@ -1069,11 +1061,11 @@ function PredictionHeadline({
                     fontWeight: 400,
                     lineHeight: 1,
                     letterSpacing: '-0.02em',
-                    color: t.ink,
+                    color: p.text.primary,
                   }}
                 >
                   {(onTimeProb * 100).toFixed(0)}
-                  <Box component='span' sx={{ fontSize: 22, color: t.inkSoft }}>
+                  <Box component='span' sx={{ fontSize: 22, color: p.text.secondary }}>
                     %
                   </Box>
                 </Typography>
@@ -1099,7 +1091,7 @@ function PredictionHeadline({
             sx={{
               fontFamily: monoFont,
               fontSize: 10,
-              color: t.inkMuted,
+              color: p.text.disabled,
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
               mb: 1,
@@ -1114,7 +1106,7 @@ function PredictionHeadline({
                 fontSize: 44,
                 lineHeight: 1,
                 letterSpacing: '-0.02em',
-                color: t.ink,
+                color: p.text.primary,
               }}
             >
               {delayP50}
@@ -1122,7 +1114,7 @@ function PredictionHeadline({
             <Typography
               sx={{
                 fontSize: 14,
-                color: t.inkSoft,
+                color: p.text.secondary,
                 fontFamily: 'Inter, sans-serif',
               }}
             >
@@ -1140,21 +1132,21 @@ function PredictionHeadline({
                 direction='row'
                 sx={{
                   py: '4px',
-                  borderBottom: `1px solid ${t.lineSoft}`,
+                  borderBottom: `1px solid ${p.custom.lineSoft}`,
                   justifyContent: 'space-between',
                 }}
               >
                 <Typography
                   sx={{
                     fontSize: 12,
-                    color: t.inkSoft,
+                    color: p.text.secondary,
                     fontFamily: 'Inter, sans-serif',
                   }}
                 >
                   {label}
                 </Typography>
                 <Typography
-                  sx={{ fontSize: 12, fontFamily: monoFont, color: t.inkSoft }}
+                  sx={{ fontSize: 12, fontFamily: monoFont, color: p.text.secondary }}
                 >
                   {val}
                 </Typography>
@@ -1169,7 +1161,7 @@ function PredictionHeadline({
             sx={{
               fontFamily: monoFont,
               fontSize: 10,
-              color: t.inkMuted,
+              color: p.text.disabled,
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
               mb: 1,
@@ -1183,7 +1175,7 @@ function PredictionHeadline({
               fontSize: 44,
               lineHeight: 1,
               letterSpacing: '-0.02em',
-              color: t.ink,
+              color: p.text.primary,
             }}
           >
             {confidence.toFixed(2)}
@@ -1192,7 +1184,7 @@ function PredictionHeadline({
             sx={{
               mt: 2,
               fontSize: 12,
-              color: t.inkSoft,
+              color: p.text.secondary,
               lineHeight: 1.5,
               fontFamily: 'Inter, sans-serif',
             }}
@@ -1206,13 +1198,13 @@ function PredictionHeadline({
             variant='outlined'
             sx={{
               mt: '14px',
-              color: t.ink,
-              borderColor: t.line,
+              color: p.text.primary,
+              borderColor: p.divider,
               borderRadius: '2px',
               fontSize: 12,
               textTransform: 'none',
               fontFamily: 'Inter, sans-serif',
-              '&:hover': { borderColor: t.ink, bgcolor: 'transparent' },
+              '&:hover': { borderColor: p.text.primary, bgcolor: 'transparent' },
             }}
             endIcon={'→'}
           >
@@ -1226,7 +1218,8 @@ function PredictionHeadline({
 
 // ─── Feature attribution + route history ─────────────────────────────────────
 
-function AttributionAndHistory({ t, flight }: { t: Tokens; flight: Flight }) {
+function AttributionAndHistory({ flight }: { flight: Flight }) {
+  const p = useTheme().vars.palette;
   const avgOtp = Math.round(
     flight.history.reduce((a, b) => a + b, 0) / flight.history.length,
   );
@@ -1239,14 +1232,14 @@ function AttributionAndHistory({ t, flight }: { t: Tokens; flight: Flight }) {
         display: 'grid',
         gridTemplateColumns: '1.3fr 1fr',
         gap: 4,
-        borderBottom: `1px solid ${t.line}`,
+        borderBottom: `1px solid ${p.divider}`,
       }}
     >
       <Paper
         variant='outlined'
         sx={{
-          bgcolor: t.panel,
-          borderColor: t.lineSoft,
+          bgcolor: p.background.paper,
+          borderColor: p.custom.lineSoft,
           borderRadius: '4px',
           p: 3,
         }}
@@ -1264,7 +1257,7 @@ function AttributionAndHistory({ t, flight }: { t: Tokens; flight: Flight }) {
               sx={{
                 fontFamily: monoFont,
                 fontSize: 10,
-                color: t.inkMuted,
+                color: p.text.disabled,
                 letterSpacing: '0.12em',
                 textTransform: 'uppercase',
               }}
@@ -1279,28 +1272,28 @@ function AttributionAndHistory({ t, flight }: { t: Tokens; flight: Flight }) {
                 mt: '6px',
                 fontWeight: 400,
                 letterSpacing: '-0.01em',
-                color: t.ink,
+                color: p.text.primary,
               }}
             >
               What's driving this prediction
             </Typography>
           </Box>
           <Typography
-            sx={{ fontSize: 11, color: t.inkMuted, fontFamily: monoFont }}
+            sx={{ fontSize: 11, color: p.text.disabled, fontFamily: monoFont }}
           >
             SHAP-equivalent · log-odds shift
           </Typography>
         </Stack>
         {flight.factors.map((f, i) => (
-          <FactorBar key={i} factor={f} t={t} />
+          <FactorBar key={i} factor={f} />
         ))}
       </Paper>
 
       <Paper
         variant='outlined'
         sx={{
-          bgcolor: t.panel,
-          borderColor: t.lineSoft,
+          bgcolor: p.background.paper,
+          borderColor: p.custom.lineSoft,
           borderRadius: '4px',
           p: 3,
         }}
@@ -1318,7 +1311,7 @@ function AttributionAndHistory({ t, flight }: { t: Tokens; flight: Flight }) {
               sx={{
                 fontFamily: monoFont,
                 fontSize: 10,
-                color: t.inkMuted,
+                color: p.text.disabled,
                 letterSpacing: '0.12em',
                 textTransform: 'uppercase',
               }}
@@ -1333,18 +1326,18 @@ function AttributionAndHistory({ t, flight }: { t: Tokens; flight: Flight }) {
                 mt: '6px',
                 fontWeight: 400,
                 letterSpacing: '-0.01em',
-                color: t.ink,
+                color: p.text.primary,
               }}
             >
               {flight.from.code} → {flight.to.code} on-time %
             </Typography>
           </Box>
-          <Typography sx={{ fontFamily: monoFont, fontSize: 12, color: t.ink }}>
+          <Typography sx={{ fontFamily: monoFont, fontSize: 12, color: p.text.primary }}>
             {avgOtp}
-            <Box component='span' sx={{ color: t.inkMuted }}>
+            <Box component='span' sx={{ color: p.text.disabled }}>
               %
             </Box>
-            <Box component='span' sx={{ ml: 1, color: t.inkMuted }}>
+            <Box component='span' sx={{ ml: 1, color: p.text.disabled }}>
               avg
             </Box>
           </Typography>
@@ -1371,7 +1364,7 @@ function AttributionAndHistory({ t, flight }: { t: Tokens; flight: Flight }) {
               origin={flight.from.code}
               dest={flight.to.code}
               days={14}
-              t={t}
+
             />
           </Suspense>
         </ErrorBoundary>
@@ -1384,13 +1377,12 @@ function RouteHistoryChart({
   origin,
   dest,
   days = 14,
-  t,
 }: {
   origin: string;
   dest: string;
   days?: number;
-  t: Tokens;
 }) {
+  const p = useTheme().vars.palette;
   const { data: historyData } = useSuspenseQuery(
     routeHistoryOptions(origin, dest, days),
   );
@@ -1410,7 +1402,7 @@ function RouteHistoryChart({
           height: h,
           display: 'grid',
           placeItems: 'center',
-          color: t.inkMuted,
+          color: p.text.disabled,
           fontFamily: monoFont,
           fontSize: 12,
         }}
@@ -1445,7 +1437,7 @@ function RouteHistoryChart({
               x2={w}
               y1={h - (y / 100) * h}
               y2={h - (y / 100) * h}
-              stroke={t.lineSoft}
+              stroke={p.custom.lineSoft}
               strokeWidth='0.3'
             />
           ))}
@@ -1454,26 +1446,26 @@ function RouteHistoryChart({
             x2={w}
             y1={h - 0.8 * h}
             y2={h - 0.8 * h}
-            stroke={t.line}
+            stroke={p.divider}
             strokeWidth='0.4'
             strokeDasharray='2 1.5'
           />
-          <path d={areaD} fill={t.lineSoft} />
+          <path d={areaD} fill={p.custom.lineSoft} />
           <path
             d={lineD}
-            stroke={t.ink}
+            stroke={p.text.primary}
             strokeWidth='0.6'
             fill='none'
             vectorEffect='non-scaling-stroke'
           />
-          {points.map((p, i) => (
+          {points.map((pt, i) => (
             <circle
               key={i}
-              cx={p[0]}
-              cy={p[1]}
+              cx={pt[0]}
+              cy={pt[1]}
               r='0.8'
-              fill={t.bg}
-              stroke={t.ink}
+              fill={p.background.default}
+              stroke={p.text.primary}
               strokeWidth='0.4'
               vectorEffect='non-scaling-stroke'
             />
@@ -1485,7 +1477,7 @@ function RouteHistoryChart({
             right: 0,
             top: h - 0.8 * h - 10,
             fontSize: 10,
-            color: t.inkMuted,
+            color: p.text.disabled,
             fontFamily: monoFont,
           }}
         >
@@ -1498,22 +1490,22 @@ function RouteHistoryChart({
           mt: '12px',
           fontFamily: monoFont,
           fontSize: 10,
-          color: t.inkMuted,
+          color: p.text.disabled,
           justifyContent: 'space-between',
         }}
       >
         <Typography
-          sx={{ fontFamily: monoFont, fontSize: 10, color: t.inkMuted }}
+          sx={{ fontFamily: monoFont, fontSize: 10, color: p.text.disabled }}
         >
           14d prior
         </Typography>
         <Typography
-          sx={{ fontFamily: monoFont, fontSize: 10, color: t.inkMuted }}
+          sx={{ fontFamily: monoFont, fontSize: 10, color: p.text.disabled }}
         >
           7d prior
         </Typography>
         <Typography
-          sx={{ fontFamily: monoFont, fontSize: 10, color: t.inkMuted }}
+          sx={{ fontFamily: monoFont, fontSize: 10, color: p.text.disabled }}
         >
           {historyData?.data_as_of ?? 'latest'}
         </Typography>
@@ -1547,7 +1539,8 @@ const useDelays = (options: GetDelaysOptions) => {
 
 // TODO: congestion api: https://airlabs.co/docs/delays
 
-function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
+function WeatherCongestionStrip({ flight }: { flight: Flight }) {
+  const p = useTheme().vars.palette;
   // const cards = [
   // {
   //   l: 'Origin weather',
@@ -1555,7 +1548,7 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
   //   top: 'VFR · clear',
   //   sub: `wind ${data?.wdir || '-'}@${data?.wspd || '-'} 240@8 · vis ${data?.visib || '-'}sm`,
   //   spark: [82, 84, 86, 85, 88, 90, 89, 91],
-  //   col: t.good,
+  //   col: p.success.main,
   // },
   // {
   //   l: 'Destination weather',
@@ -1563,7 +1556,7 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
   //   top: 'MVFR · scattered',
   //   sub: 'wind 290@14G22 · vis 6sm',
   //   spark: [88, 84, 80, 76, 72, 70, 68, 71],
-  //   col: t.warn,
+  //   col: p.warning.main,
   // },
   //   {
   //     l: 'Origin congestion',
@@ -1571,7 +1564,7 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
   //     top: 'Normal',
   //     sub: 'taxi 18m · queue 4',
   //     spark: [12, 14, 16, 15, 18, 17, 19, 18],
-  //     col: t.ink,
+  //     col: p.text.primary,
   //   },
   //   {
   //     l: 'Dest congestion',
@@ -1579,7 +1572,7 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
   //     top: 'Elevated',
   //     sub: 'taxi 26m · queue 11',
   //     spark: [10, 12, 15, 18, 22, 26, 28, 30],
-  //     col: t.warn,
+  //     col: p.warning.main,
   //   },
   // ];
 
@@ -1591,7 +1584,7 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
         display: 'grid',
         gridTemplateColumns: 'repeat(4, 1fr)',
         gap: 3,
-        borderBottom: `1px solid ${t.line}`,
+        borderBottom: `1px solid ${p.divider}`,
       }}
     >
       <ErrorBoundary
@@ -1606,8 +1599,8 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
             }
             subtitle={`wind -- · vis --sm`}
             spark={[]}
-            color={t.ink}
-            fill={t.lineSoft}
+            color={p.text.primary}
+            fill={p.custom.lineSoft}
           />
         }
       >
@@ -1619,16 +1612,16 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
               value={<Skeleton />}
               subtitle={`wind -- · vis --sm`}
               spark={[]}
-              color={t.good}
-              fill={t.lineSoft}
+              color={p.success.main}
+              fill={p.custom.lineSoft}
             />
           }
         >
           <WeatherCard
             label='Origin weather'
             code={flight.from.code}
-            t={t}
-            color={t.good}
+
+            color={p.success.main}
           />
         </Suspense>
       </ErrorBoundary>
@@ -1644,8 +1637,8 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
             }
             subtitle={`wind -- · vis --sm`}
             spark={[]}
-            color={t.ink}
-            fill={t.lineSoft}
+            color={p.text.primary}
+            fill={p.custom.lineSoft}
           />
         }
       >
@@ -1657,16 +1650,16 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
               value={<Skeleton />}
               subtitle={`wind -- · vis --sm`}
               spark={[]}
-              color={t.good}
-              fill={t.lineSoft}
+              color={p.success.main}
+              fill={p.custom.lineSoft}
             />
           }
         >
           <WeatherCard
             label='Destination weather'
             code={flight.to.code}
-            t={t}
-            color={t.warn}
+
+            color={p.warning.main}
           />
         </Suspense>
       </ErrorBoundary>
@@ -1682,8 +1675,8 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
             }
             subtitle={`taxi --m · queue --`}
             spark={[]}
-            color={t.ink}
-            fill={t.lineSoft}
+            color={p.text.primary}
+            fill={p.custom.lineSoft}
           />
         }
       >
@@ -1695,8 +1688,8 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
               value={<Skeleton />}
               subtitle={`taxi --m · queue --`}
               spark={[]}
-              color={t.ink}
-              fill={t.lineSoft}
+              color={p.text.primary}
+              fill={p.custom.lineSoft}
             />
           }
         >
@@ -1706,8 +1699,8 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
             dep_iata={flight.from.code}
             label='Origin Congestion'
             spark={[12, 14, 16, 15, 18, 17, 19, 18]}
-            color={t.ink}
-            t={t}
+            color={p.text.primary}
+
           />
         </Suspense>
       </ErrorBoundary>
@@ -1723,8 +1716,8 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
             }
             subtitle={`taxi --m · queue --`}
             spark={[]}
-            color={t.ink}
-            fill={t.lineSoft}
+            color={p.text.primary}
+            fill={p.custom.lineSoft}
           />
         }
       >
@@ -1736,8 +1729,8 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
               value={<Skeleton />}
               subtitle={`taxi --m · queue --`}
               spark={[]}
-              color={t.ink}
-              fill={t.lineSoft}
+              color={p.text.primary}
+              fill={p.custom.lineSoft}
             />
           }
         >
@@ -1746,9 +1739,9 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
             type='arrivals'
             dep_iata={flight.to.code}
             label='Destination Congestion'
-            color={t.ink}
+            color={p.text.primary}
             spark={[10, 12, 15, 18, 22, 26, 28, 30]}
-            t={t}
+
           />
         </Suspense>
       </ErrorBoundary>
@@ -1762,7 +1755,7 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
           subtitle={c.sub}
           spark={c.spark}
           color={c.col}
-          fill={t.lineSoft}
+          fill={p.custom.lineSoft}
         />
       ))} */}
     </Box>
@@ -1770,16 +1763,15 @@ function WeatherCongestionStrip({ t, flight }: { t: Tokens; flight: Flight }) {
 }
 
 function WeatherCard({
-  t,
   code,
   label,
   color,
 }: {
-  t: Tokens;
   code: string;
   label: string;
   color: string;
 }) {
+  const p = useTheme().vars.palette;
   const { data } = useAviationWeather('metar', iataToIcao(code));
 
   // todo: wire up taf for sparkline ??
@@ -1794,7 +1786,7 @@ function WeatherCard({
       subtitle={`wind ${data?.wdir || '-'}@${data?.wspd || '-'} 240@8 · vis ${data?.visib || '-'}sm`}
       spark={[82, 84, 86, 85, 88, 90, 89, 91]}
       color={color}
-      fill={t.lineSoft}
+      fill={p.custom.lineSoft}
     />
   );
 }
@@ -1803,16 +1795,15 @@ interface AirportCongestionCardParams extends GetDelaysOptions {
   label: string;
   spark: number[];
   color: string;
-  t: Tokens;
 }
 
 function AirportCongestionCard({
   label,
   spark,
   color,
-  t,
   ...options
 }: AirportCongestionCardParams) {
+  const p = useTheme().vars.palette;
   const { data } = useDelays(options);
   // console.log(label, data);
 
@@ -1822,7 +1813,7 @@ function AirportCongestionCard({
     const totalMins = data.reduce((acc, cur) => acc + cur.delayed, 0);
 
     const avgDelayMins = Math.floor(totalMins / (data.length || 1));
-    const col = avgDelayMins < 60 ? t.good : avgDelayMins < 120 ? t.ink : t.bad;
+    const col = avgDelayMins < 60 ? p.success.main : avgDelayMins < 120 ? p.text.primary : p.error.main;
     const congestionLevel =
       avgDelayMins < 60 ? 'Light' : avgDelayMins < 120 ? 'Normal' : 'Elevated';
 
@@ -1839,14 +1830,15 @@ function AirportCongestionCard({
       subtitle={`taxi ${avgDelayMins}m · queue --`}
       spark={spark}
       color={col} // TODO: calc color from delay
-      fill={t.lineSoft}
+      fill={p.custom.lineSoft}
     />
   );
 }
 
 // ─── Network + airline comparison ────────────────────────────────────────────
 
-function NetworkAndAirline({ t, flight }: { t: Tokens; flight: Flight }) {
+function NetworkAndAirline({ flight }: { flight: Flight }) {
+  const p = useTheme().vars.palette;
   return (
     <Box
       component='section'
@@ -1855,14 +1847,14 @@ function NetworkAndAirline({ t, flight }: { t: Tokens; flight: Flight }) {
         display: 'grid',
         gridTemplateColumns: '1.3fr 1fr',
         gap: 4,
-        borderBottom: `1px solid ${t.line}`,
+        borderBottom: `1px solid ${p.divider}`,
       }}
     >
       <Paper
         variant='outlined'
         sx={{
-          bgcolor: t.panel,
-          borderColor: t.lineSoft,
+          bgcolor: p.background.paper,
+          borderColor: p.custom.lineSoft,
           borderRadius: '4px',
           p: 3,
         }}
@@ -1872,7 +1864,7 @@ function NetworkAndAirline({ t, flight }: { t: Tokens; flight: Flight }) {
             sx={{
               fontFamily: monoFont,
               fontSize: 10,
-              color: t.inkMuted,
+              color: p.text.disabled,
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
             }}
@@ -1887,20 +1879,20 @@ function NetworkAndAirline({ t, flight }: { t: Tokens; flight: Flight }) {
               mt: '6px',
               fontWeight: 400,
               letterSpacing: '-0.01em',
-              color: t.ink,
+              color: p.text.primary,
             }}
           >
             Average delays across the system
           </Typography>
         </Box>
-        <NetworkMap t={t} height={290} />
+        <NetworkMap height={290} />
       </Paper>
 
       <Paper
         variant='outlined'
         sx={{
-          bgcolor: t.panel,
-          borderColor: t.lineSoft,
+          bgcolor: p.background.paper,
+          borderColor: p.custom.lineSoft,
           borderRadius: '4px',
           p: 3,
         }}
@@ -1910,7 +1902,7 @@ function NetworkAndAirline({ t, flight }: { t: Tokens; flight: Flight }) {
             sx={{
               fontFamily: monoFont,
               fontSize: 10,
-              color: t.inkMuted,
+              color: p.text.disabled,
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
             }}
@@ -1925,7 +1917,7 @@ function NetworkAndAirline({ t, flight }: { t: Tokens; flight: Flight }) {
               mt: '6px',
               fontWeight: 400,
               letterSpacing: '-0.01em',
-              color: t.ink,
+              color: p.text.primary,
             }}
           >
             {flight.from.code} → {flight.to.code} · 30d OTP
@@ -1951,7 +1943,7 @@ function NetworkAndAirline({ t, flight }: { t: Tokens; flight: Flight }) {
                   gap: '12px',
                   alignItems: 'center',
                   py: '10px',
-                  borderBottom: `1px solid ${t.lineSoft}`,
+                  borderBottom: `1px solid ${p.custom.lineSoft}`,
                 }}
               >
                 <Skeleton variant='circular' height={18} width={18} />
@@ -1968,7 +1960,7 @@ function NetworkAndAirline({ t, flight }: { t: Tokens; flight: Flight }) {
             }
           >
             <CarrierComparison
-              t={t}
+
               currentCarrier={flight.airline}
               origin={flight.from.code}
               dest={flight.to.code}
@@ -1983,7 +1975,8 @@ function NetworkAndAirline({ t, flight }: { t: Tokens; flight: Flight }) {
 
 // ─── Footer ───────────────────────────────────────────────────────────────────
 
-function PageFooter({ t }: { t: Tokens }) {
+function PageFooter() {
+  const p = useTheme().vars.palette;
   return (
     <Box
       component='footer'
@@ -1997,7 +1990,7 @@ function PageFooter({ t }: { t: Tokens }) {
       <Typography
         sx={{
           fontSize: 12,
-          color: t.inkMuted,
+          color: p.text.disabled,
           fontFamily: 'Inter, sans-serif',
         }}
       >
@@ -2012,6 +2005,7 @@ function PageFooter({ t }: { t: Tokens }) {
           startIcon={<GitHub fontSize='small' />}
           // endIcon={'↗'}
           size='small'
+          color='inherit'
         >
           Github
         </Button>
@@ -2021,7 +2015,7 @@ function PageFooter({ t }: { t: Tokens }) {
             underline='hover'
             sx={{
               fontSize: 12,
-              color: t.inkMuted,
+              color: p.text.disabled,
               cursor: 'pointer',
               fontFamily: 'Inter, sans-serif',
             }}
@@ -2040,18 +2034,17 @@ function Index() {
   const [flight, setFlight] = useState<Flight>(FLIGHTS[0]);
   const [prediction, setPrediction] = useState<PredictResponse | null>(null);
   // const [predicting, setPredicting] = useState(false);
-  const mode = useResolvedMode();
-  const t = mode === 'dark' ? TOKENS.dark : TOKENS.light;
+  const p = useTheme().vars.palette;
 
   const onTimeProb = prediction
     ? 1 - prediction.delay_probability
     : flight.onTimeProb;
 
   const verdict = useMemo(() => {
-    if (onTimeProb >= 0.85) return { label: 'Likely on time', color: t.good };
-    if (onTimeProb >= 0.65) return { label: 'Mild delay risk', color: t.warn };
-    return { label: 'Elevated delay risk', color: t.bad };
-  }, [onTimeProb, t]);
+    if (onTimeProb >= 0.85) return { label: 'Likely on time', color: p.success.main };
+    if (onTimeProb >= 0.65) return { label: 'Mild delay risk', color: p.warning.main };
+    return { label: 'Elevated delay risk', color: p.error.main };
+  }, [onTimeProb]);
 
   useEffect(() => {
     setPrediction(null);
@@ -2060,8 +2053,8 @@ function Index() {
   return (
     <Box sx={{ bgcolor: 'background.default', color: 'text.primary' }}>
       <HeroSection
-        t={t}
-        isDark={mode === 'dark'}
+
+
         flight={flight}
         onPickFlight={(f) => setFlight(f)}
         onPredict={(p) => setPrediction(p)}
@@ -2069,16 +2062,16 @@ function Index() {
         // setPredicting={setPredicting}
       />
       <PredictionHeadline
-        t={t}
+
         flight={flight}
         onTimeProb={onTimeProb}
         verdict={verdict}
         prediction={prediction}
       />
-      <AttributionAndHistory t={t} flight={flight} />
-      <WeatherCongestionStrip t={t} flight={flight} />
-      <NetworkAndAirline t={t} flight={flight} />
-      <PageFooter t={t} />
+      <AttributionAndHistory flight={flight} />
+      <WeatherCongestionStrip flight={flight} />
+      <NetworkAndAirline flight={flight} />
+      <PageFooter />
     </Box>
   );
 }

@@ -1,8 +1,8 @@
 import { Box, Paper, Stack, Typography } from '@mui/material';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { networkDelayOptions } from '~/api/queryOptions';
+import { useTheme } from '@mui/material/styles';
 import { monoFont } from '~/config/themePrimitives';
-import type { Tokens } from '~/config/tmpTheme';
 
 // TODO: use coordinates instead of x,y ?? use mapbox ??
 
@@ -23,20 +23,19 @@ const NETWORK_AIRPORTS = [
 ];
 
 export function NetworkMap({
-  t,
   height = 280,
   days = 7,
 }: {
-  t: Tokens;
   height?: number;
   days?: number;
 }) {
+  const p = useTheme().vars.palette;
   const { data } = useSuspenseQuery(networkDelayOptions(days));
 
   console.log('NETWORK MAP: ', data);
 
   const statusColor = (s: 'green' | 'amber' | 'red') =>
-    s === 'red' ? t.bad : s === 'amber' ? t.warn : t.good;
+    s === 'red' ? p.error.main : s === 'amber' ? p.warning.main : p.success.main;
 
   return (
     <Paper
@@ -45,8 +44,8 @@ export function NetworkMap({
         position: 'relative',
         width: '100%',
         height,
-        bgcolor: t.panelAlt,
-        borderColor: t.lineSoft,
+        bgcolor: p.custom.panelAlt,
+        borderColor: p.custom.lineSoft,
         borderRadius: '4px',
         overflow: 'hidden',
       }}
@@ -64,7 +63,7 @@ export function NetworkMap({
             x2='100'
             y1={y}
             y2={y}
-            stroke={t.line}
+            stroke={p.divider}
             strokeWidth='0.08'
           />
         ))}
@@ -75,7 +74,7 @@ export function NetworkMap({
             x2={x}
             y1='0'
             y2='60'
-            stroke={t.line}
+            stroke={p.divider}
             strokeWidth='0.08'
           />
         ))}
@@ -101,7 +100,7 @@ export function NetworkMap({
             <path
               key={i}
               d={`M ${x1} ${y1} Q ${mx} ${my} ${x2} ${y2}`}
-              stroke={t.line}
+              stroke={p.divider}
               strokeWidth='0.15'
               fill='none'
               strokeDasharray='0.6 0.6'
@@ -124,7 +123,7 @@ export function NetworkMap({
                 x={n.x * 100 + 1.4}
                 y={n.y * 60 + 0.5}
                 fontSize='1.6'
-                fill={t.inkSoft}
+                fill={p.text.secondary}
                 fontFamily={monoFont}
               >
                 {n.code}
@@ -139,7 +138,7 @@ export function NetworkMap({
           top: 10,
           left: 10,
           fontSize: 10,
-          color: t.inkMuted,
+          color: p.text.disabled,
           fontFamily: monoFont,
           letterSpacing: '0.06em',
           textTransform: 'uppercase',
@@ -153,9 +152,9 @@ export function NetworkMap({
         sx={{ position: 'absolute', bottom: 10, right: 12 }}
       >
         {[
-          [t.good, '<15m'],
-          [t.warn, '15–30m'],
-          [t.bad, '30m+'],
+          [p.success.main, '<15m'],
+          [p.warning.main, '15–30m'],
+          [p.error.main, '30m+'],
         ].map(([col, label]) => (
           <Stack
             key={label}
@@ -173,7 +172,7 @@ export function NetworkMap({
               }}
             />
             <Typography
-              sx={{ fontSize: 10, color: t.inkSoft, fontFamily: monoFont }}
+              sx={{ fontSize: 10, color: p.text.secondary, fontFamily: monoFont }}
             >
               {label}
             </Typography>

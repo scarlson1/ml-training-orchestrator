@@ -1469,6 +1469,7 @@ r2_endpoint_url = "https://2662189f53004928cc8e89c79f095db9.r2.cloudflarestorage
 - dagster resources - wire up dagster resources (duckDB, Feast, S3, mlflow)
 - document need to run feast assets (and prereqs) for each partition before running batch_predict ?? use 'ins' in @asset decorator ??
 - why doesn't mart_predictions have dependency on batch_predictions ??
+- resources health status in react (dagster, vm memory usage, etc.)
 
 - update congestion card
   - use airlabs schedules endpoint to get schedules flights in next hour
@@ -1499,6 +1500,52 @@ D SELECT * FROM read_parquet('s3://staging/iceberg/staged_flights/data/flight_da
 # using iceberg
 D SELECT * FROM iceberg_scan('s3://staging/iceberg/staged_flights') LIMIT 10;
 ```
+
+- Dagster loom video:
+
+Dagster Loom Script (~3-4 min)
+
+1. Asset Lineage Graph (30s)
+
+- Open the Assets tab → click View global asset graph
+- Zoom out to show the full DAG from raw ingestion → feature engineering → training → serving → drift monitoring
+- Briefly pan left-to-right to show the data flow
+
+2. A Completed Training Run (60s)
+
+- Go to Runs → find a completed `nightly_retrain` run
+- Click into it → show the Gantt chart of the run steps
+- Click into `trained_model` step → show the logs where Optuna HPO trials are logged
+- Click into `registered_model` step → show where MLflow registration and alias promotion is logged
+
+3. Asset Checks as Quality Gates (30s)
+
+- From inside that run, click on registered_model in the asset graph
+- Show the asset checks panel: `check_auc_gate`, `check_leakage_sentinel`, `check_slice_parity` — these are the gates that blocked or passed before promotion
+- This is a strong talking point: "model only gets promoted if it passes AUC, leakage, and slice parity checks"
+
+4. Drift Sensor → Retrain Trigger (30s)
+
+- Go to Sensors → click `drift_retrain_sensor`
+- Show the sensor tick history — pick a tick that triggered a run
+- Briefly explain: "when PSI exceeds 0.2 on top features, this automatically triggers a retrain without any manual intervention"
+
+5. Schedules Overview (20s)
+
+- Go to Schedules → show all 4 schedules and their next tick times
+- Quickly explain the timing chain: Feast materializes hourly → retrain at 1am → batch score at 6am → drift report at 8am
+
+6. Partitioned Assets (30s)
+
+- Go to Assets → click `staged_flights` → open the Partitions tab
+- Show the calendar grid of materialized monthly partitions
+- Click one partition → show its metadata (row count, etc.)
+
+Talking points to say aloud (the things that won't be obvious on screen):
+
+- The full pipeline runs unattended — only the BTS sensor polling kicks off new monthly ingestions
+- Asset checks act as automated model quality gates before any promotion happens
+- The drift sensor closes the loop: production drift triggers retraining automatically
 
 #### Document PIT JOINs & why Feast's `get_historical_features()` doesn't scale
 

@@ -1,4 +1,5 @@
 import Box from '@mui/material/Box';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
@@ -593,7 +594,32 @@ function TimelineChart({
 
 // ─── data table ───────────────────────────────────────────────────────────────
 
-const COLS = ['Date', 'Version', 'ROC-AUC', 'F1', 'Precision', 'Recall'];
+const COLS: { label: string; tooltip?: string }[] = [
+  { label: 'Date' },
+  { label: 'Version' },
+  {
+    label: 'ROC-AUC',
+    tooltip:
+      'Area under the ROC (Receiver Operating Characteristic) curve. Measures discrimination ability across all thresholds — 0.5 is random, 1.0 is perfect. ROC curve diagrams ratio of true positive rate to false positive rate.',
+  },
+  {
+    label: 'F1',
+    tooltip:
+      'Harmonic mean of precision and recall. Useful when class imbalance makes raw accuracy misleading.',
+  },
+  {
+    label: 'Precision',
+    tooltip:
+      'Of all flights predicted as delayed, the fraction that were actually delayed. High precision = fewer false alarms.',
+    // Precision measures how accurate positive predictions are (avoiding false alarms)
+  },
+  {
+    label: 'Recall',
+    tooltip:
+      'Of all flights that were actually delayed, the fraction the model correctly flagged. High recall = fewer missed delays.',
+    // recall measures the ability to find all actual positive cases (avoiding missing positives)
+  },
+];
 
 function AccuracyTable({ points }: { points: AccuracyPoint[] }) {
   const sorted = [...points].reverse();
@@ -619,14 +645,20 @@ function AccuracyTable({ points }: { points: AccuracyPoint[] }) {
           borderColor: 'divider',
         }}
       >
-        {COLS.map((col) => (
-          <Typography
-            key={col}
-            variant='overline'
-            sx={{ color: 'text.disabled', fontSize: '0.6rem' }}
-          >
-            {col}
-          </Typography>
+        {COLS.map(({ label, tooltip }) => (
+          <Tooltip key={label} title={tooltip ?? ''} placement='top' arrow>
+            <Typography
+              variant='overline'
+              sx={{
+                color: 'text.disabled',
+                fontSize: '0.6rem',
+                cursor: tooltip ? 'help' : 'default',
+                width: 'fit-content',
+              }}
+            >
+              {label}
+            </Typography>
+          </Tooltip>
         ))}
       </Box>
 

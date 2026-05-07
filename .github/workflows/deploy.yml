@@ -80,8 +80,11 @@ jobs:
             # VM public IP — used by MLflow --allowed-hosts so browser access works
             ORACLE_VM_IP=${{ vars.ORACLE_VM_IP }}
             MLFLOW_DOMAIN=mlflow.${{ vars.ORACLE_VM_IP }}.sslip.io
-            MLFLOW_USER=admin
-            MLFLOW_HASHED_PASSWORD='${{ secrets.MLFLOW_HASHED_PASSWORD }}'
+            MLFLOW_AUTH_ADMIN_USERNAME=${{ vars.MLFLOW_AUTH_ADMIN_USERNAME || 'admin' }}
+            MLFLOW_AUTH_ADMIN_PASSWORD=${{ secrets.MLFLOW_AUTH_ADMIN_PASSWORD }}
+            MLFLOW_TRACKING_USERNAME=${{ vars.MLFLOW_AUTH_ADMIN_USERNAME || 'admin' }}
+            MLFLOW_TRACKING_PASSWORD=${{ secrets.MLFLOW_AUTH_ADMIN_PASSWORD }}
+            MLFLOW_FLASK_SERVER_SECRET_KEY=${{ secrets.MLFLOW_FLASK_SERVER_SECRET_KEY }}
 
             # DuckDB scratch path (ephemeral inside container)
             DUCKDB_PATH=/tmp/bmo_features.duckdb

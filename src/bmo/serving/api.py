@@ -35,6 +35,7 @@ from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 import duckdb
+from duckdb import CatalogException, IOException
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -499,6 +500,15 @@ def get_duckdb() -> duckdb.DuckDBPyConnection:
     return con
 
 
+def _duckdb_error_detail(exc: Exception) -> str:
+    """Maps DuckDB exceptions to safe, caller-visible messages."""
+    if isinstance(exc, CatalogException):
+        return 'Data not yet materialized — retry after the next scoring run'
+    if isinstance(exc, IOException):
+        return 'Data file unavailable'
+    return 'Query failed'
+
+
 def _safe_postgres_query(
     db: Engine,
     query: Any,
@@ -671,7 +681,7 @@ async def model_stats(db: Engine = Depends(get_db), champion: bool = False) -> M
     return ModelStatsResponse(rows=data)
 
 
-@app.get('/api/psi/:feature_name', response_model=PsiResponse, tags=['api'])
+@app.get('/api/psi/{feature_name}', response_model=PsiResponse, tags=['api'])
 async def psi(feature_name: str, db: Engine = Depends(get_db)) -> PsiResponse:
     """per-feature PSI time series. Query monitoring table (drift_metrics) in Postgres"""
 
@@ -686,18 +696,20 @@ async def psi(feature_name: str, db: Engine = Depends(get_db)) -> PsiResponse:
                 ORDER BY report_date
                 """)
 
-    with db.connect() as conn:
-        rows = (
-            conn.execute(
-                _query,
-                {'feature_name': feature_name},
-            )
-            .mappings()
-            .all()
-        )
+    rows = _safe_postgres_query(db, _query, {'feature_name': feature_name})
+    return PsiResponse(rows=[PsiRow(**r) for r in rows])
+    # with db.connect() as conn:
+    #     rows = (
+    #         conn.execute(
+    #             _query,
+    #             {'feature_name': feature_name},
+    #         )
+    #         .mappings()
+    #         .all()
+    #     )
 
-        data = [PsiRow(**r) for r in rows]
-        return PsiResponse(rows=data)
+    #     data = [PsiRow(**r) for r in rows]
+    #     return PsiResponse(rows=data)
 
 
 @app.get('/api/accuracy', response_model=AccuracyResponse, tags=['api'])
@@ -774,7 +786,7 @@ async def predictions(
         rows = await asyncio.to_thread(_query)
     except Exception as exc:
         log.exception('predictions query failed', days=days)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=f'{_duckdb_error_detail(exc)}')
     return PredictionsResponse(rows=[PredictionRow(**r) for r in rows])
 
 
@@ -804,7 +816,8 @@ async def predictions_today(
     try:
         today = await asyncio.to_thread(_query)  # today = last day of data ingested
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        log.exception('predictions query failed')
+        raise HTTPException(status_code=500, detail=f'{_duckdb_error_detail(exc)}')
 
     loader = model_loader
 
@@ -884,7 +897,8 @@ async def route_history(
     try:
         result, data_as_of = await asyncio.to_thread(_query)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        log.exception('route history query failed', days=days)
+        raise HTTPException(status_code=500, detail=f'{_duckdb_error_detail(exc)}')
 
     return RouteHistoryResponse(
         route_key=normalized_route_key, history=result, days=days, data_as_of=data_as_of
@@ -937,7 +951,8 @@ async def carrier_comparison(
     try:
         result, data_as_of = await asyncio.to_thread(_query)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        log.exception('query failed', days=days)
+        raise HTTPException(status_code=500, detail=f'{_duckdb_error_detail(exc)}')
 
     return CarrierComparisonResponse(days=days, carriers=result, data_as_of=data_as_of)
 
@@ -1005,7 +1020,7 @@ async def network(
     try:
         result, data_as_of = await asyncio.to_thread(_query)
     except Exception as exc:
-        print()
-        raise HTTPException(status_code=500, detail=str(exc))
+        log.exception('carrier network query failed', days=days)
+        raise HTTPException(status_code=500, detail=f'{_duckdb_error_detail(exc)}')
 
     return NetworkResponse(rows=result, data_as_of=data_as_of)

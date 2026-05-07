@@ -146,7 +146,82 @@ Allows for up to 24GB RAM & 4 OCPUs. Currently configured with 8GB RAM and 1 OCP
 
 ### Cloudflare R2 Pricing
 
-TODO
+> **Note:** Free tier limits below are sourced from Cloudflare's documentation (as of mid-2025). Verify at [developers.cloudflare.com/r2/pricing](https://developers.cloudflare.com/r2/pricing/).
+
+#### Free Tier Limits (per month)
+
+| Resource | Free Allowance |
+|---|---|
+| Storage | 10 GB |
+| Class A operations (writes, deletes, lists) | 1,000,000 |
+| Class B operations (reads) | 10,000,000 |
+| Egress | Free (no egress fees) |
+
+#### Buckets
+
+Terraform creates four buckets: `raw`, `staging`, `rejected`, `mlflow-artifacts`.
+
+`raw` and `rejected` are ingestion-time buckets. `raw` holds the full BTS CSV and NOAA annual-summary downloads before parsing; these are large but temporary — files can be deleted after staging. `rejected` is near-empty in practice (a small fraction of malformed rows). Neither accumulates significantly during normal operations once the initial backfill is complete.
+
+`staging` and `mlflow-artifacts` are the buckets that matter for ongoing storage.
+
+#### `staging` Bucket: Storage Breakdown
+
+| Prefix | Write frequency | File size | Growth pattern |
+|---|---|---|---|
+| `staging/feast/` | Hourly (overwrite) | ~20–50 MB total (5 files) | **Fixed** — same 5 files overwritten every hour |
+| `staging/datasets/` | Per training run (content-addressed) | ~100–500 MB per dataset | **Fixed** — written once per unique training dataset; retrained datasets reuse the same path |
+| `staging/serving/model_config.json` | On champion promotion | ~1 KB | **Fixed** — single file, overwritten |
+| `staging/predictions/date=*/` | Daily | ~5–50 MB | **Accumulates** — one partition per calendar day, never overwritten |
+| `staging/monitoring/reports/date=*/` | Daily | ~2–5 MB (Evidently HTML) | **Accumulates** — one report per calendar day |
+| `staging/monitoring/metrics/date=*/` | Daily | ~100 KB (Parquet) | **Accumulates** — one metrics file per calendar day |
+| `staging/iceberg/` | Monthly (flights/weather), once (dimensions) | ~20–50 MB/month (incremental partitions) | **Slow accumulation** — Iceberg snapshots + new monthly partitions |
+
+**Fixed-size total (feast + datasets + serving):** ~100–600 MB depending on how many training datasets exist.
+
+**Accumulating prefixes:**
+
+- `staging/predictions/` + `staging/monitoring/`: ~7–55 MB/day combined (low end on quiet days, high end with a full prediction run). A reasonable steady-state estimate is **~10 MB/day**.
+- `staging/iceberg/`: New monthly partitions add ~20–50 MB/month; Iceberg metadata snapshots are small.
+
+At ~10 MB/day for predictions + monitoring, plus ~35 MB/month for Iceberg:
+
+| Time horizon | Accumulation estimate |
+|---|---|
+| 3 months | ~1 GB |
+| 1 year | ~4 GB |
+| 2.5 years | ~10 GB (free tier ceiling) |
+
+There are no automated cleanup or retention policies in the codebase for `staging/predictions/` or `staging/monitoring/`. Old partitions accumulate indefinitely. At the current rate, the free tier 10 GB limit is reached in roughly **2–3 years** of continuous daily operation.
+
+#### `mlflow-artifacts` Bucket: Storage Breakdown
+
+MLflow artifacts are written once per training run and never overwritten. Each run produces:
+
+- Evidently classification report (HTML): ~2–5 MB
+- XGBoost feature importance + calibration plots: ~1–3 MB
+- Optuna HPO study database: ~1–5 MB
+- Logged model weights (XGBoost booster): ~5–20 MB
+
+**Per run total: ~10–35 MB.** Training runs are infrequent (on-demand or periodic retraining), so this bucket grows slowly.
+
+#### Class A / Class B Operation Estimates
+
+The free tier's 1M Class A (write) and 10M Class B (read) monthly limits are unlikely to be hit.
+
+| Workload | Class A ops/day | Class B ops/day |
+|---|---|---|
+| Feast hourly export (5 files × 24h) | ~120 | ~120 |
+| Daily batch scoring (1 write) | 1 | — |
+| Daily monitoring (2 writes) | 2 | — |
+| Training dataset builder | 1–2 | 1 (cache check) |
+| Serving reads (API reads `model_config.json`) | — | ~1,440 (once/minute) |
+
+Monthly Class A total: ~4,000. Monthly Class B total: ~45,000. Both are far below the 1M / 10M free limits.
+
+#### Summary
+
+This application is designed to stay within Cloudflare R2's free tier for the foreseeable future. The only long-term risk is `staging/predictions/` and `staging/monitoring/` accumulating over years without a cleanup policy. Adding a lifecycle rule or periodic job to delete partitions older than 90–180 days would keep storage well under 10 GB indefinitely.
 
 ### FastAPI serving container + Caddy ~~Fly.io Free Tier~~
 
