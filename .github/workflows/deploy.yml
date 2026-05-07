@@ -124,6 +124,9 @@ jobs:
             echo "${{ secrets.GITHUB_TOKEN }}" \
               | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
+            # Remove dangling layers from previous deploys to free disk space before pulling.
+            sudo docker system prune -f
+
             # Pre-pull so the restart itself is instant (image already cached).
             sudo docker pull ghcr.io/${{ github.repository_owner }}/bmo-dagster:latest
 
