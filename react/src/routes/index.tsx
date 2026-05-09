@@ -26,6 +26,7 @@ import {
   type PredictBody,
   type PredictResponse,
 } from '~/components/PredictDelay';
+import { PredictDelayClaude } from '~/components/PredictDelayClaude';
 import { RouterButton } from '~/components/RouterButton';
 import { StatCard } from '~/components/StatCard';
 import { monoFont, serifFont } from '~/config/themePrimitives';
@@ -1995,6 +1996,32 @@ function Index() {
 
       <Box sx={{ py: 6, px: 4, maxWidth: 760 }}>
         <PredictDelayWrapper />
+      </Box>
+
+      <Box sx={{ py: 6, px: 4, maxWidth: 760 }}>
+        <Paper
+          variant='outlined'
+          sx={{
+            bgcolor: p.custom.panelAlt,
+            borderColor: p.custom.lineSoft,
+            borderRadius: '4px',
+            p: 3,
+          }}
+        >
+          <Typography
+            sx={{
+              fontFamily: monoFont,
+              fontSize: 10,
+              color: p.text.disabled,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              mb: '14px',
+            }}
+          >
+            Predict a flight
+          </Typography>
+          <PredictDelayClaude onPredict={console.log} />
+        </Paper>
       </Box>
     </Box>
   );
