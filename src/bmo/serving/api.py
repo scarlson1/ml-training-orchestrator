@@ -1024,3 +1024,7 @@ async def network(
         raise HTTPException(status_code=500, detail=f'{_duckdb_error_detail(exc)}')
 
     return NetworkResponse(rows=result, data_as_of=data_as_of)
+
+
+# @app.post('/api/flights/upcoming', response_model=list[UpcomingFlight], tags=['api'])
+# async def upcoming_flights() -> list[UpcomingFlight]:

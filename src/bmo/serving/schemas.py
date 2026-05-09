@@ -27,7 +27,7 @@ class PredictRequest(BaseModel):
     field examples below are used by FastAPI to generate OpenAPI docs.
     """
 
-    flight_id: str = Field(json_schema_extra={'example': 'AA123_20240406_0900'})
+    flight_id: str = Field(json_schema_extra={'example': 'AA123_20240406_0900'}, default='')
     origin: str = Field(
         description='IATA origin airport code', json_schema_extra={'example': 'ORD'}
     )
@@ -235,3 +235,14 @@ class OriginPerformance(BaseModel):
 class NetworkResponse(BaseModel):
     rows: list[OriginPerformance]
     data_as_of: str | None
+
+
+class UpcomingFlight(BaseModel):
+    flight_id: str
+    flight_number: str
+    carrier: str  # e.g. AA
+    origin: str
+    dest: str
+    route_key: str
+    tail_number: str | None
+    dep_time: date | str

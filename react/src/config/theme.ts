@@ -55,6 +55,14 @@ export const theme = createTheme({
         },
       },
     },
+    // MuiInputLabel: {
+    //   styleOverrides: {
+    //     root: {
+    //       fontFamily: "'Inter, sans-serif'",
+    //       color: 'text.disabled',
+    //     },
+    //   },
+    // },
     MuiTooltip: {
       styleOverrides: {
         tooltip: {

@@ -363,7 +363,7 @@ function PsiLegend() {
         { label: '&gt; 0.2 · major shift', color: 'error.main' },
       ].map(({ label, color }) => (
         <Box
-          key={label}
+          key={`${label}-psi-legend`}
           sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}
         >
           <Box
@@ -443,7 +443,7 @@ function DriftHeatmap({
           <Box />
           {dates.map((d) => (
             <Typography
-              key={d}
+              key={`header-${d}`}
               sx={{
                 fontFamily: monoFont,
                 fontSize: 10,
@@ -460,7 +460,7 @@ function DriftHeatmap({
         {/* feature rows */}
         {features.map((feature, fi) => (
           <Box
-            key={feature}
+            key={`${feature}-${fi}`}
             sx={{
               display: 'grid',
               gridTemplateColumns: `200px repeat(${dates.length}, 64px)`,
@@ -485,7 +485,7 @@ function DriftHeatmap({
               const sev = psiSeverity(val);
               return (
                 <Box
-                  key={di}
+                  key={`row-${di}`}
                   title={`${feature} · ${dates[di]} · PSI ${val.toFixed(3)}`}
                   sx={{
                     height: 32,
