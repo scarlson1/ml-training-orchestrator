@@ -2,12 +2,12 @@ import {
   Box,
   Button,
   CircularProgress,
-  Grid,
   MenuItem,
   Stack,
   TextField,
   Typography,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { useForm, useStore } from '@tanstack/react-form-start';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import z from 'zod';
@@ -43,7 +43,7 @@ export interface PredictResponse {
   features_complete: boolean;
 }
 
-// ─── Form types ───────────────────────────────────────────────────────────────
+// ─── Schema (identical to PredictDelay) ───────────────────────────────────────
 
 const predictSchema = z
   .object({
@@ -57,11 +57,9 @@ const predictSchema = z
       if (!data.flight) return true;
       return data.flight.split('_')[0] === data.carrier;
     },
-    {
-      error: 'Carrier must match flight',
-      path: ['carrier'],
-    },
+    { error: 'Carrier must match flight', path: ['carrier'] },
   );
+
 type PredictSchema = z.infer<typeof predictSchema>;
 
 const defaultPredict: PredictSchema = {
@@ -71,17 +69,78 @@ const defaultPredict: PredictSchema = {
   flight: '',
 };
 
-// export const formOpts = formOptions({
-//   defaultValues: defaultPredict
-// })
+// ─── Flat input style overrides ────────────────────────────────────────────────
+// Applied to a wrapping Box so both VirtualAutocomplete and TextField select
+// render without MUI borders/labels — the cell provides its own label.
 
-// ─── PredictDelay Component ───────────────────────────────────────────────────
+const flatField = {
+  width: '100%',
+  '& .MuiInputLabel-root': { display: 'none' },
+  '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+  '& legend': { width: '0 !important' },
+  '& .MuiOutlinedInput-root': {
+    fontFamily: monoFont,
+    fontSize: 14,
+    fontWeight: 500,
+    p: '0 !important',
+  },
+  '& .MuiInputBase-input, & .MuiSelect-select': {
+    p: '0 !important',
+    height: 'auto !important',
+    minHeight: 'unset !important',
+  },
+  '& .MuiAutocomplete-popupIndicator, & .MuiAutocomplete-clearIndicator': {
+    display: 'none',
+  },
+  '& .MuiSelect-icon': { display: 'none' },
+} as const;
+
+// ─── Cell ─────────────────────────────────────────────────────────────────────
+
+const Cell = ({
+  label,
+  children,
+  dividerColor,
+}: {
+  label: string;
+  children: React.ReactNode;
+  dividerColor?: string;
+}) => (
+  <Box
+    sx={{
+      flex: 1,
+      px: 1.5,
+      pt: 1,
+      pb: 0.5,
+      minWidth: 0,
+      overflow: 'hidden',
+      ...(dividerColor && {
+        borderRight: `1px solid ${dividerColor}`,
+      }),
+    }}
+  >
+    <Typography
+      sx={{
+        fontSize: 10,
+        color: 'text.disabled',
+        mb: '2px',
+        fontFamily: 'Inter, sans-serif',
+      }}
+    >
+      {label}
+    </Typography>
+    <Box sx={flatField}>{children}</Box>
+  </Box>
+);
+
+// ─── PredictDelay ───────────────────────────────────────────────────────
 
 interface PredictDelayProps {
   onPredict: (data: PredictResponse) => void;
 }
 
 export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
+  const p = useTheme().vars.palette;
   const { mutate: predict, isPending } = useMutation({
     mutationFn: async (body: PredictBody) => {
       const data = await apiFetch<PredictResponse>('/predict', {
@@ -95,6 +154,7 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
       onPredict(data);
     },
   });
+
   const { mutateAsync: fetchFlightInfo } = useMutation({
     mutationFn: async (flight_iata: string) =>
       getFlightInfo({ data: { flight_iata } }),
@@ -102,13 +162,9 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
 
   const form = useForm({
     defaultValues: defaultPredict,
-    validators: {
-      onChange: predictSchema,
-    },
+    validators: { onChange: predictSchema },
     onSubmit: async ({ value }) => {
-      console.log(value);
       const [_, flight_num] = value.flight?.split('-');
-
       const flightInfo = flight_num
         ? await fetchFlightInfo(`${value.carrier}${flight_num}`)
         : ({} as FlightInfo);
@@ -125,16 +181,12 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
     },
   });
 
-  if (form.state.errors.length) console.log(form.state.errors);
-
   const origin = useStore(form.store, (state) => state.values.origin);
   const dest = useStore(form.store, (state) => state.values.dest);
 
-  // flight options: useQuery to fetch options depending on origin & dest
   const { data: flights, isFetching } = useQuery({
     queryKey: ['flights', origin, dest],
     queryFn: () => getScheduledFlights({ data: { origin, dest } }),
-    // queryFn: () => getFlights({ data: { origin, dest } }),
     enabled: Boolean(origin && dest),
     staleTime: 1000 * 60 * 60 * 12,
     gcTime: 1000 * 60 * 60 * 12,
@@ -148,16 +200,27 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
         form.handleSubmit();
       }}
     >
-      <Grid container spacing={{ xs: 1, sm: 1.5, md: 2 }}>
-        <Grid size={{ xs: 4, sm: 'grow' }}>
-          <form.Field
-            name='origin'
-            listeners={{
-              onChange: ({ fieldApi }) => {
-                fieldApi.form.setFieldValue('flight', '');
-              },
-            }}
-            children={({ state, handleChange, handleBlur }) => (
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'stretch',
+          border: '1px solid',
+          borderColor: 'divider',
+          bgcolor: 'background.paper',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Origin */}
+        <form.Field
+          name='origin'
+          listeners={{
+            onChange: ({ fieldApi }) => {
+              fieldApi.form.setFieldValue('flight', '');
+            },
+          }}
+        >
+          {({ state, handleChange, handleBlur }) => (
+            <Cell label='Origin' dividerColor={p.custom.lineSoft}>
               <VirtualAutocomplete
                 options={AIRPORTS}
                 value={AIRPORTS.find((a) => a.code === state.value) ?? null}
@@ -179,19 +242,21 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
                   );
                 }}
               />
-            )}
-          />
-        </Grid>
+            </Cell>
+          )}
+        </form.Field>
 
-        <Grid size={{ xs: 4, sm: 'grow' }}>
-          <form.Field
-            name='dest'
-            listeners={{
-              onChange: ({ fieldApi }) => {
-                fieldApi.form.setFieldValue('flight', '');
-              },
-            }}
-            children={({ state, handleChange, handleBlur }) => (
+        {/* Destination */}
+        <form.Field
+          name='dest'
+          listeners={{
+            onChange: ({ fieldApi }) => {
+              fieldApi.form.setFieldValue('flight', '');
+            },
+          }}
+        >
+          {({ state, handleChange, handleBlur }) => (
+            <Cell label='Destination' dividerColor={p.custom.lineSoft}>
               <VirtualAutocomplete
                 options={AIRPORTS}
                 value={AIRPORTS.find((a) => a.code === state.value) ?? null}
@@ -213,175 +278,154 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
                   );
                 }}
               />
-            )}
-            // children={({ state, handleChange, handleBlur }) => (
-            //   <Autocomplete<Airport>
-            //     options={AIRPORTS}
-            //     value={AIRPORTS.find((a) => a.code === state.value) ?? null}
-            //     onChange={(_, airport) => handleChange(airport?.code ?? '')}
-            //     onBlur={handleBlur}
-            //     getOptionLabel={(option) => `${option.code} – ${option.name}`}
-            //     filterOptions={(options, { inputValue }) => {
-            //       const q = inputValue.toLowerCase();
-            //       return options.filter(
-            //         (o) =>
-            //           o.code.toLowerCase().includes(q) ||
-            //           o.name.toLowerCase().includes(q),
-            //       );
-            //     }}
-            //     isOptionEqualToValue={(option, value) =>
-            //       option.code === value.code
-            //     }
-            //     renderInput={(params) => (
-            //       <TextField {...params} label='Destination' required />
-            //     )}
-            //   />
-            // )}
-          />
-        </Grid>
+            </Cell>
+          )}
+        </form.Field>
 
-        <Grid size={{ xs: 4, sm: 'grow' }}>
-          <form.Field
-            name='carrier'
-            validators={{
-              onChangeListenTo: ['flight'],
-              onChange: ({ value, fieldApi }) => {
-                if (!fieldApi.getMeta().isDirty || !value) return;
-                const flight = form.getFieldValue('flight');
-                const flightDetails = flights?.find(
-                  (f) => f.flight_iata === flight,
-                );
-                if (!flight || !flightDetails) return;
-                if (flightDetails.airline_iata !== value)
-                  return 'Carrier does not match flight';
-              },
-            }}
-            children={({ state, handleChange, handleBlur }) => {
-              return (
-                <TextField
-                  id='carrier'
-                  label='Carrier'
-                  select
-                  value={state.value}
-                  onChange={(e) => handleChange(e.target.value)}
-                  onBlur={handleBlur}
-                  placeholder='DL'
-                  fullWidth
-                  required
-                  slotProps={{
-                    select: {
-                      MenuProps: {
-                        sx: { maxHeight: 360 },
-                      },
-                      renderValue: (value) => {
-                        return (
-                          <Stack direction='row' spacing={1}>
-                            <Box>
-                              {getCarrierLogo((value as string) ?? '', {
-                                sx: { fontSize: 'inherit' },
-                              })}
-                            </Box>
-                            <Typography>{value ? `${value}` : '--'}</Typography>
-                          </Stack>
-                        );
-                      },
-                    },
-                  }}
-                >
-                  <MenuItem value=''>{'--'}</MenuItem>
-                  {CARRIERS.map((option) => (
-                    <MenuItem
-                      key={option.code}
-                      value={option.code}
+        {/* Carrier */}
+        <form.Field
+          name='carrier'
+          validators={{
+            onChangeListenTo: ['flight'],
+            onChange: ({ value, fieldApi }) => {
+              if (!fieldApi.getMeta().isDirty || !value) return;
+              const flight = form.getFieldValue('flight');
+              const flightDetails = flights?.find(
+                (f) => f.flight_iata === flight,
+              );
+              if (!flight || !flightDetails) return;
+              if (flightDetails.airline_iata !== value)
+                return 'Carrier does not match flight';
+            },
+          }}
+        >
+          {({ state, handleChange, handleBlur }) => (
+            <Cell label='Carrier' dividerColor={p.custom.lineSoft}>
+              <TextField
+                id='carrier'
+                select
+                value={state.value}
+                onChange={(e) => handleChange(e.target.value)}
+                onBlur={handleBlur}
+                fullWidth
+                required
+                slotProps={{
+                  select: {
+                    MenuProps: { sx: { maxHeight: 360 } },
+                    renderValue: (value) => (
+                      <Stack
+                        direction='row'
+                        spacing={1}
+                        sx={{ alignItems: 'center' }}
+                      >
+                        <Box>
+                          {getCarrierLogo((value as string) ?? '', {
+                            sx: { fontSize: 'inherit' },
+                          })}
+                        </Box>
+                        <Typography
+                          sx={{
+                            fontFamily: monoFont,
+                            fontSize: 14,
+                            fontWeight: 500,
+                          }}
+                        >
+                          {value ? `${value}` : '--'}
+                        </Typography>
+                      </Stack>
+                    ),
+                  },
+                }}
+              >
+                <MenuItem value=''>{'--'}</MenuItem>
+                {CARRIERS.map((option) => (
+                  <MenuItem
+                    key={option.code}
+                    value={option.code}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 2,
+                      flexWrap: 'nowrap',
+                    }}
+                  >
+                    <Box
                       sx={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 2,
-                        flexWrap: 'nowrap',
+                        flexShrink: 0,
                       }}
                     >
-                      <Box
-                        sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          flexShrink: 0,
-                        }}
-                      >
-                        {getCarrierLogo(option.code, {
-                          sx: { fontSize: 'inherit' },
-                        })}
-                      </Box>
-                      <Typography
-                        sx={{
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          fontFamily: monoFont,
-                        }}
-                      >
-                        {option.name}
-                      </Typography>
-                    </MenuItem>
-                  ))}
-                </TextField>
-              );
-            }}
-          />
-        </Grid>
+                      {getCarrierLogo(option.code, {
+                        sx: { fontSize: 'inherit' },
+                      })}
+                    </Box>
+                    <Typography
+                      sx={{
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        fontFamily: monoFont,
+                      }}
+                    >
+                      {option.name}
+                    </Typography>
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Cell>
+          )}
+        </form.Field>
 
-        <Grid size={{ xs: 4, sm: 'grow' }}>
-          <form.Field
-            name='flight'
-            listeners={{
-              onChange: ({ value }) => {
-                if (!value) return;
-                // const f = flights?.find((fl) => fl.flight_number === value);
-                // console.log(
-                //   `flight: ${value}`,
-                //   `setting carrier: ${f?.airline_iata}`,
-                // );
-                let newCarrierVal = (value as string).split('_')[0] ?? '';
-                form.setFieldValue('carrier', newCarrierVal);
-              },
-            }}
-          >
-            {({ state, handleChange, handleBlur }) => (
-              <form.Subscribe
-                selector={(state) => [
-                  state.values.origin,
-                  state.values.dest,
-                  state.values.carrier,
-                ]}
-                children={([origin, dest, carrier]) => {
-                  const flightOptions = carrier
-                    ? flights?.filter((f) => f.airline_iata == carrier)
-                    : flights;
+        {/* Flight # */}
+        <form.Field
+          name='flight'
+          listeners={{
+            onChange: ({ value }) => {
+              if (!value) return;
+              const newCarrierVal = (value as string).split('_')[0] ?? '';
+              form.setFieldValue('carrier', newCarrierVal);
+            },
+          }}
+        >
+          {({ state, handleChange, handleBlur }) => (
+            <form.Subscribe
+              selector={(s) => [
+                s.values.origin,
+                s.values.dest,
+                s.values.carrier,
+              ]}
+            >
+              {([origin, dest, carrier]) => {
+                const flightOptions = carrier
+                  ? flights?.filter((f) => f.airline_iata === carrier)
+                  : flights;
 
-                  return (
+                return (
+                  <Cell label='Flight #'>
                     <TextField
                       value={state.value}
                       onChange={(e) => handleChange(e.target.value)}
                       disabled={!(origin && dest)}
-                      label='Flight #'
                       select
                       onBlur={handleBlur}
-                      placeholder='BNA'
                       fullWidth
                       slotProps={{
                         input: {
-                          endAdornment: (
-                            <>
-                              {isFetching ? (
-                                <CircularProgress color='inherit' size={16} />
-                              ) : null}
-                            </>
-                          ),
+                          endAdornment: isFetching ? (
+                            <CircularProgress color='inherit' size={16} />
+                          ) : null,
                         },
                         select: {
-                          // Removes the arrow while loading to prevent overlap
                           IconComponent: isFetching ? () => null : undefined,
                           renderValue: (value) => (
-                            <Typography>
+                            <Typography
+                              sx={{
+                                fontFamily: monoFont,
+                                fontSize: 14,
+                                fontWeight: 500,
+                              }}
+                            >
                               {value
                                 ? `${(value as string).split('_')[1]}`
                                 : '--'}
@@ -422,14 +466,10 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
                             <Typography
                               variant='body2'
                               noWrap
-                              sx={{
-                                lineHeight: 1.2,
-                                fontFamily: monoFont,
-                              }}
+                              sx={{ lineHeight: 1.2, fontFamily: monoFont }}
                             >
                               {option.flight_iata}
                             </Typography>
-
                             <Typography
                               variant='caption'
                               color='text.secondary'
@@ -446,94 +486,48 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
                         </MenuItem>
                       ))}
                     </TextField>
-                  );
-                }}
-              />
-            )}
-          </form.Field>
-        </Grid>
+                  </Cell>
+                );
+              }}
+            </form.Subscribe>
+          )}
+        </form.Field>
 
-        <Grid size={{ xs: 12, sm: 'auto', md: 'auto' }}>
-          <form.Subscribe
-            selector={(state) => [
-              state.canSubmit,
-              state.isSubmitting,
-              state.isValidating,
-            ]}
-            children={([canSubmit, isSubmitting, isValidating]) => {
-              console.log(
-                'canSubmit / isSubmitting, isValidating',
-                canSubmit,
-                isSubmitting,
-                isValidating,
-              );
-
-              return (
-                <Button
-                  type='submit'
-                  disabled={!canSubmit}
-                  loading={isSubmitting || isValidating}
-                  loadingPosition='end'
-                  endIcon={'→'}
-                  variant='contained'
-                  disableElevation
-                  sx={{
-                    bgcolor: 'text.primary',
-                    color: 'background.default',
-                    borderRadius: 0,
-                    fontSize: 13,
-                    px: '22px',
-                    fontWeight: 500,
-                    textTransform: 'none',
-                    '&:hover': { bgcolor: 'text.secondary' },
-                    '&.Mui-disabled': {
-                      bgcolor: 'text.disabled',
-                      color: 'background.default',
-                    },
-                    height: {
-                      xs: 'auto',
-                      sm: '100%',
-                    },
-                  }}
-                >
-                  Predict
-                </Button>
-              );
-            }}
-            // children={([canSubmit, isSubmitting, isValidating]) => (
-            //   <Button
-            //     type='submit'
-            //     disabled={!canSubmit}
-            //     loading={isSubmitting || isValidating}
-            //     loadingPosition='end'
-            //     endIcon={'→'}
-            //     variant='contained'
-            //     disableElevation
-            //     sx={{
-            //       bgcolor: 'text.primary',
-            //       color: 'background.default',
-            //       borderRadius: 0,
-            //       fontSize: 13,
-            //       px: '22px',
-            //       fontWeight: 500,
-            //       textTransform: 'none',
-            //       '&:hover': { bgcolor: 'text.secondary' },
-            //       '&.Mui-disabled': {
-            //         bgcolor: 'text.disabled',
-            //         color: 'background.default',
-            //       },
-            //       height: {
-            //         xs: 'auto',
-            //         sm: '100%',
-            //       },
-            //     }}
-            //   >
-            //     Predict
-            //   </Button>
-            // )}
-          />
-        </Grid>
-      </Grid>
+        {/* Submit */}
+        <form.Subscribe
+          selector={(s) => [s.canSubmit, s.isSubmitting, s.isValidating]}
+        >
+          {([canSubmit, isSubmitting, isValidating]) => (
+            <Button
+              type='submit'
+              disabled={!canSubmit}
+              loading={isSubmitting || isValidating || isPending}
+              loadingPosition='end'
+              endIcon='→'
+              variant='contained'
+              disableElevation
+              sx={{
+                bgcolor: 'text.primary',
+                color: 'background.default',
+                borderRadius: 0,
+                fontSize: 13,
+                px: '22px',
+                fontWeight: 500,
+                textTransform: 'none',
+                flexShrink: 0,
+                alignSelf: 'stretch',
+                '&:hover': { bgcolor: 'text.secondary' },
+                '&.Mui-disabled': {
+                  bgcolor: 'text.disabled',
+                  color: 'background.default',
+                },
+              }}
+            >
+              Predict
+            </Button>
+          )}
+        </form.Subscribe>
+      </Box>
     </form>
   );
 };

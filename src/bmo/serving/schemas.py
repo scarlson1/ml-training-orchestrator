@@ -246,3 +246,28 @@ class UpcomingFlight(BaseModel):
     route_key: str
     tail_number: str | None
     dep_time: date | str
+
+
+class FlightSample(BaseModel):
+    flight_id: str
+    carrier: str  # AA, DL, etc.
+    flight_number: str  # string;                    // parsed from flight_id
+    origin: str
+    dest: str
+    scheduled_departure_utc: str  # { dep: string; date: string }; // from scheduled_departure_utc
+    onTimeProb: str  # number;                // 1 - predicted_delay_proba (real batch score)
+    tail_number: str  # string | null;        // from mart_predictions
+
+
+class CarrierRouteDay(BaseModel):
+    score_date: str
+    avg_delay_proba: float
+    avg_actual_delay_min: float | None
+    n_flights: int
+
+
+class CarrierHistory(BaseModel):
+    route_key: str
+    carrier: str
+    rows: list[CarrierRouteDay]
+    data_as_of: str | None

@@ -283,9 +283,8 @@ function AppFooter() {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        borderTop: (theme) => `1px solid ${theme.palette.divider}`,
-        bgcolor: (theme) =>
-          `color-mix(in srgb, ${(theme.vars || theme).palette.background.default}, transparent 92%)`,
+        borderTop: (theme) =>
+          `1px solid ${(theme.vars || theme).palette.divider}`,
       }}
     >
       <Typography
