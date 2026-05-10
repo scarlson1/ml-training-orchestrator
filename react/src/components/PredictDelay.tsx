@@ -10,6 +10,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import { useForm, useStore } from '@tanstack/react-form-start';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import z from 'zod';
 import { apiFetch } from '~/api/apiFetch';
 import { VirtualAutocomplete } from '~/components/VirtualAutocomplete';
@@ -135,8 +136,15 @@ const Cell = ({
 
 // ─── PredictDelay ───────────────────────────────────────────────────────
 
+export interface PredictContext {
+  origin: string;
+  dest: string;
+  carrier: string;
+  flight_number: string;
+}
+
 interface PredictDelayProps {
-  onPredict: (data: PredictResponse) => void;
+  onPredict: (data: PredictResponse, context: PredictContext) => void;
 }
 
 export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
@@ -150,8 +158,12 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
       });
       return data;
     },
-    onSuccess: (data) => {
-      onPredict(data);
+    // onSuccess: (data) => {
+    //   onPredict(data);
+    // },
+    onError: (err, vars, result) => {
+      console.log(err, vars, result);
+      toast.error('An error occurred');
     },
   });
 
@@ -177,7 +189,16 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
         route_key: `${value.origin}-${value.dest}`,
         tail_number: flightInfo?.reg_number ?? '',
       };
-      predict(body);
+      predict(body, {
+        onSuccess: (data) => {
+          onPredict(data, {
+            origin: value.origin,
+            dest: value.dest,
+            carrier: value.carrier,
+            flight_number: flight_num ?? '',
+          });
+        },
+      });
     },
   });
 

@@ -1,44 +1,7 @@
-// In queryOptions.ts
-
 import { Box, Stack, Typography, useTheme } from '@mui/material';
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
-import { apiFetch } from '~/api/apiFetch';
+import { useSuspenseQuery } from '@tanstack/react-query';
+import { carrierRouteHistoryOptions } from '~/api/queryOptions';
 import { monoFont } from '~/config/themePrimitives';
-
-export interface CarrierRouteDay {
-  score_date: string;
-  avg_delay_proba: number;
-  avg_actual_delay_min: number | null;
-  n_flights: number;
-}
-
-export interface CarrierRouteHistoryResponse {
-  route_key: string;
-  carrier: string;
-  rows: CarrierRouteDay[];
-  data_as_of: string | null;
-}
-
-// TODO: move to queries file if keeping component
-
-export const carrierRouteHistoryOptions = (
-  origin: string,
-  dest: string,
-  carrier: string,
-  days = 30,
-) =>
-  queryOptions({
-    queryKey: ['routes', 'carrier-history', { origin, dest, carrier, days }],
-    queryFn: () =>
-      apiFetch<CarrierRouteHistoryResponse>(
-        `/api/routes/carrier-history`,
-        {},
-        { origin, dest, carrier, days: days.toString() },
-      ),
-    staleTime: 60 * 10 * 1000,
-  });
-
-// Drop-in replacement for the left panel inside AttributionAndHistory
 
 export function CarrierDelayTrend({
   origin,

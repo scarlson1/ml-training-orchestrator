@@ -1033,54 +1033,75 @@ async def network(
 # async def upcoming_flights() -> list[UpcomingFlight]:
 
 
-@app.post('/api/flights/sample', response_model=list[FlightSample], tags=['api'])
+@app.get('/api/flights/sample', response_model=list[FlightSample], tags=['api'])
 async def flights_sample(
     limit: int = 4, duckdb: duckdb.DuckDBPyConnection = Depends(get_duckdb)
 ) -> list[FlightSample]:
+    """
+    The query now works in two steps: aggregate to find the highest-frequency route per distinct origin, then join back to mart_predictions to grab one representative flight row from the most recent scoring date. QUALIFY ROW_NUMBER() handles both the per-origin deduplication and the per-route single-flight selection without needing DISTINCT ON.
+    """
 
     def _query() -> list[FlightSample]:
         df = duckdb.execute(
             """
-            SELECT DISTINCT ON (origin, dest, carrier)
-                flight_id,
-                origin,
-                dest,
-                carrier,
-                tail_number,
-                scheduled_departure_utc::text   AS scheduled_departure_utc,
-                predicted_delay_proba,
-                score_date::text                AS score_date
-            FROM mart_predictions
-            WHERE 
-                CAST(score_date AS DATE) >= (
+            WITH route_counts AS (
+                SELECT
+                    origin,
+                    dest,
+                    carrier,
+                    COUNT(*)        AS n_flights,
+                    MAX(score_date) AS latest_score_date
+                FROM mart_predictions
+                WHERE CAST(score_date AS DATE) >= (
                     SELECT MAX(CAST(score_date AS DATE)) FROM mart_predictions
                 ) - INTERVAL '30 days'
-                AND origin IS NOT NULL 
-                AND dest IS NOT NULL
-            ORDER BY 
-                origin, dest, carrier, score_date DESC, COUNT(*) OVER (PARTITION BY origin, dest, carrier) DESC
-            LIMIT ?
+                AND origin IS NOT NULL AND dest IS NOT NULL
+                AND carrier IN ('AA', 'DL', 'UA', 'WN', 'AS', 'B6', 'NK', 'F9')
+                GROUP BY origin, dest, carrier
+            ),
+            top_per_carrier AS (
+                SELECT *
+                FROM route_counts
+                QUALIFY ROW_NUMBER() OVER (PARTITION BY carrier ORDER BY n_flights DESC) = 1
+                ORDER BY n_flights DESC
+                LIMIT ?
+            )
+            SELECT
+                m.flight_id,
+                m.origin,
+                m.dest,
+                m.carrier,
+                m.tail_number,
+                m.scheduled_departure_utc::text AS scheduled_departure_utc,
+                m.predicted_delay_proba,
+                m.score_date::text              AS score_date
+            FROM mart_predictions m
+            JOIN top_per_carrier t
+                ON m.origin = t.origin AND m.dest = t.dest AND m.carrier = t.carrier
+                AND m.score_date = t.latest_score_date
+            QUALIFY ROW_NUMBER() OVER (
+                PARTITION BY m.origin, m.dest, m.carrier
+                ORDER BY m.scheduled_departure_utc
+            ) = 1
+            ORDER BY t.n_flights DESC
             """,
             [limit],
         ).df()
 
         rows = cast(list[dict[str, Any]], df.to_dict('records'))
 
-        sample = [
+        return [
             FlightSample(
                 flight_id=r['flight_id'],
                 carrier=r['carrier'],
-                flight_number=r['flight_number'],
                 origin=r['origin'],
                 dest=r['dest'],
                 scheduled_departure_utc=r['scheduled_departure_utc'],
-                onTimeProb=1 - (r['predicted_delay_proba'] | 0),
-                tail_number=r['tail_number'],
+                onTimeProb=round(1 - (r['predicted_delay_proba'] or 0.0), 4),
+                tail_number=r['tail_number'] if r['tail_number'] else None,
             )
             for r in rows
         ]
-
-        return sample
 
     try:
         sample = await asyncio.to_thread(_query)
@@ -1090,7 +1111,7 @@ async def flights_sample(
         raise HTTPException(status_code=500, detail=f'{_duckdb_error_detail(exc)}')
 
 
-@app.post('/api/routes/carrier-history', response_model=CarrierHistory)
+@app.get('/api/routes/carrier-history', response_model=CarrierHistory)
 async def carrier_history(
     origin: str, dest: str, carrier: str, duckdb: DuckDBPyConnection = Depends(get_duckdb)
 ) -> CarrierHistory:

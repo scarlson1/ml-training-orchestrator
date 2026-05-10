@@ -19,11 +19,13 @@ import {
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools';
 import { type ReactNode, Suspense } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
+import { Toaster as Sonner } from 'sonner';
 import { AppShell } from '~/components/AppShell';
 import { ErrorFallback } from '~/components/ErrorFallback';
 import { NotFound } from '~/components/NotFound';
 import { queryClient } from '~/config/queryClient';
 import { theme } from '~/config/theme';
+import { useResolvedMode } from '~/hooks/useResolvedMode';
 
 interface RouterContext {
   queryClient: QueryClient;
@@ -60,6 +62,12 @@ function RootComponent() {
   );
 }
 
+function SonnerToaster() {
+  const mode = useResolvedMode();
+
+  return <Sonner theme={mode} richColors closeButton />;
+}
+
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html>
@@ -71,6 +79,8 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
           </head>
           <body>
             <AppShell>{children}</AppShell>
+            <SonnerToaster />
+
             <Scripts />
             <TanStackDevtools
               plugins={[

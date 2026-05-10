@@ -1,5 +1,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { apiFetch } from '~/api/apiFetch';
+import { getDelayStatus, getWeather } from '~/utils/weather.functions';
+import type { GetDelaysOptions } from '~/utils/weather.server';
 
 // ----- Prediction queries -----
 
@@ -164,6 +166,39 @@ export const carrierComparisonOptions = (
     staleTime: 60 * 10 * 1000,
   });
 
+export interface CarrierRouteDay {
+  score_date: string;
+  avg_delay_proba: number;
+  avg_actual_delay_min: number | null;
+  n_flights: number;
+}
+
+export interface CarrierRouteHistoryResponse {
+  route_key: string;
+  carrier: string;
+  rows: CarrierRouteDay[];
+  data_as_of: string | null;
+}
+
+// TODO: move to queries file if keeping component
+
+export const carrierRouteHistoryOptions = (
+  origin: string,
+  dest: string,
+  carrier: string,
+  days = 30,
+) =>
+  queryOptions({
+    queryKey: ['routes', 'carrier-history', { origin, dest, carrier, days }],
+    queryFn: () =>
+      apiFetch<CarrierRouteHistoryResponse>(
+        `/api/routes/carrier-history`,
+        {},
+        { origin, dest, carrier, days: days.toString() },
+      ),
+    staleTime: 60 * 10 * 1000,
+  });
+
 // ----- Model queries -----
 
 export interface ModelInfo {
@@ -226,3 +261,26 @@ export const accuracyOptions = queryOptions({
   queryFn: () => apiFetch<{ rows: AccuracyPoint[] }>('/api/accuracy'),
   staleTime: 60 * 30 * 1000,
 });
+
+// ----- Weather queries -----
+
+export const aviationWeatherOptions = (
+  endpoint: 'metar' | 'taf',
+  icao: string,
+) =>
+  queryOptions({
+    queryKey: ['weather', endpoint, icao],
+    queryFn: async () => getWeather({ data: { endpoint, icao } }),
+    staleTime: 1000 * 60 * 15,
+    gcTime: 1000 * 60 * 30,
+  });
+
+// ----- Airlabs queries -----
+
+export const delayOptions = (options: GetDelaysOptions) =>
+  queryOptions({
+    queryKey: ['delays', options],
+    queryFn: () => getDelayStatus({ data: options }),
+    staleTime: 1000 * 60 * 15,
+    gcTime: 1000 * 60 * 30,
+  });
