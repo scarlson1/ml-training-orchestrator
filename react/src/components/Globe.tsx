@@ -297,7 +297,7 @@ export function Globe({ isDark, size = 560 }: GlobeProps) {
     const ctx = canvas.getContext('2d')!;
     if (!ctx) return;
 
-    const tilt = -18;
+    const tilt = 23; // -18;
     const R = size * 0.42;
     const cx = size / 2;
     const cy = size / 2;
@@ -349,12 +349,22 @@ export function Globe({ isDark, size = 560 }: GlobeProps) {
 
       // ── atmosphere glow ── (ring that peaks just outside sphere edge,
       //   matching SVG original: 0→peak at ~92% of size/2→0 at size/2)
-      const glowInner = size * 0.4;   // 288px for size=720 (inside sphere at 302px)
-      const glowOuter = size * 0.5;   // 360px — canvas half-width
+      const glowInner = size * 0.4; // 288px for size=720 (inside sphere at 302px)
+      const glowOuter = size * 0.5; // 360px — canvas half-width
       const glowPeak = (size * 0.46 - glowInner) / (glowOuter - glowInner); // ~0.6
-      const glowGrad = ctx.createRadialGradient(cx, cy, glowInner, cx, cy, glowOuter);
+      const glowGrad = ctx.createRadialGradient(
+        cx,
+        cy,
+        glowInner,
+        cx,
+        cy,
+        glowOuter,
+      );
       glowGrad.addColorStop(0, 'transparent');
-      glowGrad.addColorStop(glowPeak, isDarkRef.current ? `${pal.glow}2E` : `${pal.glow}10`);
+      glowGrad.addColorStop(
+        glowPeak,
+        isDarkRef.current ? `${pal.glow}2E` : `${pal.glow}10`,
+      );
       glowGrad.addColorStop(1, 'transparent');
       ctx.fillStyle = glowGrad;
       ctx.beginPath();
