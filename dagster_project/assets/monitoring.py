@@ -60,10 +60,10 @@ from sklearn.metrics import (
 
 from bmo.batch_scoring.score import FEATURE_COLUMNS
 from bmo.common.config import settings
+from bmo.common.partitions import DAILY_PARTITIONS
 from bmo.evaluation_gate.gate import MODEL_NAME
 from bmo.monitoring import should_retrain
 from bmo.monitoring.drift import PSI_MODERATE, DriftMetricsRow, DriftReportResult, compute_drift
-from bmo.serving.partitions import DAILY_PARTITIONS
 from dagster_project.resources import DuckDBResource
 from dagster_project.resources.mlflow_resource import MLflowResource
 from dagster_project.resources.s3_resource import S3Resource
