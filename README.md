@@ -114,21 +114,27 @@ Feast PIT join rule:
 
 ## Documentation
 
+- [getting-started.md](/docs/getting-started.md)
 - [architecture.md](/docs/architecture.md)
 - [infrastructure.md](/docs/infrastructure.md)
-- [data-ingestion.md](/docs/data-ingestion.md)
 - [data-structure-and-query-guidance.md](/docs/data-structure-and-query-guidance.md)
 - [deployment.md](/docs/deployment.md)
-- [batch-scoring.md](/docs/batch-scoring.md)
-- [serving.md](/docs/serving.md)
-- [testing.md](/docs/testing.md)
+- [configuration.md](/docs/configuration.md)
+- [ci-cd.md](/docs/ci-cd.md)
+
+- [data-ingestion.md](/docs/data-ingestion.md)
+- [staging-validation.md](/docs//staging-validation.md)
+- [feature-engineering.md](/docs/feature-engineering.md)
+- [feature-store.md](/docs/feature-store.md)
+- [pit-correctness.md](/docs/pit-correctness.md)
 - [training.md](/docs/training.md)
-- [monitoring.md](/docs/monitoring.md)
+- [batch-scoring.md](/docs/batch-scoring.md)
 - [runbooks.md](/docs/runbooks.md)
-
-# References
-
-[XGBoost python examples](https://github.com/dmlc/xgboost/tree/master/demo/guide-python)
+- [evaluation-gate.md](/docs/evaluation-gate.md)
+- [serving.md](/docs/serving.md)
+- [batch-scoring.md](/docs/batch-scoring.md)
+- [monitoring.md](/docs/monitoring.md)
+- [testing.md](/docs/testing.md)
 
 ## Screenshots
 
@@ -1590,3 +1596,7 @@ PIT correctness doesn't matter for drift - only training & inference
       ```
     - [AVWX](https://info.avwx.rest/) - generous free tier
   -
+
+## References
+
+[XGBoost python examples](https://github.com/dmlc/xgboost/tree/master/demo/guide-python)
