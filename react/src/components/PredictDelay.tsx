@@ -443,7 +443,7 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
                       onBlur={handleBlur}
                       fullWidth
                       helperText={
-                        !flightOptions?.length && origin && dest
+                        !flightOptions?.length && origin && dest && !isFetching
                           ? 'no flights found'
                           : undefined
                       }
