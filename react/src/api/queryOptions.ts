@@ -76,6 +76,7 @@ export const driftMetricsOptions = (
         params,
       ),
     staleTime: 60 * 30 * 1000,
+    gcTime: 1000 * 60 * 30,
   });
 
 // ----- Route queries -----
@@ -101,6 +102,7 @@ export const routeHistoryOptions = (
         { origin, dest, days: days.toString() },
       ),
     staleTime: 60 * 10 * 1000,
+    gcTime: 1000 * 60 * 10,
   });
 
 export interface NetworkDelayResponse {
@@ -118,6 +120,7 @@ export const networkDelayOptions = (days: number = 7) =>
     queryKey: ['routes', 'network', days],
     queryFn: () => apiFetch<NetworkDelayResponse>(`/api/network?days=${days}`),
     staleTime: 60 * 10 * 1000,
+    gcTime: 1000 * 60 * 10,
   });
 
 export interface SampleFlight {
@@ -164,6 +167,7 @@ export const carrierComparisonOptions = (
         `/api/carriers/comparison?origin=${origin}&dest=${dest}&days=${days}`,
       ),
     staleTime: 60 * 10 * 1000,
+    gcTime: 1000 * 60 * 30,
   });
 
 export interface CarrierRouteDay {
@@ -197,6 +201,7 @@ export const carrierRouteHistoryOptions = (
         { origin, dest, carrier, days: days.toString() },
       ),
     staleTime: 60 * 10 * 1000,
+    gcTime: 1000 * 60 * 30,
   });
 
 // ----- Model queries -----
@@ -216,6 +221,7 @@ export const modelInfoOptions = queryOptions({
   queryKey: ['modelInfo'],
   queryFn: () => apiFetch<ModelInfo>('/model-info'),
   staleTime: 60 * 10 * 1000,
+  gcTime: 1000 * 60 * 30,
 });
 
 export interface ModelStats {
@@ -240,6 +246,7 @@ export const modelStatsOptions = (champion: boolean = false) =>
     queryFn: () =>
       apiFetch<{ rows: ModelStats[] }>(`/api/model-stats?champion=${champion}`),
     staleTime: 60 * 10 * 1000,
+    gcTime: 1000 * 60 * 30,
   });
 
 // ----- Accuracy queries -----
@@ -260,6 +267,7 @@ export const accuracyOptions = queryOptions({
   queryKey: ['accuracy'],
   queryFn: () => apiFetch<{ rows: AccuracyPoint[] }>('/api/accuracy'),
   staleTime: 60 * 30 * 1000,
+  gcTime: 1000 * 60 * 30,
 });
 
 // ----- Weather queries -----

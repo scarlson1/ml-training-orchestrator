@@ -117,6 +117,7 @@ export const CARRIERS = [
   { name: 'Southwest Airlines', code: 'WN' },
   { name: 'Thai Airways', code: 'TG' },
   { name: 'United Airlines', code: 'UA' },
+  { name: 'Virgin Atlantic', code: 'VS' },
   { name: 'Fiji Airways', code: 'FJ' },
 ];
 

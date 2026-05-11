@@ -361,6 +361,7 @@ async def predict(
             primary_version=model_version,
         )
 
+    # TODO: return % of features used ??
     return PredictResponse(
         flight_id=request.flight_id,
         predicted_is_delayed=primary_is_delayed,

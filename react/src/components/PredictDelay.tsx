@@ -141,6 +141,7 @@ export interface PredictContext {
   dest: string;
   carrier: string;
   flight_number: string;
+  scheduled_departure_utc: string | null;
 }
 
 interface PredictDelayProps {
@@ -158,16 +159,13 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
       });
       return data;
     },
-    // onSuccess: (data) => {
-    //   onPredict(data);
-    // },
     onError: (err, vars, result) => {
       console.log(err, vars, result);
       toast.error('An error occurred');
     },
   });
 
-  const { mutateAsync: fetchFlightInfo } = useMutation({
+  const { mutateAsync: fetchFlightInfo, ...rest } = useMutation({
     mutationFn: async (flight_iata: string) =>
       getFlightInfo({ data: { flight_iata } }),
   });
@@ -191,11 +189,19 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
       };
       predict(body, {
         onSuccess: (data) => {
+          console.log('on predict: ', data, {
+            origin: value.origin,
+            dest: value.dest,
+            carrier: value.carrier,
+            flight_number: flight_num ?? '',
+            scheduled_departure_utc: flightInfo.dep_time_utc ?? null,
+          });
           onPredict(data, {
             origin: value.origin,
             dest: value.dest,
             carrier: value.carrier,
             flight_number: flight_num ?? '',
+            scheduled_departure_utc: flightInfo.dep_time_utc ?? null,
           });
         },
       });

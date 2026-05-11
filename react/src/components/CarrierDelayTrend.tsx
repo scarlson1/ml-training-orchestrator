@@ -125,6 +125,19 @@ export function CarrierDelayTrend({
         <Typography
           sx={{
             position: 'absolute',
+            left: 0,
+            top: h * 0.5 - 10,
+            fontSize: 10,
+            color: p.warning.main,
+            fontFamily: monoFont,
+            opacity: 0.6,
+          }}
+        >
+          45m
+        </Typography>
+        <Typography
+          sx={{
+            position: 'absolute',
             right: 0,
             top: h * 0.5 - 10,
             fontSize: 10,
@@ -189,6 +202,10 @@ export function CarrierDelayTrend({
           {data?.data_as_of ?? 'latest'}
         </Typography>
       </Stack>
+      <Typography variant='caption' color='textSecondary'>
+        Actual delay is normalized from 0 to 90 minutes (e.g. 45 minute delay =
+        50% on the chart)
+      </Typography>
     </>
   );
 }

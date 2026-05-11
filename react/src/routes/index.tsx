@@ -9,7 +9,7 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import {
   aviationWeatherOptions,
@@ -55,26 +55,26 @@ interface Factor {
   detail: string;
 }
 
-export interface FlightFake {
-  id: string;
-  airline: string;
-  code: string;
-  number: string;
-  from: { code: string; city: string; tz: string };
-  to: { code: string; city: string; tz: string };
-  scheduled: { dep: string; arr: string; date: string };
-  aircraft: string;
-  onTimeProb: number;
-  delayMin: { p50: number; p90: number };
-  cancelProb: number;
-  factors: Factor[];
-  history: number[];
-}
+// interface FlightFake {
+//   id: string;
+//   airline: string;
+//   code: string;
+//   number: string;
+//   from: { code: string; city: string; tz: string };
+//   to: { code: string; city: string; tz: string };
+//   scheduled: { dep: string; arr: string; date: string };
+//   aircraft: string;
+//   onTimeProb: number;
+//   delayMin: { p50: number; p90: number };
+//   cancelProb: number;
+//   factors: Factor[];
+//   history: number[];
+// }
 
 // for tracking common data between user input predict & sample flights
 interface ActiveFlight extends PredictContext {
   flight_id?: string;
-  scheduled_departure_utc?: string;
+  // scheduled_departure_utc?: string;
   baseline_ontime_prob?: number; // pre-computed aggregate from sample flights API — not present for user-entered flights
 }
 
@@ -88,168 +88,46 @@ const sampleToActive = (f: SampleFlight): ActiveFlight => ({
   baseline_ontime_prob: f.onTimeProb,
 });
 
-const FLIGHTS: FlightFake[] = [
-  {
-    id: 'UA1315',
-    airline: 'United Airlines',
-    code: 'UA',
-    number: '1315',
-    from: { code: 'ORD', city: 'Chicago', tz: 'CT' },
-    to: { code: 'LGA', city: 'New York', tz: 'ET' },
-    scheduled: { dep: '07:00', arr: '10:15', date: 'Sun, 1 Jun' },
-    aircraft: 'B737-800',
-    onTimeProb: 0.8,
-    delayMin: { p50: 9, p90: 38 },
-    cancelProb: 0.018,
-    factors: [
-      {
-        name: 'Origin congestion',
-        value: -0.12,
-        detail: 'ORD ground stop risk · low',
-      },
-      {
-        name: 'Destination weather',
-        value: -0.08,
-        detail: 'LGA · scattered TS after 18:00z',
-      },
-      {
-        name: 'Carrier on-time history',
-        value: +0.21,
-        detail: 'AX route 7-day OTP 88%',
-      },
-      {
-        name: 'Aircraft rotation',
-        value: +0.05,
-        detail: 'Inbound from PDX · on time',
-      },
-      { name: 'Day of week', value: -0.02, detail: 'Thursday · neutral' },
-      { name: 'Time of day', value: +0.07, detail: 'Morning bank · favorable' },
-    ],
-    history: [82, 76, 88, 91, 84, 79, 86, 90, 87, 83, 78, 85, 89, 80],
-  },
-  {
-    id: 'AA1407',
-    airline: 'American Airlines',
-    code: 'AA',
-    number: '1407',
-    from: { code: 'DFW', city: 'Dallas', tz: 'CT' },
-    to: { code: 'LAX', city: 'Los Angeles', tz: 'PT' },
-    scheduled: { dep: '08:30', arr: '09:55', date: 'Sun, 1 Jun' },
-    aircraft: 'B737-800',
-    onTimeProb: 0.57,
-    delayMin: { p50: 28, p90: 85 },
-    cancelProb: 0.031,
-    factors: [
-      {
-        name: 'Origin congestion',
-        value: -0.28,
-        detail: 'DFW evening bank · high traffic',
-      },
-      {
-        name: 'Destination weather',
-        value: -0.04,
-        detail: 'LAX · light rain, CAT I',
-      },
-      {
-        name: 'Carrier on-time history',
-        value: +0.11,
-        detail: 'NB transatl. 30-day OTP 71%',
-      },
-      {
-        name: 'Aircraft rotation',
-        value: -0.14,
-        detail: 'Inbound LAX delayed 18m',
-      },
-      { name: 'Day of week', value: 0, detail: 'Thursday · neutral' },
-      {
-        name: 'Time of day',
-        value: -0.09,
-        detail: 'Evening departure · congested',
-      },
-    ],
-    history: [62, 58, 71, 65, 59, 63, 70, 55, 68, 57, 60, 57, 64, 57],
-  },
-  {
-    id: 'DL1420',
-    airline: 'Delta',
-    code: 'DL',
-    number: '1420',
-    from: { code: 'ATL', city: 'Atlanta', tz: 'ET' },
-    to: { code: 'MCO', city: 'Orlando', tz: 'ET' },
-    scheduled: { dep: '09:15', arr: '10:42', date: 'Sun, 1 Jun' },
-    aircraft: 'B737-900',
-    onTimeProb: 0.63,
-    delayMin: { p50: 22, p90: 71 },
-    cancelProb: 0.024,
-    factors: [
-      { name: 'Origin congestion', value: -0.09, detail: 'ATL · normal' },
-      {
-        name: 'Destination weather',
-        value: -0.34,
-        detail: 'MCO · convective SIGMET, gusts 38kt',
-      },
-      {
-        name: 'Carrier on-time history',
-        value: +0.04,
-        detail: 'MR 7-day OTP 74%',
-      },
-      {
-        name: 'Aircraft rotation',
-        value: -0.11,
-        detail: 'Inbound MCO · delayed 22m',
-      },
-      { name: 'Day of week', value: -0.02, detail: 'Thursday · neutral' },
-      {
-        name: 'Time of day',
-        value: -0.06,
-        detail: 'Afternoon thunderstorm window',
-      },
-    ],
-    history: [62, 58, 71, 65, 59, 63, 70, 55, 68, 72, 60, 63, 64, 63],
-  },
-  {
-    id: 'WN123',
-    airline: 'Southwest',
-    code: 'WN',
-    number: '123',
-    from: { code: 'LAS', city: 'Las Vegas', tz: 'PT' },
-    to: { code: 'OAK', city: 'Oakland', tz: 'PT' },
-    scheduled: { dep: '11:00', arr: '12:10', date: 'Sun, 1 Jun' },
-    aircraft: 'B737-700',
-    onTimeProb: 0.23,
-    delayMin: { p50: 55, p90: 130 },
-    cancelProb: 0.072,
-    factors: [
-      {
-        name: 'Origin congestion',
-        value: +0.08,
-        detail: 'LAS · light traffic',
-      },
-      {
-        name: 'Destination weather',
-        value: +0.06,
-        detail: 'OAK · clear, marine layer 06z',
-      },
-      {
-        name: 'Carrier on-time history',
-        value: +0.23,
-        detail: 'PE NRT-LAX 30-day OTP 93%',
-      },
-      {
-        name: 'Aircraft rotation',
-        value: +0.09,
-        detail: 'Aircraft on stand 4h+',
-      },
-      { name: 'Day of week', value: +0.01, detail: 'Thursday · neutral' },
-      {
-        name: 'Time of day',
-        value: +0.04,
-        detail: 'Evening departure · favorable',
-      },
-    ],
-    history: [54, 48, 32, 41, 28, 35, 42, 29, 34, 40, 26, 32, 36, 23],
-  },
-];
+// const FLIGHTS: FlightFake[] = [
+//   {
+//     id: 'UA1315',
+//     airline: 'United Airlines',
+//     code: 'UA',
+//     number: '1315',
+//     from: { code: 'ORD', city: 'Chicago', tz: 'CT' },
+//     to: { code: 'LGA', city: 'New York', tz: 'ET' },
+//     scheduled: { dep: '07:00', arr: '10:15', date: 'Sun, 1 Jun' },
+//     aircraft: 'B737-800',
+//     onTimeProb: 0.8,
+//     delayMin: { p50: 9, p90: 38 },
+//     cancelProb: 0.018,
+//     factors: [
+//       {
+//         name: 'Origin congestion',
+//         value: -0.12,
+//         detail: 'ORD ground stop risk · low',
+//       },
+//       {
+//         name: 'Destination weather',
+//         value: -0.08,
+//         detail: 'LGA · scattered TS after 18:00z',
+//       },
+//       {
+//         name: 'Carrier on-time history',
+//         value: +0.21,
+//         detail: 'AX route 7-day OTP 88%',
+//       },
+//       {
+//         name: 'Aircraft rotation',
+//         value: +0.05,
+//         detail: 'Inbound from PDX · on time',
+//       },
+//       { name: 'Day of week', value: -0.02, detail: 'Thursday · neutral' },
+//       { name: 'Time of day', value: +0.07, detail: 'Morning bank · favorable' },
+//     ],
+//     history: [82, 76, 88, 91, 84, 79, 86, 90, 87, 83, 78, 85, 89, 80],
+//   }
+// ];
 
 // ─── Small atoms ──────────────────────────────────────────────────────────────
 
@@ -780,7 +658,19 @@ function HeroSection({
             Predict a flight
           </Typography>
 
-          <PredictDelay onPredict={onPredict} />
+          <ErrorBoundary fallback={null}>
+            <Suspense
+              fallback={
+                <Stack direction='row' spacing={2}>
+                  {Array({ length: 5 }).map(() => (
+                    <Skeleton variant='rounded' height={40} width='100%' />
+                  ))}
+                </Stack>
+              }
+            >
+              <PredictDelay onPredict={onPredict} />
+            </Suspense>
+          </ErrorBoundary>
 
           {sampleFlights.length ? (
             <Box sx={{ mt: 1.5 }}>
@@ -801,7 +691,7 @@ function HeroSection({
 
 interface PredHeadlineProps {
   flight: ActiveFlight | null;
-  onTimeProb: number;
+  onTimeProb: number | null;
   verdict: { label: string; color: string };
   prediction: PredictResponse | null;
 }
@@ -971,7 +861,7 @@ function PredictionHeadline({
             On-time probability
           </Typography>
           <Box sx={{ position: 'relative', display: 'inline-block' }}>
-            <ProbabilityArc prob={onTimeProb} size={180} />
+            <ProbabilityArc prob={onTimeProb ?? 0} size={180} />
             <Box
               sx={{
                 position: 'absolute',
@@ -992,7 +882,7 @@ function PredictionHeadline({
                     color: p.text.primary,
                   }}
                 >
-                  {(onTimeProb * 100).toFixed(0)}
+                  {onTimeProb === null ? '--' : (onTimeProb * 100).toFixed(0)}
                   <Box
                     component='span'
                     sx={{ fontSize: 22, color: p.text.secondary }}
@@ -1180,11 +1070,42 @@ function AttributionAndHistory({ flight }: { flight: ActiveFlight | null }) {
         }}
       >
         {flight ? (
-          <CarrierDelayTrend
-            origin={flight.origin}
-            dest={flight.dest}
-            carrier={flight?.carrier}
-          />
+          <ErrorBoundary
+            fallbackRender={({ error }) => (
+              <Typography variant='body2' color='error'>
+                {`Failed to load carrier trend. ${error instanceof Error ? error.message : ''}`}
+              </Typography>
+            )}
+          >
+            <Suspense
+              fallback={
+                <>
+                  <Skeleton
+                    variant='text'
+                    sx={{ fontSize: '0.7rem' }}
+                    width={80}
+                  />
+                  <Skeleton
+                    variant='text'
+                    sx={{ fontSize: '1.2rem' }}
+                    width={140}
+                  />
+                  <Skeleton
+                    variant='rounded'
+                    height={160}
+                    width='100%'
+                    sx={{ mt: 1 }}
+                  />
+                </>
+              }
+            >
+              <CarrierDelayTrend
+                origin={flight.origin}
+                dest={flight.dest}
+                carrier={flight?.carrier}
+              />
+            </Suspense>
+          </ErrorBoundary>
         ) : (
           <Typography sx={{ p: 2, textAlign: 'center' }}>
             No flight selected
@@ -1627,7 +1548,19 @@ function NetworkAndAirline({ flight }: { flight: ActiveFlight | null }) {
             Average delays across the system
           </Typography>
         </Box>
-        <NetworkMap height={290} />
+        <ErrorBoundary
+          fallback={
+            <Typography color='error' sx={{ fontFamily: monoFont }}>
+              Failed to load network map
+            </Typography>
+          }
+        >
+          <Suspense
+            fallback={<Skeleton variant='rounded' height={290} width='100%' />}
+          >
+            <NetworkMap height={290} />
+          </Suspense>
+        </ErrorBoundary>
       </Paper>
 
       <Paper
@@ -1722,7 +1655,6 @@ function NetworkAndAirline({ flight }: { flight: ActiveFlight | null }) {
 
 function Index() {
   const p = useTheme().vars.palette;
-  // const [flight, setFlight] = useState<FlightFake>(FLIGHTS[0]);
   const [prediction, setPrediction] = useState<PredictResponse | null>(null);
 
   const { data: sampleFlights } = useSuspenseQuery(sampleFlightOptions(4));
@@ -1733,9 +1665,11 @@ function Index() {
 
   const onTimeProb = prediction
     ? 1 - prediction.delay_probability
-    : (flight?.baseline_ontime_prob ?? 0);
+    : (flight?.baseline_ontime_prob ?? null);
+  console.log(onTimeProb, 'on time prob', prediction?.delay_probability);
 
   const verdict = useMemo(() => {
+    if (onTimeProb === null) return { label: 'unknown', color: p.grey[500] };
     if (onTimeProb >= 0.85)
       return { label: 'Likely on time', color: p.success.main };
     if (onTimeProb >= 0.65)
@@ -1743,16 +1677,15 @@ function Index() {
     return { label: 'Elevated delay risk', color: p.error.main };
   }, [onTimeProb]);
 
-  useEffect(() => {
-    setPrediction(null);
-  }, [flight?.flight_id]);
-
   return (
     <Box sx={{ bgcolor: 'background.default', color: 'text.primary' }}>
       <HeroSection
         sampleFlights={sampleFlights}
         flight={flight}
-        onPickFlight={(f) => setFlight(f)}
+        onPickFlight={(f) => {
+          setFlight(f);
+          setPrediction(null);
+        }}
         onPredict={(p, ctx) => {
           setPrediction(p);
           setFlight(ctx);
