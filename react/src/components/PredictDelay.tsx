@@ -1,7 +1,10 @@
+import { ClearRounded } from '@mui/icons-material';
 import {
   Box,
   Button,
   CircularProgress,
+  IconButton,
+  InputAdornment,
   MenuItem,
   Stack,
   TextField,
@@ -48,6 +51,7 @@ export interface PredictResponse {
   model_name: string;
   model_version: string;
   features_complete: boolean;
+  features_used_pct: number;
   attributions: ShapAttribute[];
 }
 
@@ -331,7 +335,7 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
             },
           }}
         >
-          {({ state, handleChange, handleBlur }) => (
+          {({ state, handleChange, handleBlur, setValue }) => (
             <Cell label='Carrier' dividerColor={p.custom.lineSoft}>
               <TextField
                 id='carrier'
@@ -365,6 +369,25 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
                           {value ? `${value}` : '--'}
                         </Typography>
                       </Stack>
+                    ),
+                  },
+                  input: {
+                    endAdornment: state.value && (
+                      <InputAdornment
+                        position='end'
+                        sx={{ m: 0, maxHeight: '20px' }}
+                      >
+                        <IconButton
+                          size='small'
+                          sx={{ fontSize: 14 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setValue('');
+                          }}
+                        >
+                          <ClearRounded fontSize='inherit' />
+                        </IconButton>
+                      </InputAdornment>
                     ),
                   },
                 }}
@@ -420,7 +443,7 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
             },
           }}
         >
-          {({ state, handleChange, handleBlur }) => (
+          {({ state, handleChange, handleBlur, setValue }) => (
             <form.Subscribe
               selector={(s) => [
                 s.values.origin,
@@ -451,7 +474,25 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
                         input: {
                           endAdornment: isFetching ? (
                             <CircularProgress color='inherit' size={16} />
-                          ) : null,
+                          ) : (
+                            state.value && (
+                              <InputAdornment
+                                position='end'
+                                sx={{ m: 0, maxHeight: '20px' }}
+                              >
+                                <IconButton
+                                  size='small'
+                                  sx={{ fontSize: 14 }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setValue('');
+                                  }}
+                                >
+                                  <ClearRounded fontSize='inherit' />
+                                </IconButton>
+                              </InputAdornment>
+                            )
+                          ),
                         },
                         select: {
                           IconComponent: isFetching ? () => null : undefined,
