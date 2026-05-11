@@ -7,7 +7,7 @@ import { useTheme } from '@mui/material/styles';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
-import { useSuspenseQuery } from '@tanstack/react-query';
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { Suspense, useMemo, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -15,6 +15,7 @@ import {
   aviationWeatherOptions,
   delayOptions,
   driftSummaryOptions,
+  modelStatsOptions,
   sampleFlightOptions,
   todaysPredictionOptions,
   type SampleFlight,
@@ -645,6 +646,8 @@ function PredictionHeadline({
   prediction,
 }: PredHeadlineProps) {
   const p = useTheme().vars.palette;
+  const { data: modelStats } = useQuery(modelStatsOptions(true));
+  const brierScore = modelStats?.rows?.[0]?.avg_brier_score; // e.g. 0.061
 
   // TODO: replace metrics with available data
   const delayP50 = prediction
@@ -657,8 +660,10 @@ function PredictionHeadline({
       ? 90
       : 20
     : 0; // flight?.delayMin?.p90;
-  const cancelProb = 0; // flight.cancelProb;
-  const confidence = 0; // Math.abs(onTimeProb - 0.5) * 2;
+  // const cancelProb = 0; // flight.cancelProb;
+  // const confidence = 0; // Math.abs(onTimeProb - 0.5) * 2;
+
+  const featuresUsedPct = prediction?.features_used_pct;
 
   return (
     <Box
@@ -890,7 +895,7 @@ function PredictionHeadline({
             {[
               ['p50', `+${delayP50}m`],
               ['p90', `+${delayP90}m`],
-              ['cancel', `${(cancelProb * 100).toFixed(1)}%`],
+              // ['cancel', `${(cancelProb * 100).toFixed(1)}%`],
             ].map(([label, val]) => (
               <Stack
                 key={label}
@@ -924,7 +929,7 @@ function PredictionHeadline({
           </Box>
         </Box>
 
-        {/* model confidence */}
+        {/* features & model */}
         <Box>
           <Typography
             sx={{
@@ -936,7 +941,8 @@ function PredictionHeadline({
               mb: 1,
             }}
           >
-            Model confidence
+            {/* Model confidence */}
+            Features used
           </Typography>
           <Typography
             sx={{
@@ -947,7 +953,10 @@ function PredictionHeadline({
               color: p.text.primary,
             }}
           >
-            {confidence.toFixed(2)}
+            {/* {confidence.toFixed(2)} */}
+            {typeof featuresUsedPct === 'number'
+              ? `${(featuresUsedPct * 100).toFixed(0)}%`
+              : '--'}
           </Typography>
           <Typography
             sx={{
@@ -959,8 +968,8 @@ function PredictionHeadline({
             }}
           >
             {prediction
-              ? `Scored live. Brier ~0.06. ${prediction.features_complete ? 'All features resolved.' : 'Some features missing.'}`
-              : 'Calibrated against 14d holdout. Brier 0.061.'}
+              ? `Scored live. Brier ~${brierScore ? brierScore?.toFixed(3) : '--'}. ${prediction.features_complete ? 'All features resolved.' : 'Some features missing.'}`
+              : `Calibrated against 14d holdout. ${brierScore ? `Brier ${brierScore.toFixed(3)}.` : ''}`}
           </Typography>
           <RouterButton
             to='/models' // TODO: add features route ?? /models/:modelId/features ?? or /models/:modelId ?? or /features ??
@@ -1083,6 +1092,50 @@ function AttributionAndHistory({
           </>
         ) : (
           <>
+            <Stack
+              direction='row'
+              sx={{
+                mb: '18px',
+                justifyContent: 'space-between',
+                alignItems: 'baseline',
+              }}
+            >
+              <Box>
+                <Typography
+                  sx={{
+                    fontFamily: monoFont,
+                    fontSize: 10,
+                    color: p.text.disabled,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Trend
+                </Typography>
+                <Typography
+                  component='h3'
+                  sx={{
+                    fontFamily: serifFont,
+                    fontSize: 22,
+                    mt: '6px',
+                    fontWeight: 400,
+                    letterSpacing: '-0.01em',
+                    color: p.text.primary,
+                  }}
+                >
+                  Actual vs Predicted
+                </Typography>
+              </Box>
+              <Typography
+                sx={{
+                  fontSize: 11,
+                  color: p.text.disabled,
+                  fontFamily: monoFont,
+                }}
+              >
+                30 day route history
+              </Typography>
+            </Stack>
             {flight ? (
               <ErrorBoundary
                 fallbackRender={({ error }) => (

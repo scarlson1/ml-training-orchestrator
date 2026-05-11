@@ -10,16 +10,16 @@ TODO
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│                         CONTROL PLANE (Oracle Cloud Free)          │
-│  ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────────┐    │
-│  │ Dagster  │   │  MLflow  │   │  Feast   │   │  Evidently   │    │
-│  │ webui +  │   │  Server  │   │ Registry │   │  Reports     │    │
-│  │ daemon   │   │          │   │          │   │              │    │
-│  └────┬─────┘   └────┬─────┘   └────┬─────┘   └──────┬───────┘    │
+│                         CONTROL PLANE (Oracle Cloud VM)            │
+│  ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────────┐     │
+│  │ Dagster  │   │  MLflow  │   │  Feast   │   │  Evidently   │     │
+│  │ webui +  │   │  Server  │   │ Registry │   │  Reports     │     │
+│  │ daemon   │   │          │   │          │   │              │     │
+│  └────┬─────┘   └────┬─────┘   └────┬─────┘   └──────┬───────┘     │
 │       │              │              │                 │            │
-│  ┌────┴──────────────┴──────────────┴─────────────────┴─────────┐ │
-│  │            Postgres (metadata)    +    MinIO (artifacts)     │ │
-│  └──────────────────────────────────────────────────────────────┘ │
+│  ┌────┴──────────────┴──────────────┴─────────────────┴─────────┐  │
+│  │            Postgres (metadata)    +    MinIO (artifacts)     │  │
+│  └──────────────────────────────────────────────────────────────┘  │
 └────────────────────────────────────────────────────────────────────┘
              │                                      │
              │ triggers                             │ reads/writes
@@ -40,7 +40,7 @@ TODO
              │ promote
              ▼
 ┌───────────────────────────────────────────────────────────────────┐
-│                      SERVING (Fly.io + Upstash)                   │
+│                      SERVING (FastAPI + Upstash)                  │
 │  ┌──────────────────┐       ┌─────────────────────────────────┐   │
 │  │  FastAPI         │──────▶│  Upstash Redis (online store)   │   │
 │  │  Inference       │       └─────────────────────────────────┘   │
@@ -73,14 +73,6 @@ graph LR
     N -.sensor.-> A
 ```
 
-![Dagster asset lineage](docs/lineage.svg)
-![Dagster runs](docs/screenshot-dagster-runs.png)
-![mlflow](docs/screenshot-mlflow.png)
-![React home](docs/screenshot-home.png)
-![React predictions](docs/screenshot-predictions.png)
-![React versions](docs/screenshot-versions.png)
-![React drift](docs/screenshot-drift.png)
-
 Key Dagster primitives used:
 
 - `@asset` for every node above (dbt models auto-loaded via `dagster-dbt`).
@@ -88,29 +80,6 @@ Key Dagster primitives used:
 - `MonthlyPartitionsDefinition` on `raw_bts_flights` and downstream partitioned assets.
 - `@sensor` watching the drift metrics table → triggers a run of the training asset group.
 - `@schedule` for the nightly retrain cadence.
-
-```
-Time →
-
-Feature values over time (origin_airport=ORD):
-  t=08:00  avg_dep_delay_1h=6.2
-  t=09:00  avg_dep_delay_1h=9.8    ← available at 09:00
-  t=10:00  avg_dep_delay_1h=14.1
-  t=11:00  avg_dep_delay_1h=18.5
-
-Label events (scheduled departures):
-  flight_A  scheduled_dep=09:15  → correct feature: avg_dep_delay_1h=9.8  (from t=09:00)
-  flight_B  scheduled_dep=10:45  → correct feature: avg_dep_delay_1h=14.1 (from t=10:00)
-
-WRONG (causes leakage):
-  flight_A  → avg_dep_delay_1h=18.5 (from t=11:00, value from THE FUTURE)
-
-Extra subtlety for BTS: the feature must be keyed by SCHEDULED departure time,
-never actual departure time, because actual is what you're predicting.
-
-Feast PIT join rule:
-  joined feature = latest feature where feature_ts <= event_ts - ttl
-```
 
 ## Documentation
 
@@ -141,7 +110,10 @@ Feast PIT join rule:
 ![Dagster asset lineage](docs/lineage.svg)
 ![Dagster runs](docs/screenshot-dagster-runs.png)
 ![mlflow](docs/screenshot-mlflow.png)
-![React home](docs/screenshot-home.png)
+
+### React
+
+![React home](docs/screenshot-index-light.png)
 ![React predictions](docs/screenshot-predictions.png)
 ![React versions](docs/screenshot-versions.png)
 ![React drift](docs/screenshot-drift.png)

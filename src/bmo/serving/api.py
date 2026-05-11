@@ -693,8 +693,14 @@ async def drift(
 async def model_stats(db: Engine = Depends(get_db), champion: bool = False) -> ModelStatsResponse:
     """All versions of models with AUC Query monitoring table (live_accuracy) in Postgres"""
 
-    filters = 'WHERE model_version = :champion' if champion else ''
-    params = {'champion': 'champion'} if champion else {}
+    params = {}  # {'champion': 'champion'} if champion else {}
+    filters = ''
+
+    if champion:
+        champion_version = model_loader.model_version if model_loader else None
+        if champion_version:
+            filters = 'WHERE model_version = :champion_version'
+            params = {'champion_version': champion_version}
 
     _query = text(f"""
                 SELECT
