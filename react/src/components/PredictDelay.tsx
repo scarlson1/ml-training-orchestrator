@@ -201,13 +201,6 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
       };
       predict(body, {
         onSuccess: (data) => {
-          console.log('on predict: ', data, {
-            origin: value.origin,
-            dest: value.dest,
-            carrier: value.carrier,
-            flight_number: flight_num ?? '',
-            scheduled_departure_utc: flightInfo.dep_time_utc ?? null,
-          });
           onPredict(data, {
             origin: value.origin,
             dest: value.dest,
@@ -449,6 +442,11 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
                       select
                       onBlur={handleBlur}
                       fullWidth
+                      helperText={
+                        !flightOptions?.length && origin && dest
+                          ? 'no flights found'
+                          : undefined
+                      }
                       slotProps={{
                         input: {
                           endAdornment: isFetching ? (
@@ -471,12 +469,21 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
                             </Typography>
                           ),
                         },
+                        formHelperText: {
+                          sx: {
+                            mx: 0,
+                            mt: 0,
+                            textOverflow: 'ellipsis',
+                            overflowX: 'hidden',
+                            whiteSpace: 'nowrap',
+                          },
+                        },
                       }}
                     >
                       <MenuItem value=''>{'--'}</MenuItem>
-                      {flightOptions?.map((option) => (
+                      {flightOptions?.map((option, i) => (
                         <MenuItem
-                          key={option?.flight_number}
+                          key={`flight-${option.airline_iata}-${option?.flight_number}-${i}`}
                           value={`${option.airline_iata}_${option.flight_number}`}
                           sx={{
                             display: 'flex',
