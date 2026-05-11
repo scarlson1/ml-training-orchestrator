@@ -105,7 +105,7 @@ def test_train_single_run_returns_result(tiny_handle: DatasetHandle) -> None:
     assert result.mlflow_run_id != ''
     assert 0.0 <= result.metrics['test_roc_auc'] <= 1.0
     assert result.dataset_version_hash == tiny_handle.version_hash
-    assert result.best_iteration > 0
+    assert 0 <= result.best_iteration < 10
 
 
 def test_train_logs_to_mlflow(tiny_handle: DatasetHandle) -> None:

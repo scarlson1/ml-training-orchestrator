@@ -50,10 +50,12 @@ services:
       dockerfile: infra/docker/mlflow.Dockerfile
     container_name: ml_flow
     restart: unless-stopped
-    mem_limit: 1g # 2 workers; no artifacts in RAM
+    mem_limit: 1g # 1 worker; MLflow auth uses a SQLite DB in the mlflow_auth volume
     depends_on:
       postgres:
         condition: service_healthy
+    env_file:
+      - ../../.env
     environment:
       # R2 as artifact store — same S3 SDK, different endpoint
       MLFLOW_S3_ENDPOINT_URL: ${AWS_ENDPOINT_URL}
@@ -62,15 +64,17 @@ services:
       MLFLOW_AUTH_ADMIN_USERNAME: ${MLFLOW_AUTH_ADMIN_USERNAME}
       MLFLOW_AUTH_ADMIN_PASSWORD: ${MLFLOW_AUTH_ADMIN_PASSWORD}
       MLFLOW_AUTH_CONFIG_PATH: /mlflow_auth/basic_auth.ini
+      MLFLOW_FLASK_SERVER_SECRET_KEY: ${MLFLOW_FLASK_SERVER_SECRET_KEY}
     volumes:
       - mlflow_auth:/mlflow_auth
-      - ../../infra/docker/basic_auth.ini:/mlflow_auth/basic_auth.ini:ro
+      # replaced by script to inject auth creds from env vars (run in mlflow.Dockerfile)
+      # - ../../infra/docker/basic_auth.ini:/mlflow_auth/basic_auth.ini:ro
     command: >
       mlflow server
       --backend-store-uri postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       --artifacts-destination s3://mlflow-artifacts/
       --host 0.0.0.0
-      --workers 2
+      --workers 1
       --app-name basic-auth
       --allowed-hosts "${MLFLOW_DOMAIN},mlflow,mlflow:5000,localhost,localhost:5000,127.0.0.1"
       --cors-allowed-origins "https://${MLFLOW_DOMAIN}"
