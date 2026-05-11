@@ -69,9 +69,13 @@ class TestGetFeaturesSuccess:
         fc, mock_store = client
         mock_store.get_online_features.return_value = _make_full_response()
         result = fc.get_features(_SAMPLE_REQUEST)
-        assert isinstance(result, pd.DataFrame)
-        assert list(result.columns) == FEATURE_COLUMNS
-        assert len(result) == 1
+        assert result is not None
+        df, features_complete, features_used_pct = result
+        assert isinstance(df, pd.DataFrame)
+        assert list(df.columns) == FEATURE_COLUMNS
+        assert len(df) == 1
+        assert features_complete is True
+        assert features_used_pct == 1.0
 
     def test_passes_correct_entity_row(self, client: tuple[FeatureClient, MagicMock]) -> None:
         fc, mock_store = client

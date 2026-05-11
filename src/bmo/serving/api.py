@@ -34,6 +34,7 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal, cast
 
+import numpy as np
 import duckdb
 from duckdb import CatalogException, DuckDBPyConnection, IOException
 
@@ -68,6 +69,7 @@ from bmo.serving.schemas import (
     DriftMetricRow,
     DriftResponse,
     DriftSummaryResponse,
+    FeatureAttribution,
     FlightSample,
     HealthResponse,
     ModelInfoResponse,
@@ -306,6 +308,7 @@ async def model_info() -> ModelInfoResponse:  # loader: ModelLoader = Depends(ge
 async def predict(
     request: PredictRequest,
     background_tasks: BackgroundTasks,
+    explain: bool = False,
     loader: ModelLoader = Depends(get_model_loader),
     client: FeatureClient = Depends(get_feature_client),
 ) -> PredictResponse:
@@ -340,7 +343,7 @@ async def predict(
             ),
         )
 
-    feature_df, features_complete = feature_result
+    feature_df, features_complete, features_used_pct = feature_result
 
     probas = await loader.predict(feature_df)
     primary_proba = float(probas[0])
@@ -361,6 +364,22 @@ async def predict(
             primary_version=model_version,
         )
 
+    attributions = None
+    if explain:
+        explainer = loader.explainer  # capture to avoid lambda closure over Optional
+        if explainer is not None:
+            shap_result = await asyncio.to_thread(lambda: explainer(feature_df))
+            shap_vals = np.asarray(shap_result.values)  # shape (1, n_features)
+            attributions = [
+                FeatureAttribution(
+                    feature=col,
+                    shap_value=round(float(shap_vals[0][i]), 4),
+                    feature_value=round(float(feature_df[col].iloc[0]), 4),
+                )
+                for i, col in enumerate(feature_df.columns)
+            ]
+            attributions.sort(key=lambda a: abs(a.shap_value), reverse=True)
+
     # TODO: return % of features used ??
     return PredictResponse(
         flight_id=request.flight_id,
@@ -369,6 +388,8 @@ async def predict(
         model_name=_MODEL_NAME,
         model_version=model_version,
         features_complete=features_complete,
+        features_used_pct=features_used_pct,
+        attributions=attributions,
     )
 
 

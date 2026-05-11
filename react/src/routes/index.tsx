@@ -190,7 +190,7 @@ function ProbabilityArc({ prob, size = 200 }: { prob: number; size?: number }) {
 function FactorBar({ factor }: { factor: Factor }) {
   const p = useTheme().vars.palette;
   const v = factor.value;
-  const pct = Math.min(Math.abs(v) / 0.4, 1) * 50;
+  const pct = Math.min(Math.abs(v) / 0.5, 1) * 50;
   const positive = v >= 0;
 
   return (
@@ -1046,8 +1046,16 @@ function PredictionHeadline({
 
 // ─── Feature attribution + route history ─────────────────────────────────────
 
-function AttributionAndHistory({ flight }: { flight: ActiveFlight | null }) {
+function AttributionAndHistory({
+  flight,
+  attributions,
+}: {
+  flight: ActiveFlight | null;
+  attributions?: PredictResponse['attributions'] | null;
+}) {
   const p = useTheme().vars.palette;
+
+  // TODO: max height + scroll for attributes or truncate after first 6 ??
 
   return (
     <Box
@@ -1069,93 +1077,112 @@ function AttributionAndHistory({ flight }: { flight: ActiveFlight | null }) {
           p: 3,
         }}
       >
-        {flight ? (
-          <ErrorBoundary
-            fallbackRender={({ error }) => (
-              <Typography variant='body2' color='error'>
-                {`Failed to load carrier trend. ${error instanceof Error ? error.message : ''}`}
+        {attributions?.length ? (
+          <>
+            <Stack
+              direction='row'
+              sx={{
+                mb: '18px',
+                justifyContent: 'space-between',
+                alignItems: 'baseline',
+              }}
+            >
+              <Box>
+                <Typography
+                  sx={{
+                    fontFamily: monoFont,
+                    fontSize: 10,
+                    color: p.text.disabled,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Feature attribution
+                </Typography>
+                <Typography
+                  component='h3'
+                  sx={{
+                    fontFamily: serifFont,
+                    fontSize: 22,
+                    mt: '6px',
+                    fontWeight: 400,
+                    letterSpacing: '-0.01em',
+                    color: p.text.primary,
+                  }}
+                >
+                  What's driving this prediction
+                </Typography>
+              </Box>
+              <Typography
+                sx={{
+                  fontSize: 11,
+                  color: p.text.disabled,
+                  fontFamily: monoFont,
+                }}
+              >
+                SHAP-equivalent · log-odds shift
+              </Typography>
+            </Stack>
+
+            <Box sx={{ maxHeight: 300, overflowY: 'auto' }}>
+              {attributions.map((f, i) => (
+                <FactorBar
+                  key={i}
+                  factor={{
+                    name: f.feature,
+                    value: f.shap_value,
+                    detail: `shap: ${f.shap_value} | feature: ${f.feature_value}`,
+                  }}
+                />
+              ))}
+            </Box>
+          </>
+        ) : (
+          <>
+            {flight ? (
+              <ErrorBoundary
+                fallbackRender={({ error }) => (
+                  <Typography variant='body2' color='error'>
+                    {`Failed to load carrier trend. ${error instanceof Error ? error.message : ''}`}
+                  </Typography>
+                )}
+              >
+                <Suspense
+                  fallback={
+                    <>
+                      <Skeleton
+                        variant='text'
+                        sx={{ fontSize: '0.7rem' }}
+                        width={80}
+                      />
+                      <Skeleton
+                        variant='text'
+                        sx={{ fontSize: '1.2rem' }}
+                        width={140}
+                      />
+                      <Skeleton
+                        variant='rounded'
+                        height={160}
+                        width='100%'
+                        sx={{ mt: 1 }}
+                      />
+                    </>
+                  }
+                >
+                  <CarrierDelayTrend
+                    origin={flight.origin}
+                    dest={flight.dest}
+                    carrier={flight?.carrier}
+                  />
+                </Suspense>
+              </ErrorBoundary>
+            ) : (
+              <Typography sx={{ p: 2, textAlign: 'center' }}>
+                No flight selected
               </Typography>
             )}
-          >
-            <Suspense
-              fallback={
-                <>
-                  <Skeleton
-                    variant='text'
-                    sx={{ fontSize: '0.7rem' }}
-                    width={80}
-                  />
-                  <Skeleton
-                    variant='text'
-                    sx={{ fontSize: '1.2rem' }}
-                    width={140}
-                  />
-                  <Skeleton
-                    variant='rounded'
-                    height={160}
-                    width='100%'
-                    sx={{ mt: 1 }}
-                  />
-                </>
-              }
-            >
-              <CarrierDelayTrend
-                origin={flight.origin}
-                dest={flight.dest}
-                carrier={flight?.carrier}
-              />
-            </Suspense>
-          </ErrorBoundary>
-        ) : (
-          <Typography sx={{ p: 2, textAlign: 'center' }}>
-            No flight selected
-          </Typography>
+          </>
         )}
-
-        {/* <Stack
-          direction='row'
-          sx={{
-            mb: '18px',
-            justifyContent: 'space-between',
-            alignItems: 'baseline',
-          }}
-        >
-          <Box>
-            <Typography
-              sx={{
-                fontFamily: monoFont,
-                fontSize: 10,
-                color: p.text.disabled,
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-              }}
-            >
-              Feature attribution
-            </Typography>
-            <Typography
-              component='h3'
-              sx={{
-                fontFamily: serifFont,
-                fontSize: 22,
-                mt: '6px',
-                fontWeight: 400,
-                letterSpacing: '-0.01em',
-                color: p.text.primary,
-              }}
-            >
-              What's driving this prediction
-            </Typography>
-          </Box>
-          <Typography
-            sx={{ fontSize: 11, color: p.text.disabled, fontFamily: monoFont }}
-          >
-            SHAP-equivalent · log-odds shift
-          </Typography>
-        </Stack>
-        
-        {FLIGHTS[0].factors.map((f, i) => (
-          <FactorBar key={i} factor={f} />
-        ))} */}
       </Paper>
       {/* TODO: replace with real data (add calc to backend for feature attribution or replace with different component) */}
 
@@ -1697,7 +1724,10 @@ function Index() {
         verdict={verdict}
         prediction={prediction}
       />
-      <AttributionAndHistory flight={flight} />
+      <AttributionAndHistory
+        flight={flight}
+        attributions={prediction?.attributions || null}
+      />
       {/* TODO: handle fallback rendering when flight is null (skipToken type issue) */}
       {flight ? <WeatherCongestionStrip flight={flight} /> : null}
 

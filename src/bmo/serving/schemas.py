@@ -46,13 +46,21 @@ class PredictRequest(BaseModel):
     )
 
 
+class FeatureAttribution(BaseModel):
+    feature: str
+    shap_value: float  # log-odds shift
+    feature_value: float | None  # raw feature value, for display
+
+
 class PredictResponse(BaseModel):
     flight_id: str
     predicted_is_delayed: bool
     delay_probability: float = Field(ge=0.0, le=1.0)
     model_name: str
     model_version: str
-    features_complete: bool  # false when any feature was null
+    features_complete: bool
+    features_used_pct: float = Field(ge=0.0, le=1.0)
+    attributions: list[FeatureAttribution] | None = None  # None when explain=False
 
 
 class ShadowPrediction(BaseModel):

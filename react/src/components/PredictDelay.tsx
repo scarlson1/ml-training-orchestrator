@@ -35,6 +35,12 @@ export interface PredictBody {
   tail_number?: string;
 }
 
+interface ShapAttribute {
+  feature: string;
+  shap_value: number; // log-odds shift
+  feature_value: number | null; // raw feature value, for display
+}
+
 export interface PredictResponse {
   flight_id: string;
   predicted_is_delayed: boolean;
@@ -42,6 +48,7 @@ export interface PredictResponse {
   model_name: string;
   model_version: string;
   features_complete: boolean;
+  attributions: ShapAttribute[];
 }
 
 // ─── Schema (identical to PredictDelay) ───────────────────────────────────────
@@ -152,11 +159,15 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
   const p = useTheme().vars.palette;
   const { mutate: predict, isPending } = useMutation({
     mutationFn: async (body: PredictBody) => {
-      const data = await apiFetch<PredictResponse>('/predict', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+      const data = await apiFetch<PredictResponse>(
+        '/predict',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+        { explain: 'true' },
+      );
       return data;
     },
     onError: (err, vars, result) => {
@@ -174,10 +185,11 @@ export const PredictDelay = ({ onPredict }: PredictDelayProps) => {
     defaultValues: defaultPredict,
     validators: { onChange: predictSchema },
     onSubmit: async ({ value }) => {
-      const [_, flight_num] = value.flight?.split('-');
+      const [_, flight_num] = value.flight?.split('_');
       const flightInfo = flight_num
         ? await fetchFlightInfo(`${value.carrier}${flight_num}`)
         : ({} as FlightInfo);
+      console.log('FLIGHT INFO: ', flightInfo);
 
       const body: PredictBody = {
         flight_id: getFlightCompositeId(value.origin, value.dest),
