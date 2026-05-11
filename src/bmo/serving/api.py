@@ -37,7 +37,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 import duckdb
 import numpy as np
 from duckdb import CatalogException, DuckDBPyConnection, IOException
-from pandas import DataFrame
+from pyarrow import Table
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -479,7 +479,7 @@ def get_db() -> Engine:
 _airport_coordinates = None
 
 
-def get_airport_coordinates() -> DataFrame:
+def get_airport_coordinates() -> Table:
     global _airport_coordinates
     if _airport_coordinates is None:
         _airport_coordinates = (
@@ -487,9 +487,8 @@ def get_airport_coordinates() -> DataFrame:
             .load_table('staging.dim_airport')
             .scan(selected_fields=('iata_code', 'latitude_deg', 'longitude_deg'))
             .to_arrow()
-            .to_pandas()
         )
-    return cast(DataFrame, _airport_coordinates)
+    return cast(Table, _airport_coordinates)
 
 
 # Don't pool DuckDB connections — they hold a file lock.

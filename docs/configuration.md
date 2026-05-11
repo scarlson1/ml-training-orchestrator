@@ -78,11 +78,11 @@ Admin credentials are set by environment variables (in GitHub Secrets). To enabl
 1. Add `--app-name basic-auth` to the MLflow server command in compose (already present in `compose.prod.yml`).
 2. Add env vars: `MLFLOW_TRACKING_USERNAME` and `MLFLOW_TRACKING_PASSWORD` are required by any container connecting to MLflow (the MLflow client picks up these exact names automatically).
 3. Set `MLFLOW_FLASK_SERVER_SECRET_KEY` for CSRF protection.
-4. Create `infra/docker/basic_auth.ini` to configure the auth SQLite DB path and default permissions (already present in repo).
+4. Generate `/mlflow_auth/basic_auth.ini` at container startup from `MLFLOW_AUTH_ADMIN_USERNAME` and `MLFLOW_AUTH_ADMIN_PASSWORD`.
 5. Set `MLFLOW_AUTH_CONFIG_PATH: /mlflow_auth/basic_auth.ini` in the compose `environment:` block.
 6. Mount a named Docker volume at the auth DB path so credentials persist across container restarts.
 
-`infra/docker/basic_auth.ini` sets `default_permission = READ`, so any created user is read-only by default — no extra permission grant needed.
+The generated auth config sets `default_permission = READ`, so any created user is read-only by default — no extra permission grant needed.
 
 Read-only credentials can be created after deployment:
 
@@ -275,7 +275,7 @@ The production `.env` on the VM is loaded by Docker Compose via `env_file: - ../
 | Container | `mem_limit` | Notes |
 | --- | --- | --- |
 | `postgres` | 256 MB | Metadata only |
-| `mlflow` | 1 GB | 2 workers; no model artifacts in RAM |
+| `mlflow` | 1 GB | 1 worker; MLflow auth uses a SQLite DB in the `mlflow_auth` volume |
 | `dagster` | 4.5 GB | DuckDB ASOF JOIN + XGBoost HPO peak |
 | `serving` | 1 GB | Champion model + Feast client |
 | `caddy` | 256 MB | TLS + reverse proxy |

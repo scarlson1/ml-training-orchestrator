@@ -114,7 +114,7 @@ See also: [DuckDB ASOF JOIN docs](https://duckdb.org/docs/sql/query_syntax/from.
 
 Tests `bmo.training.train` with a 120-row in-memory DataFrame and a local MLflow tracking directory. No S3.
 
-- **`test_train_single_run_returns_result`** — `TrainingResult` is returned; `mlflow_run_id` is non-empty; `test_roc_auc` is in [0, 1]; `best_iteration > 0`.
+- **`test_train_single_run_returns_result`** — `TrainingResult` is returned; `mlflow_run_id` is non-empty; `test_roc_auc` is in [0, 1]; `best_iteration` is within the configured estimator range.
 - **`test_train_logs_to_mlflow`** — verifies params (`dataset_version_hash`, `target_column`, `xgb_max_depth`), metrics (`test_roc_auc`, `test_pr_auc`, `test_log_loss`, `test_brier_score`), artifacts (`dataset_card.json`), and that the XGBoost model is loadable via its URI.
 - **`test_feature_importance_normalized`** — importance values sum to 1.0 within floating-point tolerance; all values are non-negative.
 - **`test_time_split_is_chronological`** — verifies the 80/20 chronological split produces the expected test-set size.

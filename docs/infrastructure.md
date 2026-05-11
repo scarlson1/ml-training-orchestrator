@@ -98,7 +98,7 @@ backend: postgresql://user:password@postgres:5432/bmo
 artifacts: s3://mlflow-artifacts/
 ```
 
-The MLflow image (`ghcr.io/mlflow/mlflow:v3.11.1`) is extended with the MLflow auth extra, `psycopg2-binary`, and `boto3` to support basic auth, PostgreSQL as the backend store, and S3-compatible artifact storage (MinIO in dev, R2 in production).
+The MLflow image (`ghcr.io/mlflow/mlflow:v3.11.1`) is extended with the MLflow auth extra, `psycopg2-binary`, and `boto3` to support basic auth, PostgreSQL as the backend store, and S3-compatible artifact storage (MinIO in dev, R2 in production). In production, the image entrypoint generates MLflow's auth config from environment variables so the admin password is not committed to the repo.
 
 In production, MLflow is secured with basic-auth (`--app-name basic-auth`) and is only reachable through Caddy at `$MLFLOW_DOMAIN`.
 
