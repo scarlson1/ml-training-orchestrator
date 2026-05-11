@@ -111,6 +111,8 @@ export interface NetworkDelayResponse {
     otp: number;
     avg_delay_min: number;
     status_indicator: string;
+    latitude: number | null;
+    longitude: number | null;
   }[];
   data_as_of: string | null;
 }

@@ -238,6 +238,8 @@ class OriginPerformance(BaseModel):
     otp: float
     avg_delay_min: float
     status_indicator: str
+    latitude: float | None
+    longitude: float | None
 
 
 class NetworkResponse(BaseModel):

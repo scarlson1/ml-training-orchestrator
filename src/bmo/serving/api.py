@@ -34,9 +34,10 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-import numpy as np
 import duckdb
+import numpy as np
 from duckdb import CatalogException, DuckDBPyConnection, IOException
+from pandas import DataFrame
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -56,6 +57,7 @@ from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.exc import ProgrammingError
 
 from bmo.common.config import settings
+from bmo.common.iceberg import make_catalog
 from bmo.serving.feature_client import FeatureClient
 from bmo.serving.model_loader import ModelLoader
 from bmo.serving.schemas import (
@@ -473,6 +475,23 @@ def get_db() -> Engine:
     return _pg_engine
 
 
+# cache airports
+_airport_coordinates = None
+
+
+def get_airport_coordinates() -> DataFrame:
+    global _airport_coordinates
+    if _airport_coordinates is None:
+        _airport_coordinates = (
+            make_catalog()
+            .load_table('staging.dim_airport')
+            .scan(selected_fields=('iata_code', 'latitude_deg', 'longitude_deg'))
+            .to_arrow()
+            .to_pandas()
+        )
+    return cast(DataFrame, _airport_coordinates)
+
+
 # Don't pool DuckDB connections — they hold a file lock.
 # Open read-only per request; Dagster's write connection can coexist.
 def get_duckdb() -> duckdb.DuckDBPyConnection:
@@ -496,32 +515,37 @@ def get_duckdb() -> duckdb.DuckDBPyConnection:
     """
     local_path = settings.duckdb_path
     if os.path.exists(local_path):
-        return duckdb.connect(local_path, read_only=True)
+        con = duckdb.connect(local_path, read_only=True)
+    else:
+        # Fallback: S3-backed ephemeral session
+        log.info('local DuckDB not found — querying S3 predictions directly', path=local_path)
+        con = duckdb.connect()
+        try:
+            con.execute('INSTALL httpfs; LOAD httpfs;')
+        except Exception:
+            log.exception('DuckDB httpfs extension unavailable — S3 fallback will fail')
+            raise
+        con.execute(f"""
+            SET s3_endpoint = '{settings.s3_endpoint}';
+            SET s3_access_key_id = '{settings.s3_access_key_id}';
+            SET s3_secret_access_key = '{settings.s3_secret_access_key}';
+            SET s3_region = 'us-east-1';
+            SET s3_url_style = 'path';
+            SET s3_use_ssl = 'false';
+        """)  # SET s3_region = '{settings.s3_region}'; duckDB doesn't support "auto"
+        # Register a view that mirrors mart_predictions but from raw S3
+        # actual_is_delayed only exists after the dbt join with actuals — stub it
+        # as NULL so queries that reference it (n_with_actuals) work without error.
+        con.execute("""
+            CREATE OR REPLACE VIEW mart_predictions AS
+                SELECT *, NULL::BOOLEAN AS actual_is_delayed
+                FROM read_parquet('s3://staging/predictions/**/data.parquet')
+        """)
 
-    # Fallback: S3-backed ephemeral session
-    log.info('local DuckDB not found — querying S3 predictions directly', path=local_path)
-    con = duckdb.connect()
-    try:
-        con.execute('INSTALL httpfs; LOAD httpfs;')
-    except Exception:
-        log.exception('DuckDB httpfs extension unavailable — S3 fallback will fail')
-        raise
-    con.execute(f"""
-        SET s3_endpoint = '{settings.s3_endpoint}';
-        SET s3_access_key_id = '{settings.s3_access_key_id}';
-        SET s3_secret_access_key = '{settings.s3_secret_access_key}';
-        SET s3_region = 'us-east-1';
-        SET s3_url_style = 'path';
-        SET s3_use_ssl = 'false';
-    """)  # SET s3_region = '{settings.s3_region}'; duckDB doesn't support "auto"
-    # Register a view that mirrors mart_predictions but from raw S3
-    # actual_is_delayed only exists after the dbt join with actuals — stub it
-    # as NULL so queries that reference it (n_with_actuals) work without error.
-    con.execute("""
-        CREATE OR REPLACE VIEW mart_predictions AS
-            SELECT *, NULL::BOOLEAN AS actual_is_delayed
-            FROM read_parquet('s3://staging/predictions/**/data.parquet')
-    """)
+    # stg_dim_airports is ephemeral/not materialized => cannot join in network route
+    # create small table here and pass to duckdb to join in /api/network/ route
+    con.register('airport_coordinates', get_airport_coordinates())
+
     return con
 
 
@@ -989,45 +1013,119 @@ async def network(
     """average delay by airport"""
 
     # desired format: { code: 'DCA', x: 0.8, y: 0.46, delay: 11, status: 'green' as const },
-    # need lat/lon (join from airports table)
+    # need to join lat/lon (join from airports dim table)
+    # WITH stats AS (current query) JOIN stg_dim_airport a ON stats.origin = a.
+
+    # def _query() -> tuple[list[OriginPerformance], str | None]:
+    #     df = duck.execute(
+    #         """
+    #         SELECT
+    #             origin,
+    #             AVG((1 - predicted_is_delayed::int)) AS otp,
+    #             AVG(
+    #                 CASE
+    #                     WHEN predicted_is_delayed THEN predicted_delay_proba * 60
+    #                     ELSE 0
+    #                 END
+    #             )                                   AS avg_delay_min,
+    #             CASE
+    #                 WHEN AVG(
+    #                     CASE
+    #                         WHEN predicted_is_delayed THEN predicted_delay_proba * 60
+    #                         ELSE 0
+    #                     END) < 15 THEN 'green'
+    #                 WHEN AVG(
+    #                     CASE
+    #                         WHEN predicted_is_delayed THEN predicted_delay_proba * 60
+    #                         ELSE 0
+    #                     END) < 30 THEN 'amber'
+    #                 ELSE 'red'
+    #             END                                 AS status_indicator,
+    #             COUNT(*)                            AS total_flights,
+    #             MAX(score_date)::text               AS data_as_of
+    #         FROM mart_predictions
+    #         WHERE CAST(score_date AS DATE) >= (
+    #             SELECT MAX(CAST(score_date AS DATE)) FROM mart_predictions
+    #         ) - INTERVAL (? || ' days')
+    #         GROUP BY origin
+    #         ORDER BY total_flights DESC
+    #         LIMIT ?
+    #         """,
+    #         [days, limit],
+    #     ).df()
+
+    #     rows = cast(list[dict[str, Any]], df.to_dict('records'))
+    #     data_as_of = rows[0]['data_as_of'] if rows else None
+    #     origins = [
+    #         OriginPerformance(
+    #             origin=r['origin'],
+    #             otp=r['otp'],
+    #             avg_delay_min=r['avg_delay_min'],
+    #             status_indicator=r['status_indicator'],
+    #         )
+    #         for r in rows
+    #     ]
+    #     return origins, data_as_of
 
     def _query() -> tuple[list[OriginPerformance], str | None]:
         df = duck.execute(
             """
             SELECT
-                origin,
-                AVG((1 - predicted_is_delayed::int)) AS otp,
+                mp.origin,
+
+                -- airport coordinates
+                a.latitude_deg          AS latitude,
+                a.longitude_deg         AS longitude,
+
+                AVG((1 - mp.predicted_is_delayed::int)) AS otp,
+
                 AVG(
                     CASE 
-                        WHEN predicted_is_delayed THEN predicted_delay_proba * 60 
+                        WHEN mp.predicted_is_delayed THEN mp.predicted_delay_proba * 60 
                         ELSE 0 
                     END
-                )                                   AS avg_delay_min,
+                ) AS avg_delay_min,
+
                 CASE
                     WHEN AVG(
                         CASE 
-                            WHEN predicted_is_delayed THEN predicted_delay_proba * 60 
+                            WHEN mp.predicted_is_delayed THEN mp.predicted_delay_proba * 60 
                             ELSE 0 
-                        END) < 15 THEN 'green'
+                        END
+                    ) < 15 THEN 'green'
+
                     WHEN AVG(
                         CASE 
-                            WHEN predicted_is_delayed THEN predicted_delay_proba * 60 
+                            WHEN mp.predicted_is_delayed THEN mp.predicted_delay_proba * 60 
                             ELSE 0 
-                        END) < 15 THEN 'amber'
+                        END
+                    ) < 30 THEN 'amber'
+
                     ELSE 'red'
-                END                                 AS status_indicator,
-                COUNT(*)                            AS total_flights,
-                MAX(score_date)::text               AS data_as_of
-            FROM mart_predictions
+                END AS status_indicator,
+
+                COUNT(*) AS total_flights,
+                MAX(mp.score_date)::text AS data_as_of
+
+            FROM mart_predictions mp
+
+            LEFT JOIN airport_coordinates a
+            ON mp.origin = a.iata_code
+
             WHERE CAST(score_date AS DATE) >= (
                 SELECT MAX(CAST(score_date AS DATE)) FROM mart_predictions
             ) - INTERVAL (? || ' days')
-            GROUP BY origin
+            
+            GROUP BY
+                mp.origin,
+                a.latitude_deg,
+                a.longitude_deg
+
             ORDER BY total_flights DESC
             LIMIT ?
             """,
             [days, limit],
-        ).df()
+        ).df()  # iceberg_scan('s3://staging/iceberg/dim_airport', allow_moved_paths = true)
 
         rows = cast(list[dict[str, Any]], df.to_dict('records'))
         data_as_of = rows[0]['data_as_of'] if rows else None
@@ -1037,6 +1135,8 @@ async def network(
                 otp=r['otp'],
                 avg_delay_min=r['avg_delay_min'],
                 status_indicator=r['status_indicator'],
+                latitude=r['latitude'] if r['latitude'] else None,
+                longitude=r['longitude'] if r['longitude'] else None,
             )
             for r in rows
         ]

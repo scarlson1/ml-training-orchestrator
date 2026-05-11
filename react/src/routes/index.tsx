@@ -55,26 +55,9 @@ interface Factor {
   detail: string;
 }
 
-// interface FlightFake {
-//   id: string;
-//   airline: string;
-//   code: string;
-//   number: string;
-//   from: { code: string; city: string; tz: string };
-//   to: { code: string; city: string; tz: string };
-//   scheduled: { dep: string; arr: string; date: string };
-//   aircraft: string;
-//   onTimeProb: number;
-//   delayMin: { p50: number; p90: number };
-//   cancelProb: number;
-//   factors: Factor[];
-//   history: number[];
-// }
-
 // for tracking common data between user input predict & sample flights
 interface ActiveFlight extends PredictContext {
   flight_id?: string;
-  // scheduled_departure_utc?: string;
   baseline_ontime_prob?: number; // pre-computed aggregate from sample flights API — not present for user-entered flights
 }
 
@@ -87,47 +70,6 @@ const sampleToActive = (f: SampleFlight): ActiveFlight => ({
   scheduled_departure_utc: f.scheduled_departure_utc,
   baseline_ontime_prob: f.onTimeProb,
 });
-
-// const FLIGHTS: FlightFake[] = [
-//   {
-//     id: 'UA1315',
-//     airline: 'United Airlines',
-//     code: 'UA',
-//     number: '1315',
-//     from: { code: 'ORD', city: 'Chicago', tz: 'CT' },
-//     to: { code: 'LGA', city: 'New York', tz: 'ET' },
-//     scheduled: { dep: '07:00', arr: '10:15', date: 'Sun, 1 Jun' },
-//     aircraft: 'B737-800',
-//     onTimeProb: 0.8,
-//     delayMin: { p50: 9, p90: 38 },
-//     cancelProb: 0.018,
-//     factors: [
-//       {
-//         name: 'Origin congestion',
-//         value: -0.12,
-//         detail: 'ORD ground stop risk · low',
-//       },
-//       {
-//         name: 'Destination weather',
-//         value: -0.08,
-//         detail: 'LGA · scattered TS after 18:00z',
-//       },
-//       {
-//         name: 'Carrier on-time history',
-//         value: +0.21,
-//         detail: 'AX route 7-day OTP 88%',
-//       },
-//       {
-//         name: 'Aircraft rotation',
-//         value: +0.05,
-//         detail: 'Inbound from PDX · on time',
-//       },
-//       { name: 'Day of week', value: -0.02, detail: 'Thursday · neutral' },
-//       { name: 'Time of day', value: +0.07, detail: 'Morning bank · favorable' },
-//     ],
-//     history: [82, 76, 88, 91, 84, 79, 86, 90, 87, 83, 78, 85, 89, 80],
-//   }
-// ];
 
 // ─── Small atoms ──────────────────────────────────────────────────────────────
 
@@ -190,7 +132,7 @@ function ProbabilityArc({ prob, size = 200 }: { prob: number; size?: number }) {
 function FactorBar({ factor }: { factor: Factor }) {
   const p = useTheme().vars.palette;
   const v = factor.value;
-  const pct = Math.min(Math.abs(v) / 0.5, 1) * 50;
+  const pct = Math.min(Math.abs(v) / 0.5, 1) * 50; // normalize & clamp to 1
   const positive = v >= 0;
 
   return (
