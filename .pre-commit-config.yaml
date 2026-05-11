@@ -12,7 +12,6 @@ repos:
           - pydantic>=2.7
           - pydantic-settings>=2.3
           - types-boto3
-          - pyarrow>=16
           - httpx
           - tenacity
           - pandas-stubs

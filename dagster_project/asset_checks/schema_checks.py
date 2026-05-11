@@ -16,7 +16,7 @@ from dagster import (
 from pyiceberg.expressions import And, GreaterThanOrEqual, LessThan
 
 from bmo.common.iceberg import make_catalog
-from bmo.serving.partitions import MONTHLY_PARTITIONS
+from bmo.common.partitions import MONTHLY_PARTITIONS
 from bmo.staging.contracts import STAGED_FLIGHTS_SCHEMA
 
 

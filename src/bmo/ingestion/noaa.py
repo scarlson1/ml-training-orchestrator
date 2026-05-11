@@ -398,7 +398,7 @@ def ingest_noaa_month(
     table = pa.Table.from_pandas(combined, preserve_index=False).cast(LCD_SCHEMA)
 
     buf = io.BytesIO()
-    pq.write_table(table, buf, compression='zstd', compression_level=3)  # type: ignore[no-untyped-call]
+    pq.write_table(table, buf, compression='zstd', compression_level=3)
     store.put_bytes(bucket, target_key, buf.getvalue())
 
     manifest = {
