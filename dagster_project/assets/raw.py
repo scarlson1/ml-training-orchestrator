@@ -21,11 +21,11 @@ from dagster import (
 )
 
 from bmo.common.config import settings
+from bmo.common.partitions import MONTHLY_PARTITIONS
 from bmo.common.storage import ObjectStore
 from bmo.ingestion.bts import IngestResult, ingest_month
 from bmo.ingestion.faa import ingest_airports, ingest_routes
 from bmo.ingestion.noaa import NoaaIngestResult, build_station_map, ingest_noaa_month
-from bmo.serving.partitions import MONTHLY_PARTITIONS
 from dagster_project.resources.s3_resource import S3Resource
 
 

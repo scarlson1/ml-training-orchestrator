@@ -90,6 +90,25 @@ class TestGetFeaturesSuccess:
         assert row['carrier'] == 'AA'
         assert row['route_key'] == 'ORD-LAX'
 
+    def test_imputes_when_aircraft_feature_null(
+        self, client: tuple[FeatureClient, MagicMock]
+    ) -> None:
+        """
+        Expired TTL on one feature view (e.g., aircraft_features after 12h)
+        should fail the entire request, not silently return 0.
+        """
+        fc, mock_store = client
+        mock_store.get_online_features.return_value = _make_partial_response(
+            null_cols=['cascading_delay_min']
+        )
+        result = fc.get_features(_SAMPLE_REQUEST)
+
+        assert result is not None
+        df, features_complete, features_used_pct = result
+        assert df['cascading_delay_min'].iloc[0] == 0.0
+        assert features_complete is False
+        assert features_used_pct == 0.9583
+
 
 class TestFailClosed:
     def test_returns_none_when_single_feature_null(
@@ -101,7 +120,7 @@ class TestFailClosed:
         """
         fc, mock_store = client
         mock_store.get_online_features.return_value = _make_partial_response(
-            null_cols=['cascading_delay_min']
+            null_cols=['origin_avg_dep_delay_1h']
         )
         result = fc.get_features(_SAMPLE_REQUEST)
         assert result is None

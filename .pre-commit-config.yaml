@@ -5,14 +5,13 @@ repos:
       - id: ruff
       - id: ruff-format
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.0
+    rev: v1.19.1
     hooks:
       - id: mypy
         additional_dependencies:
           - pydantic>=2.7
           - pydantic-settings>=2.3
           - types-boto3
-          - pyarrow>=16
           - httpx
           - tenacity
           - pandas-stubs

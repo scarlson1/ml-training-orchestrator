@@ -20,8 +20,8 @@ from dagster import (
     asset,
 )
 
+from bmo.common.partitions import MONTHLY_PARTITIONS
 from bmo.common.storage import ObjectStore
-from bmo.serving.partitions import MONTHLY_PARTITIONS
 from bmo.staging.dimensions import stage_airports, stage_routes
 from bmo.staging.flights import stage_flights
 from bmo.staging.weather import stage_weather
