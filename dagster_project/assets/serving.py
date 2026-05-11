@@ -48,8 +48,8 @@ from mlflow.exceptions import MlflowException, RestException
 
 from bmo.batch_scoring.score import score_partition
 from bmo.common.config import settings
+from bmo.common.partitions import DAILY_PARTITIONS
 from bmo.evaluation_gate.gate import MODEL_NAME
-from bmo.serving.partitions import DAILY_PARTITIONS
 from dagster_project.resources import DuckDBResource, MLflowResource, S3Resource
 
 FEATURE_REPO_DIR = Path(__file__).parent.parent.parent / 'feature_repo'
