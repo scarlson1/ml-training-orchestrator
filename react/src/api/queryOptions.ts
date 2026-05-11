@@ -1,5 +1,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { apiFetch } from '~/api/apiFetch';
+import { getDelayStatus, getWeather } from '~/utils/weather.functions';
+import type { GetDelaysOptions } from '~/utils/weather.server';
 
 // ----- Prediction queries -----
 
@@ -15,9 +17,6 @@ export interface PredictionSummary {
 export const todaysPredictionOptions = queryOptions({
   queryKey: ['predictions', 'today'],
   queryFn: () => apiFetch<PredictionSummary>('/api/predictions/today'),
-  // .then(
-  //   (r) => r.json() as Promise<PredictionSummary>,
-  // ),
   staleTime: 60 * 30 * 1000,
 });
 
@@ -77,6 +76,7 @@ export const driftMetricsOptions = (
         params,
       ),
     staleTime: 60 * 30 * 1000,
+    gcTime: 1000 * 60 * 30,
   });
 
 // ----- Route queries -----
@@ -102,6 +102,7 @@ export const routeHistoryOptions = (
         { origin, dest, days: days.toString() },
       ),
     staleTime: 60 * 10 * 1000,
+    gcTime: 1000 * 60 * 10,
   });
 
 export interface NetworkDelayResponse {
@@ -119,6 +120,31 @@ export const networkDelayOptions = (days: number = 7) =>
     queryKey: ['routes', 'network', days],
     queryFn: () => apiFetch<NetworkDelayResponse>(`/api/network?days=${days}`),
     staleTime: 60 * 10 * 1000,
+    gcTime: 1000 * 60 * 10,
+  });
+
+export interface SampleFlight {
+  flight_id: string;
+  carrier: string;
+  flight_number: string;
+  origin: string;
+  dest: string;
+  scheduled_departure_utc: string;
+  onTimeProb: number;
+  tail_number: string;
+}
+
+export const sampleFlightOptions = (limit: number = 4) =>
+  queryOptions({
+    queryKey: ['flights', 'sample', limit],
+    queryFn: () =>
+      apiFetch<SampleFlight[]>(
+        '/api/flights/sample',
+        {},
+        { limit: limit.toString() },
+      ),
+    staleTime: 1000 * 60 * 60 * 6,
+    gcTime: 1000 * 60 * 60 * 6,
   });
 
 // ----- Carrier queries -----
@@ -141,6 +167,41 @@ export const carrierComparisonOptions = (
         `/api/carriers/comparison?origin=${origin}&dest=${dest}&days=${days}`,
       ),
     staleTime: 60 * 10 * 1000,
+    gcTime: 1000 * 60 * 30,
+  });
+
+export interface CarrierRouteDay {
+  score_date: string;
+  avg_delay_proba: number;
+  avg_actual_delay_min: number | null;
+  n_flights: number;
+}
+
+export interface CarrierRouteHistoryResponse {
+  route_key: string;
+  carrier: string;
+  rows: CarrierRouteDay[];
+  data_as_of: string | null;
+}
+
+// TODO: move to queries file if keeping component
+
+export const carrierRouteHistoryOptions = (
+  origin: string,
+  dest: string,
+  carrier: string,
+  days = 30,
+) =>
+  queryOptions({
+    queryKey: ['routes', 'carrier-history', { origin, dest, carrier, days }],
+    queryFn: () =>
+      apiFetch<CarrierRouteHistoryResponse>(
+        `/api/routes/carrier-history`,
+        {},
+        { origin, dest, carrier, days: days.toString() },
+      ),
+    staleTime: 60 * 10 * 1000,
+    gcTime: 1000 * 60 * 30,
   });
 
 // ----- Model queries -----
@@ -159,15 +220,8 @@ export interface ModelInfo {
 export const modelInfoOptions = queryOptions({
   queryKey: ['modelInfo'],
   queryFn: () => apiFetch<ModelInfo>('/model-info'),
-  // .then(async (r) => {
-  //   let res = (await r.json()) as ModelInfo;
-  //   if (!r.ok) {
-  //     console.log(r.statusText);
-  //     throw new Error(`Failed to load model info.`);
-  //   }
-  //   return res;
-  // }),
   staleTime: 60 * 10 * 1000,
+  gcTime: 1000 * 60 * 30,
 });
 
 export interface ModelStats {
@@ -191,10 +245,8 @@ export const modelStatsOptions = (champion: boolean = false) =>
     queryKey: ['models', { champion }],
     queryFn: () =>
       apiFetch<{ rows: ModelStats[] }>(`/api/model-stats?champion=${champion}`),
-    // .then(
-    //   (r) => r.json() as Promise<{ rows: ModelStats[] }>,
-    // ),
     staleTime: 60 * 10 * 1000,
+    gcTime: 1000 * 60 * 30,
   });
 
 // ----- Accuracy queries -----
@@ -214,8 +266,29 @@ export interface AccuracyPoint {
 export const accuracyOptions = queryOptions({
   queryKey: ['accuracy'],
   queryFn: () => apiFetch<{ rows: AccuracyPoint[] }>('/api/accuracy'),
-  // .then(
-  //   (r) => r.json() as Promise<{ rows: AccuracyPoint[] }>,
-  // ),
   staleTime: 60 * 30 * 1000,
+  gcTime: 1000 * 60 * 30,
 });
+
+// ----- Weather queries -----
+
+export const aviationWeatherOptions = (
+  endpoint: 'metar' | 'taf',
+  icao: string,
+) =>
+  queryOptions({
+    queryKey: ['weather', endpoint, icao],
+    queryFn: async () => getWeather({ data: { endpoint, icao } }),
+    staleTime: 1000 * 60 * 15,
+    gcTime: 1000 * 60 * 30,
+  });
+
+// ----- Airlabs queries -----
+
+export const delayOptions = (options: GetDelaysOptions) =>
+  queryOptions({
+    queryKey: ['delays', options],
+    queryFn: () => getDelayStatus({ data: options }),
+    staleTime: 1000 * 60 * 15,
+    gcTime: 1000 * 60 * 30,
+  });

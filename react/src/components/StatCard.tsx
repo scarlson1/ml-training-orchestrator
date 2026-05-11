@@ -95,6 +95,7 @@ function Sparkline({
   width?: number;
   fill?: string;
 }) {
+  if (values.length < 2) return null;
   const max = Math.max(...values);
   const min = Math.min(...values);
   const norm = (v: number) => height - ((v - min) / (max - min || 1)) * height;

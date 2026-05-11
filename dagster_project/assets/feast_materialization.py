@@ -48,9 +48,18 @@ def _export_table(
     feature values themselves. flight_id is deliberately excluded because
     it's an internal surrogate key that Feast doesn't need and can't use
     for entity resolution.
+
+    event_ts is overridden to now() so Feast's TTL check passes at serving
+    time. The dbt models use scheduled_departure_utc as event_ts (historical
+    dates), which would cause all features to expire immediately on TTL check.
     """
     cols = ', '.join([entity_col, 'event_ts'] + feature_cols)
     df: pd.DataFrame = con.execute(f'SELECT {cols} FROM {table}').df()  # noqa: S608
+    # Keep only the latest row per entity (by original scheduled_departure_utc) so
+    # Redis holds one fresh value per key, then stamp with now() so Feast TTL passes.
+    df = df.dropna(subset=[entity_col])
+    df = df.sort_values('event_ts', ascending=False).drop_duplicates(subset=[entity_col])
+    df['event_ts'] = datetime.now(timezone.utc)
 
     table_arrow = pa.Table.from_pandas(df, preserve_index=False)
 
@@ -81,6 +90,9 @@ def _export_cascading_delay(s3: s3fs.S3FileSystem, row_counts: dict) -> None:
             'prev_arr_delay_min': 'cascading_delay_min',
         }
     )
+    df = df.dropna(subset=['tail_number'])
+    df = df.sort_values('event_ts', ascending=False).drop_duplicates(subset=['tail_number'])
+    df['event_ts'] = datetime.now(timezone.utc)
 
     dest_path = f'{settings.feast_s3_base}/aircraft'
     arrow_table = pa.Table.from_pandas(df, preserve_index=False)

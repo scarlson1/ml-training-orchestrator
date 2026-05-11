@@ -34,8 +34,9 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal, cast
 
+import numpy as np
 import duckdb
-from duckdb import CatalogException, IOException
+from duckdb import CatalogException, DuckDBPyConnection, IOException
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -61,11 +62,15 @@ from bmo.serving.schemas import (
     AccuracyResponse,
     AccuracyRow,
     CarrierComparisonResponse,
+    CarrierHistory,
     CarrierPerformance,
+    CarrierRouteDay,
     DriftFeatureSummary,
     DriftMetricRow,
     DriftResponse,
     DriftSummaryResponse,
+    FeatureAttribution,
+    FlightSample,
     HealthResponse,
     ModelInfoResponse,
     ModelRow,
@@ -303,6 +308,7 @@ async def model_info() -> ModelInfoResponse:  # loader: ModelLoader = Depends(ge
 async def predict(
     request: PredictRequest,
     background_tasks: BackgroundTasks,
+    explain: bool = False,
     loader: ModelLoader = Depends(get_model_loader),
     client: FeatureClient = Depends(get_feature_client),
 ) -> PredictResponse:
@@ -337,7 +343,7 @@ async def predict(
             ),
         )
 
-    feature_df, features_complete = feature_result
+    feature_df, features_complete, features_used_pct = feature_result
 
     probas = await loader.predict(feature_df)
     primary_proba = float(probas[0])
@@ -358,6 +364,23 @@ async def predict(
             primary_version=model_version,
         )
 
+    attributions = None
+    if explain:
+        explainer = loader.explainer  # capture to avoid lambda closure over Optional
+        if explainer is not None:
+            shap_result = await asyncio.to_thread(lambda: explainer(feature_df))
+            shap_vals = np.asarray(shap_result.values)  # shape (1, n_features)
+            attributions = [
+                FeatureAttribution(
+                    feature=col,
+                    shap_value=round(float(shap_vals[0][i]), 4),
+                    feature_value=round(float(feature_df[col].iloc[0]), 4),
+                )
+                for i, col in enumerate(feature_df.columns)
+            ]
+            attributions.sort(key=lambda a: abs(a.shap_value), reverse=True)
+
+    # TODO: return % of features used ??
     return PredictResponse(
         flight_id=request.flight_id,
         predicted_is_delayed=primary_is_delayed,
@@ -365,6 +388,8 @@ async def predict(
         model_name=_MODEL_NAME,
         model_version=model_version,
         features_complete=features_complete,
+        features_used_pct=features_used_pct,
+        attributions=attributions,
     )
 
 
@@ -1024,3 +1049,141 @@ async def network(
         raise HTTPException(status_code=500, detail=f'{_duckdb_error_detail(exc)}')
 
     return NetworkResponse(rows=result, data_as_of=data_as_of)
+
+
+# @app.post('/api/flights/upcoming', response_model=list[UpcomingFlight], tags=['api'])
+# async def upcoming_flights() -> list[UpcomingFlight]:
+
+
+@app.get('/api/flights/sample', response_model=list[FlightSample], tags=['api'])
+async def flights_sample(
+    limit: int = 4, duckdb: duckdb.DuckDBPyConnection = Depends(get_duckdb)
+) -> list[FlightSample]:
+    """
+    The query now works in two steps: aggregate to find the highest-frequency route per distinct origin, then join back to mart_predictions to grab one representative flight row from the most recent scoring date. QUALIFY ROW_NUMBER() handles both the per-origin deduplication and the per-route single-flight selection without needing DISTINCT ON.
+    """
+
+    def _query() -> list[FlightSample]:
+        df = duckdb.execute(
+            """
+            WITH route_counts AS (
+                SELECT
+                    origin,
+                    dest,
+                    carrier,
+                    COUNT(*)        AS n_flights,
+                    MAX(score_date) AS latest_score_date
+                FROM mart_predictions
+                WHERE CAST(score_date AS DATE) >= (
+                    SELECT MAX(CAST(score_date AS DATE)) FROM mart_predictions
+                ) - INTERVAL '30 days'
+                AND origin IS NOT NULL AND dest IS NOT NULL
+                AND carrier IN ('AA', 'DL', 'UA', 'WN', 'AS', 'B6', 'NK', 'F9')
+                GROUP BY origin, dest, carrier
+            ),
+            top_per_carrier AS (
+                SELECT *
+                FROM route_counts
+                QUALIFY ROW_NUMBER() OVER (PARTITION BY carrier ORDER BY n_flights DESC) = 1
+                ORDER BY n_flights DESC
+                LIMIT ?
+            )
+            SELECT
+                m.flight_id,
+                m.origin,
+                m.dest,
+                m.carrier,
+                m.tail_number,
+                m.scheduled_departure_utc::text AS scheduled_departure_utc,
+                m.predicted_delay_proba,
+                m.score_date::text              AS score_date
+            FROM mart_predictions m
+            JOIN top_per_carrier t
+                ON m.origin = t.origin AND m.dest = t.dest AND m.carrier = t.carrier
+                AND m.score_date = t.latest_score_date
+            QUALIFY ROW_NUMBER() OVER (
+                PARTITION BY m.origin, m.dest, m.carrier
+                ORDER BY m.scheduled_departure_utc
+            ) = 1
+            ORDER BY t.n_flights DESC
+            """,
+            [limit],
+        ).df()
+
+        rows = cast(list[dict[str, Any]], df.to_dict('records'))
+
+        return [
+            FlightSample(
+                flight_id=r['flight_id'],
+                carrier=r['carrier'],
+                origin=r['origin'],
+                dest=r['dest'],
+                scheduled_departure_utc=r['scheduled_departure_utc'],
+                onTimeProb=round(1 - (r['predicted_delay_proba'] or 0.0), 4),
+                tail_number=r['tail_number'] if r['tail_number'] else None,
+            )
+            for r in rows
+        ]
+
+    try:
+        sample = await asyncio.to_thread(_query)
+        return sample
+    except Exception as exc:
+        log.exception('flight sample query failed')
+        raise HTTPException(status_code=500, detail=f'{_duckdb_error_detail(exc)}')
+
+
+@app.get('/api/routes/carrier-history', response_model=CarrierHistory)
+async def carrier_history(
+    origin: str, dest: str, carrier: str, duckdb: DuckDBPyConnection = Depends(get_duckdb)
+) -> CarrierHistory:
+
+    def _query() -> tuple[list[dict[str, Any]], str | None]:
+        df = duckdb.execute(
+            """
+            SELECT
+                score_date::text            AS score_date,
+                AVG(predicted_delay_proba)  AS avg_delay_proba,
+                AVG(actual_dep_delay_min)   AS avg_actual_delay_min,
+                COUNT(*)                    AS n_flights
+            FROM mart_predictions
+            WHERE origin = ? AND dest = ? AND carrier = ?
+            AND CAST(score_date AS DATE) >= (
+                SELECT MAX(CAST(score_date AS DATE)) FROM mart_predictions
+            ) - INTERVAL '30 days'
+            GROUP BY score_date
+            ORDER BY score_date ASC
+            """,
+            [origin.upper(), dest.upper(), carrier.upper()],
+        ).df()
+
+        # rows = cast(list[dict[str, Any]], df.to_dict('records'))
+        # data_as_of = rows[0]['data_as_of'] if rows else None
+
+        # d = [CarrierRouteDay(**r) for r in rows]
+        # return d, data_as_of
+        rows = cast(list[dict[str, Any]], df.to_dict('records'))
+        data_as_of = str(df['score_date'].max()) if not df.empty else None
+        return rows, data_as_of
+
+    try:
+        rows, data_as_of = await asyncio.to_thread(_query)
+        return CarrierHistory(
+            route_key=f'{origin}-{dest}',
+            carrier=carrier.upper(),
+            rows=[
+                CarrierRouteDay(
+                    score_date=r['score_date'],
+                    avg_delay_proba=round(float(r['avg_delay_proba']), 4),
+                    avg_actual_delay_min=round(float(r['avg_actual_delay_min']), 4)
+                    if r['avg_actual_delay_min'] is not None
+                    else None,
+                    n_flights=int(r['n_flights']),
+                )
+                for r in rows
+            ],
+            data_as_of=data_as_of,
+        )
+    except Exception as exc:
+        log.exception('carrier history query failed', origin=origin, dest=dest, carrier=carrier)
+        raise HTTPException(status_code=500, detail=f'{_duckdb_error_detail(exc)}')

@@ -25,6 +25,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import shap
 import structlog
 
 log = structlog.get_logger(__name__)
@@ -52,6 +53,7 @@ class ModelLoader:
         self._loaded_at: datetime | None = None
         self._registered_at: datetime | None = None
         self._training_roc_auc: float | None = None
+        self._explainer: shap.TreeExplainer | None = None
 
     @property
     def model_version(self) -> str | None:
@@ -73,6 +75,10 @@ class ModelLoader:
     def training_roc_auc(self) -> float | None:
         return self._training_roc_auc
 
+    @property
+    def explainer(self) -> shap.TreeExplainer | None:
+        return self._explainer
+
     async def load(self) -> str:
         """
         Download and cache the champion model from the MLflow registry.
@@ -90,6 +96,7 @@ class ModelLoader:
 
     def _load_blocking(self) -> str:
         import mlflow
+        import mlflow.xgboost
         from mlflow.tracking import MlflowClient
 
         mlflow.set_tracking_uri(self._tracking_uri)
@@ -104,13 +111,19 @@ class ModelLoader:
         ts_ms = int(version_obj.creation_timestamp)
         self._registered_at = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc)
 
-        run = client.get_run(version_obj.run_id)
-        auc = run.data.metrics.get('test_roc_auc')
+        auc = None
+        if version_obj.run_id:
+            run = client.get_run(version_obj.run_id)
+            auc = run.data.metrics.get('test_roc_auc')
         self._training_roc_auc = float(auc) if auc is not None else None
 
         self._model = mlflow.pyfunc.load_model(model_uri)
         self._model_version = version_num
         self._loaded_at = datetime.now(timezone.utc)
+
+        # load raw booster for SHAP (for feature attribution)
+        booster = mlflow.xgboost.load_model(model_uri)
+        self._explainer = shap.TreeExplainer(booster)
 
         log.info('model loaded', version=version_num, training_roc_auc=self._training_roc_auc)
         return str(version_num)

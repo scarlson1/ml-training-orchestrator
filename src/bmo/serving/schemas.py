@@ -27,7 +27,7 @@ class PredictRequest(BaseModel):
     field examples below are used by FastAPI to generate OpenAPI docs.
     """
 
-    flight_id: str = Field(json_schema_extra={'example': 'AA123_20240406_0900'})
+    flight_id: str = Field(json_schema_extra={'example': 'AA123_20240406_0900'}, default='')
     origin: str = Field(
         description='IATA origin airport code', json_schema_extra={'example': 'ORD'}
     )
@@ -46,13 +46,21 @@ class PredictRequest(BaseModel):
     )
 
 
+class FeatureAttribution(BaseModel):
+    feature: str
+    shap_value: float  # log-odds shift
+    feature_value: float | None  # raw feature value, for display
+
+
 class PredictResponse(BaseModel):
     flight_id: str
     predicted_is_delayed: bool
     delay_probability: float = Field(ge=0.0, le=1.0)
     model_name: str
     model_version: str
-    features_complete: bool  # false when any feature was null
+    features_complete: bool
+    features_used_pct: float = Field(ge=0.0, le=1.0)
+    attributions: list[FeatureAttribution] | None = None  # None when explain=False
 
 
 class ShadowPrediction(BaseModel):
@@ -234,4 +242,39 @@ class OriginPerformance(BaseModel):
 
 class NetworkResponse(BaseModel):
     rows: list[OriginPerformance]
+    data_as_of: str | None
+
+
+class UpcomingFlight(BaseModel):
+    flight_id: str
+    flight_number: str
+    carrier: str  # e.g. AA
+    origin: str
+    dest: str
+    route_key: str
+    tail_number: str | None
+    dep_time: date | str
+
+
+class FlightSample(BaseModel):
+    flight_id: str
+    carrier: str
+    origin: str
+    dest: str
+    scheduled_departure_utc: str
+    onTimeProb: float
+    tail_number: str | None
+
+
+class CarrierRouteDay(BaseModel):
+    score_date: str
+    avg_delay_proba: float
+    avg_actual_delay_min: float | None
+    n_flights: int
+
+
+class CarrierHistory(BaseModel):
+    route_key: str
+    carrier: str
+    rows: list[CarrierRouteDay]
     data_as_of: str | None

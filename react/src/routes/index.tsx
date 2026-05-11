@@ -1,34 +1,42 @@
-import { GitHub } from '@mui/icons-material';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Paper from '@mui/material/Paper';
 import Skeleton from '@mui/material/Skeleton';
 import Stack from '@mui/material/Stack';
+import { useTheme } from '@mui/material/styles';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
-import { useTheme } from '@mui/material/styles';
-import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
+import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { apiFetch } from '~/api/apiFetch';
 import {
+  aviationWeatherOptions,
+  delayOptions,
   driftSummaryOptions,
-  routeHistoryOptions,
+  sampleFlightOptions,
   todaysPredictionOptions,
+  type SampleFlight,
 } from '~/api/queryOptions';
 import { CarrierComparison } from '~/components/CarrierComparison';
+import { CarrierDelayTrend } from '~/components/CarrierDelayTrend';
 import { Globe } from '~/components/Globe';
 import { NetworkMap } from '~/components/NetworkMap';
+import {
+  PredictDelay,
+  type PredictContext,
+  type PredictResponse,
+} from '~/components/PredictDelay';
+import { RouteHistoryChart } from '~/components/RouteHistoryChart';
 import { RouterButton } from '~/components/RouterButton';
 import { StatCard } from '~/components/StatCard';
 import { monoFont, serifFont } from '~/config/themePrimitives';
 import { useResolvedMode } from '~/hooks/useResolvedMode';
-import { iataToIcao } from '~/utils/misc';
-import { getDelayStatus, getWeather } from '~/utils/weather.functions';
+import { carrierCodeToName, getAirportCity, iataToIcao } from '~/utils/misc';
 import type { GetDelaysOptions } from '~/utils/weather.server';
+
+// TODO: consider adding SHAP values / feature attribution calculations to backend (wire to existing attribution component)
 
 export const Route = createFileRoute('/')({
   component: Index,
@@ -39,17 +47,6 @@ export const Route = createFileRoute('/')({
     ]),
 });
 
-// ─── API types ────────────────────────────────────────────────────────────────
-
-interface PredictResponse {
-  flight_id: string;
-  predicted_is_delayed: boolean;
-  delay_probability: number;
-  model_name: string;
-  model_version: string;
-  features_complete: boolean;
-}
-
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
 interface Factor {
@@ -58,196 +55,83 @@ interface Factor {
   detail: string;
 }
 
-interface Flight {
-  id: string;
-  airline: string;
-  code: string;
-  number: string;
-  from: { code: string; city: string; tz: string };
-  to: { code: string; city: string; tz: string };
-  scheduled: { dep: string; arr: string; date: string };
-  aircraft: string;
-  onTimeProb: number;
-  delayMin: { p50: number; p90: number };
-  cancelProb: number;
-  factors: Factor[];
-  history: number[];
+// interface FlightFake {
+//   id: string;
+//   airline: string;
+//   code: string;
+//   number: string;
+//   from: { code: string; city: string; tz: string };
+//   to: { code: string; city: string; tz: string };
+//   scheduled: { dep: string; arr: string; date: string };
+//   aircraft: string;
+//   onTimeProb: number;
+//   delayMin: { p50: number; p90: number };
+//   cancelProb: number;
+//   factors: Factor[];
+//   history: number[];
+// }
+
+// for tracking common data between user input predict & sample flights
+interface ActiveFlight extends PredictContext {
+  flight_id?: string;
+  // scheduled_departure_utc?: string;
+  baseline_ontime_prob?: number; // pre-computed aggregate from sample flights API — not present for user-entered flights
 }
 
-// TODO: real data
+const sampleToActive = (f: SampleFlight): ActiveFlight => ({
+  origin: f.origin,
+  dest: f.dest,
+  carrier: f.carrier,
+  flight_number: f.flight_number,
+  flight_id: f.flight_id,
+  scheduled_departure_utc: f.scheduled_departure_utc,
+  baseline_ontime_prob: f.onTimeProb,
+});
 
-const FLIGHTS: Flight[] = [
-  {
-    id: 'UA1315',
-    airline: 'United Airlines',
-    code: 'UA',
-    number: '1315',
-    from: { code: 'ORD', city: 'Chicago', tz: 'CT' },
-    to: { code: 'LGA', city: 'New York', tz: 'ET' },
-    scheduled: { dep: '07:00', arr: '10:15', date: 'Sun, 1 Jun' },
-    aircraft: 'B737-800',
-    onTimeProb: 0.8,
-    delayMin: { p50: 9, p90: 38 },
-    cancelProb: 0.018,
-    factors: [
-      {
-        name: 'Origin congestion',
-        value: -0.12,
-        detail: 'ORD ground stop risk · low',
-      },
-      {
-        name: 'Destination weather',
-        value: -0.08,
-        detail: 'LGA · scattered TS after 18:00z',
-      },
-      {
-        name: 'Carrier on-time history',
-        value: +0.21,
-        detail: 'AX route 7-day OTP 88%',
-      },
-      {
-        name: 'Aircraft rotation',
-        value: +0.05,
-        detail: 'Inbound from PDX · on time',
-      },
-      { name: 'Day of week', value: -0.02, detail: 'Thursday · neutral' },
-      { name: 'Time of day', value: +0.07, detail: 'Morning bank · favorable' },
-    ],
-    history: [82, 76, 88, 91, 84, 79, 86, 90, 87, 83, 78, 85, 89, 80],
-  },
-  {
-    id: 'AA1407',
-    airline: 'American Airlines',
-    code: 'AA',
-    number: '1407',
-    from: { code: 'DFW', city: 'Dallas', tz: 'CT' },
-    to: { code: 'LAX', city: 'Los Angeles', tz: 'PT' },
-    scheduled: { dep: '08:30', arr: '09:55', date: 'Sun, 1 Jun' },
-    aircraft: 'B737-800',
-    onTimeProb: 0.57,
-    delayMin: { p50: 28, p90: 85 },
-    cancelProb: 0.031,
-    factors: [
-      {
-        name: 'Origin congestion',
-        value: -0.28,
-        detail: 'DFW evening bank · high traffic',
-      },
-      {
-        name: 'Destination weather',
-        value: -0.04,
-        detail: 'LAX · light rain, CAT I',
-      },
-      {
-        name: 'Carrier on-time history',
-        value: +0.11,
-        detail: 'NB transatl. 30-day OTP 71%',
-      },
-      {
-        name: 'Aircraft rotation',
-        value: -0.14,
-        detail: 'Inbound LAX delayed 18m',
-      },
-      { name: 'Day of week', value: 0, detail: 'Thursday · neutral' },
-      {
-        name: 'Time of day',
-        value: -0.09,
-        detail: 'Evening departure · congested',
-      },
-    ],
-    history: [62, 58, 71, 65, 59, 63, 70, 55, 68, 57, 60, 57, 64, 57],
-  },
-  {
-    id: 'DL1420',
-    airline: 'Delta',
-    code: 'DL',
-    number: '1420',
-    from: { code: 'ATL', city: 'Atlanta', tz: 'ET' },
-    to: { code: 'MCO', city: 'Orlando', tz: 'ET' },
-    scheduled: { dep: '09:15', arr: '10:42', date: 'Sun, 1 Jun' },
-    aircraft: 'B737-900',
-    onTimeProb: 0.63,
-    delayMin: { p50: 22, p90: 71 },
-    cancelProb: 0.024,
-    factors: [
-      { name: 'Origin congestion', value: -0.09, detail: 'ATL · normal' },
-      {
-        name: 'Destination weather',
-        value: -0.34,
-        detail: 'MCO · convective SIGMET, gusts 38kt',
-      },
-      {
-        name: 'Carrier on-time history',
-        value: +0.04,
-        detail: 'MR 7-day OTP 74%',
-      },
-      {
-        name: 'Aircraft rotation',
-        value: -0.11,
-        detail: 'Inbound MCO · delayed 22m',
-      },
-      { name: 'Day of week', value: -0.02, detail: 'Thursday · neutral' },
-      {
-        name: 'Time of day',
-        value: -0.06,
-        detail: 'Afternoon thunderstorm window',
-      },
-    ],
-    history: [62, 58, 71, 65, 59, 63, 70, 55, 68, 72, 60, 63, 64, 63],
-  },
-  {
-    id: 'WN123',
-    airline: 'Southwest',
-    code: 'WN',
-    number: '123',
-    from: { code: 'LAS', city: 'Las Vegas', tz: 'PT' },
-    to: { code: 'OAK', city: 'Oakland', tz: 'PT' },
-    scheduled: { dep: '11:00', arr: '12:10', date: 'Sun, 1 Jun' },
-    aircraft: 'B737-700',
-    onTimeProb: 0.23,
-    delayMin: { p50: 55, p90: 130 },
-    cancelProb: 0.072,
-    factors: [
-      {
-        name: 'Origin congestion',
-        value: +0.08,
-        detail: 'LAS · light traffic',
-      },
-      {
-        name: 'Destination weather',
-        value: +0.06,
-        detail: 'OAK · clear, marine layer 06z',
-      },
-      {
-        name: 'Carrier on-time history',
-        value: +0.23,
-        detail: 'PE NRT-LAX 30-day OTP 93%',
-      },
-      {
-        name: 'Aircraft rotation',
-        value: +0.09,
-        detail: 'Aircraft on stand 4h+',
-      },
-      { name: 'Day of week', value: +0.01, detail: 'Thursday · neutral' },
-      {
-        name: 'Time of day',
-        value: +0.04,
-        detail: 'Evening departure · favorable',
-      },
-    ],
-    history: [54, 48, 32, 41, 28, 35, 42, 29, 34, 40, 26, 32, 36, 23],
-  },
-];
+// const FLIGHTS: FlightFake[] = [
+//   {
+//     id: 'UA1315',
+//     airline: 'United Airlines',
+//     code: 'UA',
+//     number: '1315',
+//     from: { code: 'ORD', city: 'Chicago', tz: 'CT' },
+//     to: { code: 'LGA', city: 'New York', tz: 'ET' },
+//     scheduled: { dep: '07:00', arr: '10:15', date: 'Sun, 1 Jun' },
+//     aircraft: 'B737-800',
+//     onTimeProb: 0.8,
+//     delayMin: { p50: 9, p90: 38 },
+//     cancelProb: 0.018,
+//     factors: [
+//       {
+//         name: 'Origin congestion',
+//         value: -0.12,
+//         detail: 'ORD ground stop risk · low',
+//       },
+//       {
+//         name: 'Destination weather',
+//         value: -0.08,
+//         detail: 'LGA · scattered TS after 18:00z',
+//       },
+//       {
+//         name: 'Carrier on-time history',
+//         value: +0.21,
+//         detail: 'AX route 7-day OTP 88%',
+//       },
+//       {
+//         name: 'Aircraft rotation',
+//         value: +0.05,
+//         detail: 'Inbound from PDX · on time',
+//       },
+//       { name: 'Day of week', value: -0.02, detail: 'Thursday · neutral' },
+//       { name: 'Time of day', value: +0.07, detail: 'Morning bank · favorable' },
+//     ],
+//     history: [82, 76, 88, 91, 84, 79, 86, 90, 87, 83, 78, 85, 89, 80],
+//   }
+// ];
 
 // ─── Small atoms ──────────────────────────────────────────────────────────────
 
-function ProbabilityArc({
-  prob,
-  size = 200,
-}: {
-  prob: number;
-  size?: number;
-}) {
+function ProbabilityArc({ prob, size = 200 }: { prob: number; size?: number }) {
   const p = useTheme().vars.palette;
   const r = size / 2 - 18;
   const cx = size / 2;
@@ -306,7 +190,7 @@ function ProbabilityArc({
 function FactorBar({ factor }: { factor: Factor }) {
   const p = useTheme().vars.palette;
   const v = factor.value;
-  const pct = Math.min(Math.abs(v) / 0.4, 1) * 50;
+  const pct = Math.min(Math.abs(v) / 0.5, 1) * 50;
   const positive = v >= 0;
 
   return (
@@ -394,25 +278,26 @@ function FactorBar({ factor }: { factor: Factor }) {
   );
 }
 
-// ─── Flight switcher ──────────────────────────────────────────────────────────
+// ─── FlightFake switcher ──────────────────────────────────────────────────────────
 
 function FlightSwitcher({
   flights,
-  current,
+  currentId,
   onPick,
 }: {
-  flights: Flight[];
-  current: Flight;
-  onPick: (f: Flight) => void;
+  flights: SampleFlight[];
+  currentId: string | null;
+  onPick: (f: SampleFlight) => void;
 }) {
   const p = useTheme().vars.palette;
+
   return (
     <ToggleButtonGroup
-      value={current.id}
+      value={currentId || ''}
       exclusive
       onChange={(_, newId: string | null) => {
         if (newId != null) {
-          const f = flights.find((fl) => fl.id === newId);
+          const f = flights.find((fl) => fl.flight_id === newId);
           if (f) onPick(f);
         }
       }}
@@ -440,8 +325,8 @@ function FlightSwitcher({
       }}
     >
       {flights.map((f) => (
-        <ToggleButton key={f.id} value={f.id}>
-          {f.code} {f.number} · {f.from.code}→{f.to.code}
+        <ToggleButton key={f.flight_id} value={f.flight_id}>
+          {f.carrier} {f.flight_number} · {f.origin}→{f.dest}
         </ToggleButton>
       ))}
     </ToggleButtonGroup>
@@ -544,13 +429,7 @@ function KpiStrip() {
     <Box sx={{ mt: '28px' }}>
       <Stack direction='row' spacing='28px'>
         {kpis.map((k, i) => (
-          <KpiItem
-            key={`kpi-${i}`}
-            title={k.l}
-            value={k.v}
-            subtitle={k.s}
-
-          />
+          <KpiItem key={`kpi-${i}`} title={k.l} value={k.v} subtitle={k.s} />
         ))}
       </Stack>
       {pred?.data_as_of && (
@@ -579,52 +458,21 @@ const KPI_FALLBACK = [
 
 // ─── Hero section ─────────────────────────────────────────────────────────────
 
-interface PredictBody {
-  flight_id: string; // composite: {carrier}{flight_number}_{date}_{dep_time}
-  origin: string;
-  dest: string;
-  carrier: string;
-  route_key: string;
-  tail_number?: string;
-}
-
-function getFlightCompositeId(flight: Flight) {
-  return `${flight.code}${flight.number}_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`; // → "AA123_20240503"
-}
-
 interface HeroProps {
-  flight: Flight;
-  onPickFlight: (f: Flight) => void;
-  onPredict: (p: PredictResponse) => void;
+  sampleFlights: SampleFlight[];
+  flight: ActiveFlight | null;
+  onPickFlight: (f: SampleFlight) => void;
+  onPredict: (p: PredictResponse, context: PredictContext) => void;
 }
 
-function HeroSection({ flight, onPickFlight, onPredict }: HeroProps) {
+function HeroSection({
+  sampleFlights,
+  flight,
+  onPickFlight,
+  onPredict,
+}: HeroProps) {
   const p = useTheme().vars.palette;
   const isDark = useResolvedMode() === 'dark';
-  const { mutate: predict, isPending } = useMutation({
-    mutationFn: async (body: PredictBody) => {
-      const data = await apiFetch<PredictResponse>('/predict', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return data;
-    },
-    onSuccess: (data) => {
-      onPredict(data);
-    },
-  });
-
-  const handlePredict = () => {
-    const body: PredictBody = {
-      flight_id: getFlightCompositeId(flight),
-      origin: flight.from.code,
-      dest: flight.to.code,
-      carrier: flight.code,
-      route_key: `${flight.from.code}-${flight.to.code}`,
-    };
-    predict(body);
-  };
 
   return (
     <Box
@@ -718,7 +566,10 @@ function HeroSection({ flight, onPickFlight, onPredict }: HeroProps) {
             Know whether
             <br />
             the flight{' '}
-            <Box component='em' sx={{ fontStyle: 'italic', color: p.text.secondary }}>
+            <Box
+              component='em'
+              sx={{ fontStyle: 'italic', color: p.text.secondary }}
+            >
               will
             </Box>{' '}
             hold —<br />
@@ -753,7 +604,6 @@ function HeroSection({ flight, onPickFlight, onPredict }: HeroProps) {
                         title={k.l}
                         value={k.v}
                         subtitle={k.s}
-
                       />
                     ))}
                   </Stack>
@@ -807,73 +657,30 @@ function HeroSection({ flight, onPickFlight, onPredict }: HeroProps) {
           >
             Predict a flight
           </Typography>
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr 1fr auto',
-              border: `1px solid ${p.divider}`,
-              borderRadius: '4px',
-              bgcolor: p.background.paper,
-              overflow: 'hidden',
-            }}
-          >
-            {[
-              ['Carrier', flight.code],
-              ['Number', flight.number],
-              ['Route', `${flight.from.code}–${flight.to.code}`],
-            ].map(([label, val]) => (
-              <Box
-                key={label}
-                sx={{ p: '10px 14px', borderRight: `1px solid ${p.custom.lineSoft}` }}
-              >
-                <Typography
-                  sx={{
-                    fontSize: 10,
-                    color: p.text.disabled,
-                    mb: '2px',
-                    fontFamily: 'Inter, sans-serif',
-                  }}
-                >
-                  {label}
-                </Typography>
-                <Typography
-                  sx={{ fontFamily: monoFont, fontSize: 14, color: p.text.primary }}
-                >
-                  {val}
-                </Typography>
-              </Box>
-            ))}
-            <Button
-              onClick={handlePredict}
-              loading={isPending}
-              loadingPosition='end'
-              endIcon={'→'}
-              variant='contained'
-              disableElevation
-              sx={{
-                bgcolor: p.text.primary,
-                color: p.background.default,
-                borderRadius: 0,
-                fontSize: 13,
-                px: '22px',
-                fontWeight: 500,
-                textTransform: 'none',
-                '&:hover': { bgcolor: p.text.secondary },
-                '&.Mui-disabled': { bgcolor: p.text.disabled, color: p.background.default },
-              }}
-            >
-              {/* {isPending ? '…' : 'Predict →'} */}
-              Predict
-            </Button>
-          </Box>
-          <Box sx={{ mt: '14px' }}>
-            <FlightSwitcher
-              flights={FLIGHTS}
-              current={flight}
-              onPick={onPickFlight}
 
-            />
-          </Box>
+          <ErrorBoundary fallback={null}>
+            <Suspense
+              fallback={
+                <Stack direction='row' spacing={2}>
+                  {Array({ length: 5 }).map(() => (
+                    <Skeleton variant='rounded' height={40} width='100%' />
+                  ))}
+                </Stack>
+              }
+            >
+              <PredictDelay onPredict={onPredict} />
+            </Suspense>
+          </ErrorBoundary>
+
+          {sampleFlights.length ? (
+            <Box sx={{ mt: 1.5 }}>
+              <FlightSwitcher
+                flights={sampleFlights}
+                currentId={flight?.flight_id ?? null}
+                onPick={onPickFlight}
+              />
+            </Box>
+          ) : null}
         </Paper>
       </Box>
     </Box>
@@ -883,8 +690,8 @@ function HeroSection({ flight, onPickFlight, onPredict }: HeroProps) {
 // ─── Prediction headline ──────────────────────────────────────────────────────
 
 interface PredHeadlineProps {
-  flight: Flight;
-  onTimeProb: number;
+  flight: ActiveFlight | null;
+  onTimeProb: number | null;
   verdict: { label: string; color: string };
   prediction: PredictResponse | null;
 }
@@ -896,18 +703,20 @@ function PredictionHeadline({
   prediction,
 }: PredHeadlineProps) {
   const p = useTheme().vars.palette;
+
+  // TODO: replace metrics with available data
   const delayP50 = prediction
     ? prediction.delay_probability > 0.5
       ? 30
       : 5
-    : flight.delayMin.p50;
+    : 0; // flight.delayMin.p50;
   const delayP90 = prediction
     ? prediction.delay_probability > 0.5
       ? 90
       : 20
-    : flight.delayMin.p90;
-  const cancelProb = flight.cancelProb;
-  const confidence = Math.abs(onTimeProb - 0.5) * 2;
+    : 0; // flight?.delayMin?.p90;
+  const cancelProb = 0; // flight.cancelProb;
+  const confidence = 0; // Math.abs(onTimeProb - 0.5) * 2;
 
   return (
     <Box
@@ -930,9 +739,13 @@ function PredictionHeadline({
             sx={{ mb: 1, alignItems: 'baseline' }}
           >
             <Typography
-              sx={{ fontFamily: monoFont, fontSize: 13, color: p.text.secondary }}
+              sx={{
+                fontFamily: monoFont,
+                fontSize: 13,
+                color: p.text.secondary,
+              }}
             >
-              {flight.code} {flight.number}
+              {flight?.carrier || '--'} {flight?.flight_number || ''}
             </Typography>
             <Typography
               sx={{
@@ -941,7 +754,8 @@ function PredictionHeadline({
                 fontFamily: 'Inter, sans-serif',
               }}
             >
-              {flight.airline} · {flight.aircraft}
+              {flight?.carrier ? carrierCodeToName(flight.carrier) : '--'}
+              {/*  ·  {flight.aircraft} */}
             </Typography>
           </Stack>
           <Stack direction='row' spacing='18px' sx={{ alignItems: 'center' }}>
@@ -954,7 +768,7 @@ function PredictionHeadline({
                 color: p.text.primary,
               }}
             >
-              {flight.from.code}
+              {flight?.origin || '--'}
             </Typography>
             <svg width='40' height='14' viewBox='0 0 40 14'>
               <line
@@ -981,7 +795,7 @@ function PredictionHeadline({
                 color: p.text.primary,
               }}
             >
-              {flight.to.code}
+              {flight?.dest || '--'}
             </Typography>
           </Stack>
           <Typography
@@ -992,8 +806,12 @@ function PredictionHeadline({
               fontFamily: 'Inter, sans-serif',
             }}
           >
-            {flight.from.city} → {flight.to.city} · {flight.scheduled.date} ·
-            dep {flight.scheduled.dep} {flight.from.tz}
+            {/* {flight.from.city} → {flight.to.city} · {flight.scheduled.date} ·
+            dep {flight.scheduled.dep} {flight.from.tz} */}
+            {getAirportCity(flight?.origin || '') || '-'} →{' '}
+            {getAirportCity(flight?.dest || '') || '-'} ·{' '}
+            {flight?.scheduled_departure_utc} ·
+            {/* dep {flight.scheduled.dep} {flight.from.tz} */}
           </Typography>
           {prediction && (
             <Chip
@@ -1043,7 +861,7 @@ function PredictionHeadline({
             On-time probability
           </Typography>
           <Box sx={{ position: 'relative', display: 'inline-block' }}>
-            <ProbabilityArc prob={onTimeProb} size={180} />
+            <ProbabilityArc prob={onTimeProb ?? 0} size={180} />
             <Box
               sx={{
                 position: 'absolute',
@@ -1064,8 +882,11 @@ function PredictionHeadline({
                     color: p.text.primary,
                   }}
                 >
-                  {(onTimeProb * 100).toFixed(0)}
-                  <Box component='span' sx={{ fontSize: 22, color: p.text.secondary }}>
+                  {onTimeProb === null ? '--' : (onTimeProb * 100).toFixed(0)}
+                  <Box
+                    component='span'
+                    sx={{ fontSize: 22, color: p.text.secondary }}
+                  >
                     %
                   </Box>
                 </Typography>
@@ -1146,7 +967,11 @@ function PredictionHeadline({
                   {label}
                 </Typography>
                 <Typography
-                  sx={{ fontSize: 12, fontFamily: monoFont, color: p.text.secondary }}
+                  sx={{
+                    fontSize: 12,
+                    fontFamily: monoFont,
+                    color: p.text.secondary,
+                  }}
                 >
                   {val}
                 </Typography>
@@ -1204,7 +1029,10 @@ function PredictionHeadline({
               fontSize: 12,
               textTransform: 'none',
               fontFamily: 'Inter, sans-serif',
-              '&:hover': { borderColor: p.text.primary, bgcolor: 'transparent' },
+              '&:hover': {
+                borderColor: p.text.primary,
+                bgcolor: 'transparent',
+              },
             }}
             endIcon={'→'}
           >
@@ -1218,11 +1046,16 @@ function PredictionHeadline({
 
 // ─── Feature attribution + route history ─────────────────────────────────────
 
-function AttributionAndHistory({ flight }: { flight: Flight }) {
+function AttributionAndHistory({
+  flight,
+  attributions,
+}: {
+  flight: ActiveFlight | null;
+  attributions?: PredictResponse['attributions'] | null;
+}) {
   const p = useTheme().vars.palette;
-  const avgOtp = Math.round(
-    flight.history.reduce((a, b) => a + b, 0) / flight.history.length,
-  );
+
+  // TODO: max height + scroll for attributes or truncate after first 6 ??
 
   return (
     <Box
@@ -1244,50 +1077,114 @@ function AttributionAndHistory({ flight }: { flight: Flight }) {
           p: 3,
         }}
       >
-        <Stack
-          direction='row'
-          sx={{
-            mb: '18px',
-            justifyContent: 'space-between',
-            alignItems: 'baseline',
-          }}
-        >
-          <Box>
-            <Typography
+        {attributions?.length ? (
+          <>
+            <Stack
+              direction='row'
               sx={{
-                fontFamily: monoFont,
-                fontSize: 10,
-                color: p.text.disabled,
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
+                mb: '18px',
+                justifyContent: 'space-between',
+                alignItems: 'baseline',
               }}
             >
-              Feature attribution
-            </Typography>
-            <Typography
-              component='h3'
-              sx={{
-                fontFamily: serifFont,
-                fontSize: 22,
-                mt: '6px',
-                fontWeight: 400,
-                letterSpacing: '-0.01em',
-                color: p.text.primary,
-              }}
-            >
-              What's driving this prediction
-            </Typography>
-          </Box>
-          <Typography
-            sx={{ fontSize: 11, color: p.text.disabled, fontFamily: monoFont }}
-          >
-            SHAP-equivalent · log-odds shift
-          </Typography>
-        </Stack>
-        {flight.factors.map((f, i) => (
-          <FactorBar key={i} factor={f} />
-        ))}
+              <Box>
+                <Typography
+                  sx={{
+                    fontFamily: monoFont,
+                    fontSize: 10,
+                    color: p.text.disabled,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Feature attribution
+                </Typography>
+                <Typography
+                  component='h3'
+                  sx={{
+                    fontFamily: serifFont,
+                    fontSize: 22,
+                    mt: '6px',
+                    fontWeight: 400,
+                    letterSpacing: '-0.01em',
+                    color: p.text.primary,
+                  }}
+                >
+                  What's driving this prediction
+                </Typography>
+              </Box>
+              <Typography
+                sx={{
+                  fontSize: 11,
+                  color: p.text.disabled,
+                  fontFamily: monoFont,
+                }}
+              >
+                SHAP-equivalent · log-odds shift
+              </Typography>
+            </Stack>
+
+            <Box sx={{ maxHeight: 300, overflowY: 'auto' }}>
+              {attributions.map((f, i) => (
+                <FactorBar
+                  key={i}
+                  factor={{
+                    name: f.feature,
+                    value: f.shap_value,
+                    detail: `shap: ${f.shap_value} | feature: ${f.feature_value}`,
+                  }}
+                />
+              ))}
+            </Box>
+          </>
+        ) : (
+          <>
+            {flight ? (
+              <ErrorBoundary
+                fallbackRender={({ error }) => (
+                  <Typography variant='body2' color='error'>
+                    {`Failed to load carrier trend. ${error instanceof Error ? error.message : ''}`}
+                  </Typography>
+                )}
+              >
+                <Suspense
+                  fallback={
+                    <>
+                      <Skeleton
+                        variant='text'
+                        sx={{ fontSize: '0.7rem' }}
+                        width={80}
+                      />
+                      <Skeleton
+                        variant='text'
+                        sx={{ fontSize: '1.2rem' }}
+                        width={140}
+                      />
+                      <Skeleton
+                        variant='rounded'
+                        height={160}
+                        width='100%'
+                        sx={{ mt: 1 }}
+                      />
+                    </>
+                  }
+                >
+                  <CarrierDelayTrend
+                    origin={flight.origin}
+                    dest={flight.dest}
+                    carrier={flight?.carrier}
+                  />
+                </Suspense>
+              </ErrorBoundary>
+            ) : (
+              <Typography sx={{ p: 2, textAlign: 'center' }}>
+                No flight selected
+              </Typography>
+            )}
+          </>
+        )}
       </Paper>
+      {/* TODO: replace with real data (add calc to backend for feature attribution or replace with different component) */}
 
       <Paper
         variant='outlined'
@@ -1298,283 +1195,73 @@ function AttributionAndHistory({ flight }: { flight: Flight }) {
           p: 3,
         }}
       >
-        <Stack
-          direction='row'
-          sx={{
-            mb: '18px',
-            justifyContent: 'space-between',
-            alignItems: 'baseline',
-          }}
-        >
-          <Box>
-            <Typography
-              sx={{
-                fontFamily: monoFont,
-                fontSize: 10,
-                color: p.text.disabled,
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-              }}
-            >
-              Route history · 14d
-            </Typography>
-            <Typography
-              component='h3'
-              sx={{
-                fontFamily: serifFont,
-                fontSize: 22,
-                mt: '6px',
-                fontWeight: 400,
-                letterSpacing: '-0.01em',
-                color: p.text.primary,
-              }}
-            >
-              {flight.from.code} → {flight.to.code} on-time %
-            </Typography>
-          </Box>
-          <Typography sx={{ fontFamily: monoFont, fontSize: 12, color: p.text.primary }}>
-            {avgOtp}
-            <Box component='span' sx={{ color: p.text.disabled }}>
-              %
-            </Box>
-            <Box component='span' sx={{ ml: 1, color: p.text.disabled }}>
-              avg
-            </Box>
-          </Typography>
-        </Stack>
-        <ErrorBoundary
-          fallbackRender={({ error }) => {
-            console.log('Route history error: ', error);
-            return (
-              <Typography
-                variant='body2'
-                color='error'
-              >{`Failed to load route history. ${error instanceof Error ? error.message : ''}`}</Typography>
-            );
-          }}
-        >
-          <Suspense
-            fallback={
-              <Box
-                sx={{ position: 'relative', width: '100%', height: 160 }}
-              ></Box>
-            }
+        {flight ? (
+          <ErrorBoundary
+            fallbackRender={({ error }) => {
+              console.log('Route history error: ', error);
+              return (
+                <Typography
+                  variant='body2'
+                  color='error'
+                >{`Failed to load route history. ${error instanceof Error ? error.message : ''}`}</Typography>
+              );
+            }}
           >
-            <RouteHistoryChart
-              origin={flight.from.code}
-              dest={flight.to.code}
-              days={14}
-
-            />
-          </Suspense>
-        </ErrorBoundary>
+            <Suspense
+              fallback={
+                <>
+                  <Stack
+                    direction='row'
+                    sx={{
+                      mb: '18px',
+                      justifyContent: 'space-between',
+                      alignItems: 'baseline',
+                    }}
+                  >
+                    <Box>
+                      <Skeleton
+                        variant='text'
+                        sx={{ fontSize: '0.7rem' }}
+                        width={60}
+                      />
+                      <Skeleton
+                        variant='text'
+                        sx={{ fontSize: '1.2rem' }}
+                        width={120}
+                      />
+                    </Box>
+                    <Skeleton
+                      variant='text'
+                      sx={{ fontSize: '0.9rem' }}
+                      width={60}
+                    />
+                  </Stack>
+                  <Skeleton variant='rounded' height={160} width='100%' />
+                </>
+              }
+            >
+              <RouteHistoryChart
+                origin={flight.origin}
+                dest={flight.dest}
+                days={14}
+              />
+            </Suspense>
+          </ErrorBoundary>
+        ) : (
+          <Typography sx={{ textAlign: 'center', p: 2 }}>
+            No route selected
+          </Typography>
+        )}
       </Paper>
     </Box>
   );
 }
 
-function RouteHistoryChart({
-  origin,
-  dest,
-  days = 14,
-}: {
-  origin: string;
-  dest: string;
-  days?: number;
-}) {
-  const p = useTheme().vars.palette;
-  const { data: historyData } = useSuspenseQuery(
-    routeHistoryOptions(origin, dest, days),
-  );
-  // console.log('FLIGHT HISTORY: ', historyData);
-  const data = historyData?.history || [];
-
-  const w = 100;
-  const h = 160;
-  const validData = data.filter(Number.isFinite);
-
-  if (validData.length < 2) {
-    return (
-      <Box
-        sx={{
-          position: 'relative',
-          width: '100%',
-          height: h,
-          display: 'grid',
-          placeItems: 'center',
-          color: p.text.disabled,
-          fontFamily: monoFont,
-          fontSize: 12,
-        }}
-      >
-        No route history available
-      </Box>
-    );
-  }
-  const stepX = w / (validData.length - 1);
-  const points = validData.map((v, i) => [i * stepX, h - (v / 100) * h]);
-
-  const lineD = points
-    .map(([x, y], index) => `${index === 0 ? 'M' : 'L'} ${x} ${y}`)
-    .join(' ');
-
-  const areaD = `${lineD} L ${w} ${h} L 0 ${h} Z`;
-
-  return (
-    <>
-      <Box sx={{ position: 'relative', width: '100%', height: h }}>
-        <svg
-          viewBox={`0 0 ${w} ${h}`}
-          preserveAspectRatio='none'
-          width='100%'
-          height={h}
-          style={{ display: 'block' }}
-        >
-          {[0, 25, 50, 75, 100].map((y) => (
-            <line
-              key={y}
-              x1='0'
-              x2={w}
-              y1={h - (y / 100) * h}
-              y2={h - (y / 100) * h}
-              stroke={p.custom.lineSoft}
-              strokeWidth='0.3'
-            />
-          ))}
-          <line
-            x1='0'
-            x2={w}
-            y1={h - 0.8 * h}
-            y2={h - 0.8 * h}
-            stroke={p.divider}
-            strokeWidth='0.4'
-            strokeDasharray='2 1.5'
-          />
-          <path d={areaD} fill={p.custom.lineSoft} />
-          <path
-            d={lineD}
-            stroke={p.text.primary}
-            strokeWidth='0.6'
-            fill='none'
-            vectorEffect='non-scaling-stroke'
-          />
-          {points.map((pt, i) => (
-            <circle
-              key={i}
-              cx={pt[0]}
-              cy={pt[1]}
-              r='0.8'
-              fill={p.background.default}
-              stroke={p.text.primary}
-              strokeWidth='0.4'
-              vectorEffect='non-scaling-stroke'
-            />
-          ))}
-        </svg>
-        <Typography
-          sx={{
-            position: 'absolute',
-            right: 0,
-            top: h - 0.8 * h - 10,
-            fontSize: 10,
-            color: p.text.disabled,
-            fontFamily: monoFont,
-          }}
-        >
-          80% target
-        </Typography>
-      </Box>
-      <Stack
-        direction='row'
-        sx={{
-          mt: '12px',
-          fontFamily: monoFont,
-          fontSize: 10,
-          color: p.text.disabled,
-          justifyContent: 'space-between',
-        }}
-      >
-        <Typography
-          sx={{ fontFamily: monoFont, fontSize: 10, color: p.text.disabled }}
-        >
-          14d prior
-        </Typography>
-        <Typography
-          sx={{ fontFamily: monoFont, fontSize: 10, color: p.text.disabled }}
-        >
-          7d prior
-        </Typography>
-        <Typography
-          sx={{ fontFamily: monoFont, fontSize: 10, color: p.text.disabled }}
-        >
-          {historyData?.data_as_of ?? 'latest'}
-        </Typography>
-      </Stack>
-    </>
-  );
-}
-
 // ─── Weather + congestion strip ───────────────────────────────────────────────
 
-const useAviationWeather = (endpoint: 'metar' | 'taf', icao: string) => {
-  return useSuspenseQuery({
-    queryKey: ['weather', endpoint, icao],
-    queryFn: async () => {
-      return await getWeather({ data: { endpoint, icao } });
-      // return res?.length ? res[0] : ({} as MetarResponse);
-    },
-    staleTime: 1000 * 60 * 15,
-    gcTime: 1000 * 60 * 30,
-  });
-};
-
-const useDelays = (options: GetDelaysOptions) => {
-  return useSuspenseQuery({
-    queryKey: ['delays', options],
-    queryFn: () => getDelayStatus({ data: options }),
-    staleTime: 1000 * 60 * 15,
-    gcTime: 1000 * 60 * 30,
-  });
-};
-
 // TODO: congestion api: https://airlabs.co/docs/delays
-
-function WeatherCongestionStrip({ flight }: { flight: Flight }) {
+function WeatherCongestionStrip({ flight }: { flight: ActiveFlight }) {
   const p = useTheme().vars.palette;
-  // const cards = [
-  // {
-  //   l: 'Origin weather',
-  //   code: flight.from.code,
-  //   top: 'VFR · clear',
-  //   sub: `wind ${data?.wdir || '-'}@${data?.wspd || '-'} 240@8 · vis ${data?.visib || '-'}sm`,
-  //   spark: [82, 84, 86, 85, 88, 90, 89, 91],
-  //   col: p.success.main,
-  // },
-  // {
-  //   l: 'Destination weather',
-  //   code: flight.to.code,
-  //   top: 'MVFR · scattered',
-  //   sub: 'wind 290@14G22 · vis 6sm',
-  //   spark: [88, 84, 80, 76, 72, 70, 68, 71],
-  //   col: p.warning.main,
-  // },
-  //   {
-  //     l: 'Origin congestion',
-  //     code: flight.from.code,
-  //     top: 'Normal',
-  //     sub: 'taxi 18m · queue 4',
-  //     spark: [12, 14, 16, 15, 18, 17, 19, 18],
-  //     col: p.text.primary,
-  //   },
-  //   {
-  //     l: 'Dest congestion',
-  //     code: flight.to.code,
-  //     top: 'Elevated',
-  //     sub: 'taxi 26m · queue 11',
-  //     spark: [10, 12, 15, 18, 22, 26, 28, 30],
-  //     col: p.warning.main,
-  //   },
-  // ];
 
   return (
     <Box
@@ -1591,7 +1278,7 @@ function WeatherCongestionStrip({ flight }: { flight: Flight }) {
         fallback={
           <StatCard
             label='Origin Weather'
-            code={flight.from.code} // @ts-ignore
+            code={flight?.origin || '-'} // @ts-ignore
             value={
               <Typography variant='body2' color='error'>
                 Error loading weather
@@ -1608,7 +1295,7 @@ function WeatherCongestionStrip({ flight }: { flight: Flight }) {
           fallback={
             <StatCard
               label='Origin Weather'
-              code={flight.from.code} // @ts-ignore
+              code={flight.origin || '-'} // @ts-ignore
               value={<Skeleton />}
               subtitle={`wind -- · vis --sm`}
               spark={[]}
@@ -1619,8 +1306,7 @@ function WeatherCongestionStrip({ flight }: { flight: Flight }) {
         >
           <WeatherCard
             label='Origin weather'
-            code={flight.from.code}
-
+            code={flight.origin}
             color={p.success.main}
           />
         </Suspense>
@@ -1629,7 +1315,7 @@ function WeatherCongestionStrip({ flight }: { flight: Flight }) {
         fallback={
           <StatCard
             label='Destination Weather'
-            code={flight.to.code} // @ts-ignore
+            code={flight.dest || '-'} // @ts-ignore
             value={
               <Typography variant='body2' color='error'>
                 Error loading weather
@@ -1646,7 +1332,7 @@ function WeatherCongestionStrip({ flight }: { flight: Flight }) {
           fallback={
             <StatCard
               label='Destination weather'
-              code={flight.to.code} // @ts-ignore
+              code={flight.dest || '-'} // @ts-ignore
               value={<Skeleton />}
               subtitle={`wind -- · vis --sm`}
               spark={[]}
@@ -1657,8 +1343,7 @@ function WeatherCongestionStrip({ flight }: { flight: Flight }) {
         >
           <WeatherCard
             label='Destination weather'
-            code={flight.to.code}
-
+            code={flight.dest || '-'}
             color={p.warning.main}
           />
         </Suspense>
@@ -1667,7 +1352,7 @@ function WeatherCongestionStrip({ flight }: { flight: Flight }) {
         fallback={
           <StatCard
             label='Origin Congestion'
-            code={flight.to.code} // @ts-ignore
+            code={flight.dest || '-'} // @ts-ignore
             value={
               <Typography variant='body2' color='error'>
                 Error loading congestion
@@ -1684,7 +1369,7 @@ function WeatherCongestionStrip({ flight }: { flight: Flight }) {
           fallback={
             <StatCard
               label='Origin Congestion'
-              code={flight.from.code} // @ts-ignore
+              code={flight.origin || '-'} // @ts-ignore
               value={<Skeleton />}
               subtitle={`taxi --m · queue --`}
               spark={[]}
@@ -1696,11 +1381,10 @@ function WeatherCongestionStrip({ flight }: { flight: Flight }) {
           <AirportCongestionCard
             delay={30}
             type='departures'
-            dep_iata={flight.from.code}
+            dep_iata={flight.origin || '-'}
             label='Origin Congestion'
             spark={[12, 14, 16, 15, 18, 17, 19, 18]}
             color={p.text.primary}
-
           />
         </Suspense>
       </ErrorBoundary>
@@ -1708,7 +1392,7 @@ function WeatherCongestionStrip({ flight }: { flight: Flight }) {
         fallback={
           <StatCard
             label='Destination Congestion'
-            code={flight.to.code} // @ts-ignore
+            code={flight.dest || '-'} // @ts-ignore
             value={
               <Typography variant='body2' color='error'>
                 Error loading congestion
@@ -1725,7 +1409,7 @@ function WeatherCongestionStrip({ flight }: { flight: Flight }) {
           fallback={
             <StatCard
               label='Destination Congestion'
-              code={flight.to.code} // @ts-ignore
+              code={flight.dest || '-'} // @ts-ignore
               value={<Skeleton />}
               subtitle={`taxi --m · queue --`}
               spark={[]}
@@ -1737,11 +1421,10 @@ function WeatherCongestionStrip({ flight }: { flight: Flight }) {
           <AirportCongestionCard
             delay={30}
             type='arrivals'
-            dep_iata={flight.to.code}
+            dep_iata={flight.dest || '-'}
             label='Destination Congestion'
             color={p.text.primary}
             spark={[10, 12, 15, 18, 22, 26, 28, 30]}
-
           />
         </Suspense>
       </ErrorBoundary>
@@ -1772,11 +1455,12 @@ function WeatherCard({
   color: string;
 }) {
   const p = useTheme().vars.palette;
-  const { data } = useAviationWeather('metar', iataToIcao(code));
+  const { data } = useSuspenseQuery(
+    aviationWeatherOptions('metar', iataToIcao(code)),
+  );
 
-  // todo: wire up taf for sparkline ??
-  const { data: taf } = useAviationWeather('taf', iataToIcao(code));
-  console.log('TAF: ', taf);
+  // TODO: wire up taf for sparkline ??
+  // const { data: taf } = useAviationWeather('taf', iataToIcao(code));
 
   return (
     <StatCard
@@ -1804,7 +1488,7 @@ function AirportCongestionCard({
   ...options
 }: AirportCongestionCardParams) {
   const p = useTheme().vars.palette;
-  const { data } = useDelays(options);
+  const { data } = useSuspenseQuery(delayOptions(options));
   // console.log(label, data);
 
   const code = options.dep_iata || options.arr_iata || '';
@@ -1813,7 +1497,12 @@ function AirportCongestionCard({
     const totalMins = data.reduce((acc, cur) => acc + cur.delayed, 0);
 
     const avgDelayMins = Math.floor(totalMins / (data.length || 1));
-    const col = avgDelayMins < 60 ? p.success.main : avgDelayMins < 120 ? p.text.primary : p.error.main;
+    const col =
+      avgDelayMins < 60
+        ? p.success.main
+        : avgDelayMins < 120
+          ? p.text.primary
+          : p.error.main;
     const congestionLevel =
       avgDelayMins < 60 ? 'Light' : avgDelayMins < 120 ? 'Normal' : 'Elevated';
 
@@ -1837,8 +1526,9 @@ function AirportCongestionCard({
 
 // ─── Network + airline comparison ────────────────────────────────────────────
 
-function NetworkAndAirline({ flight }: { flight: Flight }) {
+function NetworkAndAirline({ flight }: { flight: ActiveFlight | null }) {
   const p = useTheme().vars.palette;
+
   return (
     <Box
       component='section'
@@ -1885,7 +1575,19 @@ function NetworkAndAirline({ flight }: { flight: Flight }) {
             Average delays across the system
           </Typography>
         </Box>
-        <NetworkMap height={290} />
+        <ErrorBoundary
+          fallback={
+            <Typography color='error' sx={{ fontFamily: monoFont }}>
+              Failed to load network map
+            </Typography>
+          }
+        >
+          <Suspense
+            fallback={<Skeleton variant='rounded' height={290} width='100%' />}
+          >
+            <NetworkMap height={290} />
+          </Suspense>
+        </ErrorBoundary>
       </Paper>
 
       <Paper
@@ -1920,110 +1622,58 @@ function NetworkAndAirline({ flight }: { flight: Flight }) {
               color: p.text.primary,
             }}
           >
-            {flight.from.code} → {flight.to.code} · 30d OTP
+            {flight?.origin || '-'} → {flight?.dest || '-'} · 30d OTP
           </Typography>
         </Box>
-        <ErrorBoundary
-          fallback={
-            <Typography
-              color='error'
-              variant='body2'
-              sx={{ textAlign: 'center' }}
-            >
-              Failed to load Carrier Comparison
-            </Typography>
-          }
-        >
-          <Suspense
+        {flight ? (
+          <ErrorBoundary
             fallback={
-              <Box
-                sx={{
-                  display: 'grid',
-                  gridTemplateColumns: '20px 1fr 80px 56px 50px',
-                  gap: '12px',
-                  alignItems: 'center',
-                  py: '10px',
-                  borderBottom: `1px solid ${p.custom.lineSoft}`,
-                }}
+              <Typography
+                color='error'
+                variant='body2'
+                sx={{ textAlign: 'center' }}
               >
-                <Skeleton variant='circular' height={18} width={18} />
-                <Skeleton variant='rounded' height={10} width={60} />
-                <Skeleton
-                  variant='rounded'
-                  height={8}
-                  width={60}
-                  sx={{ mx: 'auto' }}
-                />
-                <Skeleton variant='rounded' height={14} width={28} />
-                <Skeleton variant='rounded' height={14} width={28} />
-              </Box>
+                Failed to load Carrier Comparison
+              </Typography>
             }
           >
-            <CarrierComparison
-
-              currentCarrier={flight.airline}
-              origin={flight.from.code}
-              dest={flight.to.code}
-              days={30}
-            />
-          </Suspense>
-        </ErrorBoundary>
+            <Suspense
+              fallback={
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: '20px 1fr 80px 56px 50px',
+                    gap: '12px',
+                    alignItems: 'center',
+                    py: '10px',
+                    borderBottom: `1px solid ${p.custom.lineSoft}`,
+                  }}
+                >
+                  <Skeleton variant='circular' height={18} width={18} />
+                  <Skeleton variant='rounded' height={10} width={60} />
+                  <Skeleton
+                    variant='rounded'
+                    height={8}
+                    width={60}
+                    sx={{ mx: 'auto' }}
+                  />
+                  <Skeleton variant='rounded' height={14} width={28} />
+                  <Skeleton variant='rounded' height={14} width={28} />
+                </Box>
+              }
+            >
+              <CarrierComparison
+                currentCarrier={flight.carrier}
+                origin={flight.origin}
+                dest={flight.dest}
+                days={30}
+              />
+            </Suspense>
+          </ErrorBoundary>
+        ) : (
+          <Typography>TODO: fallback when flight is null</Typography>
+        )}
       </Paper>
-    </Box>
-  );
-}
-
-// ─── Footer ───────────────────────────────────────────────────────────────────
-
-function PageFooter() {
-  const p = useTheme().vars.palette;
-  return (
-    <Box
-      component='footer'
-      sx={{
-        p: '32px 56px 56px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-      }}
-    >
-      <Typography
-        sx={{
-          fontSize: 12,
-          color: p.text.disabled,
-          fontFamily: 'Inter, sans-serif',
-        }}
-      >
-        © 2026 Holdline · ML predictions are probabilistic, not guarantees.
-      </Typography>
-      <Stack direction='row' spacing='18px'>
-        <Button
-          component='a'
-          href='https://github.com/scarlson1/ml-training-orchestrator'
-          rel='noopener noreferrer'
-          target='_blank'
-          startIcon={<GitHub fontSize='small' />}
-          // endIcon={'↗'}
-          size='small'
-          color='inherit'
-        >
-          Github
-        </Button>
-        {/* {['Status', 'Changelog', 'Pricing', 'API reference'].map((label) => (
-          <Link
-            key={label}
-            underline='hover'
-            sx={{
-              fontSize: 12,
-              color: p.text.disabled,
-              cursor: 'pointer',
-              fontFamily: 'Inter, sans-serif',
-            }}
-          >
-            {label}
-          </Link>
-        ))} */}
-      </Stack>
     </Box>
   );
 }
@@ -2031,47 +1681,57 @@ function PageFooter() {
 // ─── Root component ───────────────────────────────────────────────────────────
 
 function Index() {
-  const [flight, setFlight] = useState<Flight>(FLIGHTS[0]);
-  const [prediction, setPrediction] = useState<PredictResponse | null>(null);
-  // const [predicting, setPredicting] = useState(false);
   const p = useTheme().vars.palette;
+  const [prediction, setPrediction] = useState<PredictResponse | null>(null);
+
+  const { data: sampleFlights } = useSuspenseQuery(sampleFlightOptions(4));
+  // track common data between prediction user input and sample flight button group
+  const [flight, setFlight] = useState<ActiveFlight | null>(
+    sampleFlights?.[0] ? sampleToActive(sampleFlights[0]) : null,
+  );
 
   const onTimeProb = prediction
     ? 1 - prediction.delay_probability
-    : flight.onTimeProb;
+    : (flight?.baseline_ontime_prob ?? null);
+  console.log(onTimeProb, 'on time prob', prediction?.delay_probability);
 
   const verdict = useMemo(() => {
-    if (onTimeProb >= 0.85) return { label: 'Likely on time', color: p.success.main };
-    if (onTimeProb >= 0.65) return { label: 'Mild delay risk', color: p.warning.main };
+    if (onTimeProb === null) return { label: 'unknown', color: p.grey[500] };
+    if (onTimeProb >= 0.85)
+      return { label: 'Likely on time', color: p.success.main };
+    if (onTimeProb >= 0.65)
+      return { label: 'Mild delay risk', color: p.warning.main };
     return { label: 'Elevated delay risk', color: p.error.main };
   }, [onTimeProb]);
-
-  useEffect(() => {
-    setPrediction(null);
-  }, [flight.id]);
 
   return (
     <Box sx={{ bgcolor: 'background.default', color: 'text.primary' }}>
       <HeroSection
-
-
+        sampleFlights={sampleFlights}
         flight={flight}
-        onPickFlight={(f) => setFlight(f)}
-        onPredict={(p) => setPrediction(p)}
-        // predicting={predicting}
-        // setPredicting={setPredicting}
+        onPickFlight={(f) => {
+          setFlight(f);
+          setPrediction(null);
+        }}
+        onPredict={(p, ctx) => {
+          setPrediction(p);
+          setFlight(ctx);
+        }}
       />
       <PredictionHeadline
-
         flight={flight}
         onTimeProb={onTimeProb}
         verdict={verdict}
         prediction={prediction}
       />
-      <AttributionAndHistory flight={flight} />
-      <WeatherCongestionStrip flight={flight} />
+      <AttributionAndHistory
+        flight={flight}
+        attributions={prediction?.attributions || null}
+      />
+      {/* TODO: handle fallback rendering when flight is null (skipToken type issue) */}
+      {flight ? <WeatherCongestionStrip flight={flight} /> : null}
+
       <NetworkAndAirline flight={flight} />
-      <PageFooter />
     </Box>
   );
 }

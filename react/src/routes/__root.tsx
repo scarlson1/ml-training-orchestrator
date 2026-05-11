@@ -7,27 +7,29 @@ import '@fontsource-variable/source-serif-4/index.css';
 import CssBaseline from '@mui/material/CssBaseline';
 import { ThemeProvider } from '@mui/material/styles';
 import { TanStackDevtools } from '@tanstack/react-devtools';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { formDevtoolsPlugin } from '@tanstack/react-form-devtools';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtoolsPanel } from '@tanstack/react-query-devtools';
-import { QueryClient } from '@tanstack/react-query';
 import {
   createRootRouteWithContext,
   HeadContent,
   Outlet,
   Scripts,
 } from '@tanstack/react-router';
-
-interface RouterContext {
-  queryClient: QueryClient;
-}
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools';
 import { type ReactNode, Suspense } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
+import { Toaster as Sonner } from 'sonner';
 import { AppShell } from '~/components/AppShell';
 import { ErrorFallback } from '~/components/ErrorFallback';
 import { NotFound } from '~/components/NotFound';
 import { queryClient } from '~/config/queryClient';
 import { theme } from '~/config/theme';
+import { useResolvedMode } from '~/hooks/useResolvedMode';
+
+interface RouterContext {
+  queryClient: QueryClient;
+}
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   head: () => ({
@@ -60,6 +62,12 @@ function RootComponent() {
   );
 }
 
+function SonnerToaster() {
+  const mode = useResolvedMode();
+
+  return <Sonner theme={mode} richColors closeButton />;
+}
+
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html>
@@ -71,6 +79,8 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
           </head>
           <body>
             <AppShell>{children}</AppShell>
+            <SonnerToaster />
+
             <Scripts />
             <TanStackDevtools
               plugins={[
@@ -82,6 +92,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
                   name: 'TanStack Router',
                   render: <TanStackRouterDevtoolsPanel />,
                 },
+                formDevtoolsPlugin(),
               ]}
             />
           </body>

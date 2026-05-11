@@ -91,7 +91,7 @@ class FeatureClient:
     def __init__(self, feature_repo_dir: str | Path) -> None:
         self._store = FeatureStore(repo_path=str(feature_repo_dir))
 
-    def get_features(self, request: PredictRequest) -> tuple[pd.DataFrame, bool] | None:
+    def get_features(self, request: PredictRequest) -> tuple[pd.DataFrame, bool, float] | None:
         """
         Retrieve online features for one flight entity.
 
@@ -145,7 +145,10 @@ class FeatureClient:
             col: [result_dict[col][0] if result_dict.get(col, [None])[0] is not None else 0.0]
             for col in FEATURE_COLUMNS
         }
-        return pd.DataFrame(feature_row), len(null_features) == 0
+        n_total = len(FEATURE_COLUMNS)
+        n_null = len(null_features)
+        features_used_pct = round((n_total - n_null) / n_total, 4) if n_total else 1.0
+        return pd.DataFrame(feature_row), n_null == 0, features_used_pct
 
     def ping_redis(self) -> bool:
         """

@@ -87,6 +87,7 @@ serving = [
   "xgboost>=3.2",
   "scikit-learn>=1.8",
   "scipy>=1.17",
+  "shap>=0.46",
 ]
 
 monitoring = [
@@ -193,7 +194,8 @@ module = [
   "fastapi.*",
   "prometheus_client",
   "sqlalchemy",
-  "sqlalchemy.*"
+  "sqlalchemy.*",
+  "shap"
 ]
 ignore_missing_imports = true
 

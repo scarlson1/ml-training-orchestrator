@@ -1,5 +1,11 @@
-import { OpenInNewRounded } from '@mui/icons-material';
-import { CircularProgress, Fade, ListItemText, Skeleton } from '@mui/material';
+import { GitHub, OpenInNewRounded } from '@mui/icons-material';
+import {
+  CircularProgress,
+  Fade,
+  ListItemText,
+  Skeleton,
+  Stack,
+} from '@mui/material';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Menu from '@mui/material/Menu';
@@ -28,10 +34,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         minHeight: '100vh',
         bgcolor: 'background.default',
         color: 'text.primary',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
       <AppHeader />
-      <Box component='main'>
+      <Box component='main' sx={{ flex: 1 }}>
         <Suspense
           fallback={
             <Fade in={true}>
@@ -42,6 +50,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {children}
         </Suspense>
       </Box>
+      <AppFooter />
     </Box>
   );
 }
@@ -80,7 +89,7 @@ function AppHeader() {
               lineHeight: 1,
             }}
           >
-            BMO Flight Prediction
+            Flight Prediction
           </Typography>
         </Box>
         <Box
@@ -111,6 +120,8 @@ function NavLink({ to, label }: { to: string; label: string }) {
   const { location } = useRouterState();
   const isActive =
     to === '/' ? location.pathname === '/' : location.pathname.startsWith(to);
+  // better matching built into tanstack ??
+
   return (
     <Link to={to} style={{ textDecoration: 'none', color: 'inherit' }}>
       <Typography
@@ -241,13 +252,13 @@ function ExternalLinksMenu() {
       >
         {links.map((l) => (
           <MenuItem
+            key={l.href}
             component='a'
             href={l.href}
             target='_blank'
             rel='noopener noreferrer'
             onClick={handleClose}
           >
-            {/* {l.label} */}
             <ListItemText sx={{ mr: 2 }}>{l.label}</ListItemText>
             <Typography variant='body2' sx={{ color: 'text.secondary' }}>
               <OpenInNewRounded fontSize='inherit' />
@@ -256,5 +267,63 @@ function ExternalLinksMenu() {
         ))}
       </Menu>
     </div>
+  );
+}
+
+// ─── Footer ───────────────────────────────────────────────────────────────────
+
+function AppFooter() {
+  return (
+    <Box
+      component='footer'
+      sx={{
+        // p: '32px 56px 56px',
+        px: { xs: 2, sm: 4, md: 5 },
+        py: { xs: 1.5, sm: 2 },
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderTop: (theme) =>
+          `1px solid ${(theme.vars || theme).palette.divider}`,
+      }}
+    >
+      <Typography
+        sx={{
+          fontSize: 12,
+          color: 'disabled',
+          fontFamily: 'Inter, sans-serif',
+        }}
+      >
+        © 2026 Holdline
+      </Typography>
+      <Stack direction='row' spacing='18px'>
+        <Button
+          component='a'
+          href='https://github.com/scarlson1/ml-training-orchestrator'
+          rel='noopener noreferrer'
+          target='_blank'
+          startIcon={<GitHub fontSize='small' />}
+          // endIcon={'↗'}
+          size='small'
+          color='inherit'
+        >
+          Github
+        </Button>
+        {/* {['Status', 'Changelog', 'Pricing', 'API reference'].map((label) => (
+          <Link
+            key={label}
+            underline='hover'
+            sx={{
+              fontSize: 12,
+              color: p.text.disabled,
+              cursor: 'pointer',
+              fontFamily: 'Inter, sans-serif',
+            }}
+          >
+            {label}
+          </Link>
+        ))} */}
+      </Stack>
+    </Box>
   );
 }
