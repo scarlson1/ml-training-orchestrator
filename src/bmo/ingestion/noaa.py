@@ -301,7 +301,8 @@ def _parse_lcd_csv(
     df = df[(df['DATE'].dt.year == year) & (df['DATE'].dt.month == month)]
 
     if df.empty:
-        return df  # cast(pd.DataFrame, df)
+        empty_df: pd.DataFrame = df
+        return empty_df
 
     # Trace precipitation: "T" means < 0.005 in. Coerce to 0.001 to keep numeric
     # while preserving the signal that some precipitation occurred.
@@ -339,9 +340,13 @@ def _parse_lcd_csv(
         'present_weather',
         'sea_level_pressure_hpa',
     ]
-    return df[
-        [c for c in keep if c in df.columns]
-    ]  # cast(pd.DataFrame, df[[c for c in keep if c in df.columns]])
+    # return df[
+    #     [c for c in keep if c in df.columns]
+    # ]
+    # return cast(pd.DataFrame, df[[c for c in keep if c in df.columns]])
+    output_columns = [c for c in keep if c in df.columns]
+    parsed_df: pd.DataFrame = df[output_columns]
+    return parsed_df
 
 
 # ---------------------------------------------------------------------------
@@ -393,7 +398,7 @@ def ingest_noaa_month(
     table = pa.Table.from_pandas(combined, preserve_index=False).cast(LCD_SCHEMA)
 
     buf = io.BytesIO()
-    pq.write_table(table, buf, compression='zstd', compression_level=3)
+    pq.write_table(table, buf, compression='zstd', compression_level=3)  # type: ignore[no-untyped-call]
     store.put_bytes(bucket, target_key, buf.getvalue())
 
     manifest = {

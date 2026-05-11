@@ -218,7 +218,7 @@ ignore_errors = true
 # absent from the mypy env — suppress [misc] and [untyped-decorator] rather than
 # scatter type: ignores.
 module = ["bmo.serving.api"]
-disable_error_code = ["misc"]
+disable_error_code = ["misc", "untyped-decorator"]
 
 [[tool.mypy.overrides]]
 # feature_repo uses local relative imports (data_sources, entities) that are
