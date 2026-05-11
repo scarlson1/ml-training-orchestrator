@@ -70,7 +70,7 @@ Uses a matrix over two images:
 | `dagster` | `infra/docker/dagster.Dockerfile` |
 | `serving` | `infra/docker/serving.Dockerfile` |
 
-> **Note:** `infra/docker/mlflow.Dockerfile` is **not** built by this workflow. It is a two-line file (`FROM ghcr.io/mlflow/mlflow:v3.11.1` + pip install of `psycopg2-binary` and `boto3`) that is built on the VM the first time `docker compose pull` runs via the `bmo-compose` systemd unit's `ExecStartPre`. See [Production Compose Stack](#production-compose-stack).
+> **Note:** `infra/docker/mlflow.Dockerfile` is **not** built by this workflow. It extends `ghcr.io/mlflow/mlflow:v3.11.1` with the MLflow auth extra, `psycopg2-binary`, and `boto3`; it is built on the VM the first time `docker compose pull` runs via the `bmo-compose` systemd unit's `ExecStartPre`. See [Production Compose Stack](#production-compose-stack).
 
 QEMU is set up for `arm64` emulation. Both platforms are built in a single `docker/build-push-action` step with `platforms: linux/amd64,linux/arm64`. This ensures the images run on the Oracle Cloud ARM VM without needing a separate ARM runner.
 
@@ -226,7 +226,7 @@ The deploy workflow does not run `docker compose up` directly — it writes `.en
 
 Only `caddy` exposes public ports. `dagster` additionally binds to `127.0.0.1:3000` so the deploy health check and the VM keepalive cron can reach it locally without going through Caddy.
 
-The `mlflow` image is **not** built by CI. `infra/docker/mlflow.Dockerfile` is a two-line file that extends the upstream `ghcr.io/mlflow/mlflow:v3.11.1` image with `psycopg2-binary` and `boto3`. Docker Compose builds it on the VM the first time `ExecStartPre` runs `docker compose pull`.
+The `mlflow` image is **not** built by CI. `infra/docker/mlflow.Dockerfile` extends the upstream `ghcr.io/mlflow/mlflow:v3.11.1` image with the MLflow auth extra, `psycopg2-binary`, and `boto3`. Docker Compose builds it on the VM the first time `ExecStartPre` runs `docker compose pull`.
 
 ### Networking
 

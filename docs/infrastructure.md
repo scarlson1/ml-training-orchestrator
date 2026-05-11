@@ -98,7 +98,7 @@ backend: postgresql://user:password@postgres:5432/bmo
 artifacts: s3://mlflow-artifacts/
 ```
 
-The MLflow image (`ghcr.io/mlflow/mlflow:v3.11.1`) is extended with `psycopg2-binary` and `boto3` to support PostgreSQL as the backend store and S3-compatible artifact storage (MinIO in dev, R2 in production).
+The MLflow image (`ghcr.io/mlflow/mlflow:v3.11.1`) is extended with the MLflow auth extra, `psycopg2-binary`, and `boto3` to support basic auth, PostgreSQL as the backend store, and S3-compatible artifact storage (MinIO in dev, R2 in production).
 
 In production, MLflow is secured with basic-auth (`--app-name basic-auth`) and is only reachable through Caddy at `$MLFLOW_DOMAIN`.
 
@@ -247,7 +247,7 @@ Single worker per container; horizontal scaling is achieved by running multiple 
 
 **File:** [infra/docker/mlflow.Dockerfile](../infra/docker/mlflow.Dockerfile)
 
-Extends `ghcr.io/mlflow/mlflow:v3.11.1` with `psycopg2-binary` (PostgreSQL backend store) and `boto3` (S3-compatible artifact storage).
+Extends `ghcr.io/mlflow/mlflow:v3.11.1` with `mlflow[auth]` (basic auth dependencies), `psycopg2-binary` (PostgreSQL backend store), and `boto3` (S3-compatible artifact storage).
 
 ### Building Locally
 

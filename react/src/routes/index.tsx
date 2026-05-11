@@ -752,8 +752,10 @@ function PredictionHeadline({
             dep {flight.scheduled.dep} {flight.from.tz} */}
             {getAirportCity(flight?.origin || '') || '-'} →{' '}
             {getAirportCity(flight?.dest || '') || '-'} ·{' '}
-            {flight?.scheduled_departure_utc} ·
-            {/* dep {flight.scheduled.dep} {flight.from.tz} */}
+            {flight?.scheduled_departure_utc
+              ? flight.scheduled_departure_utc + ' UTC'
+              : ''}
+            {/* · dep {flight.scheduled.dep} {flight.from.tz} */}
           </Typography>
           {prediction && (
             <Chip
