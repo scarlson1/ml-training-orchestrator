@@ -84,6 +84,7 @@ Key Dagster primitives used:
 ## Documentation
 
 - [getting-started.md](/docs/getting-started.md)
+
 - [architecture.md](/docs/architecture.md)
 - [infrastructure.md](/docs/infrastructure.md)
 - [data-structure-and-query-guidance.md](/docs/data-structure-and-query-guidance.md)
@@ -105,6 +106,14 @@ Key Dagster primitives used:
 - [monitoring.md](/docs/monitoring.md)
 - [testing.md](/docs/testing.md)
 
+#### Dashboards
+
+- React: [https://ml-training-orchestrator.vercel.app](https://ml-training-orchestrator.vercel.app)
+- Dagster UI: [https://dagster.207.211.176.98.sslip.io](https://dagster.207.211.176.98.sslip.io) (not public)
+- MLflow UI: [https://mlflow.207.211.176.98.sslip.io](https://mlflow.207.211.176.98.sslip.io)
+  - username: demo
+  - password: password1234
+
 ## Screenshots
 
 ![Dagster asset lineage](docs/lineage.svg)
@@ -117,282 +126,6 @@ Key Dagster primitives used:
 ![React predictions](docs/screenshot-predictions.png)
 ![React versions](docs/screenshot-versions.png)
 ![React drift](docs/screenshot-drift.png)
-
-## Development
-
-fresh checkout or after switching branches, run:
-
-```bash
-# 1. Python dependencies
-uv sync --all-groups
-
-# 2. dbt setup — must run before dagster dev
-make dbt-bootstrap
-
-# 3. Start infrastructure
-docker compose -f infra/compose/compose.dev.yml up -d
-
-# 4. Create S3 buckets and Postgres databases
-./scripts/bootstrap_dev.sh # already run by minio-init in compose.yml
-
-# 5. Launch Dagster (requires target/manifest.json to exist - make dbt-bootstrap)
-make dagster-dev
-
-# 6. Ingest raw data (run via Dagster UI or CLI)
-#    — raw_faa_airports, raw_openflights_routes, station_map
-#    — raw_noaa_weather (monthly)
-#    — raw_bts_flights (monthly)
-
-# 7. Materialize staging layer
-#    — dim_airport, dim_route
-#    — staged_flights, staged_weather (all partitions)
-
-# 8. PySpark cascading delay
-#    — feat_cascading_delay (or materialize via Dagster)
-
-# 9. In Dagster UI: materialize bmo_dbt_assets
-#    Or from CLI:
-cd dbt_project && uv run dbt build --profiles-dir .
-
-# serve fastAPI
-make serving-dev
-
-# react
-cd react && pnpm dev
-```
-
-### Ingestion from Dagster UI
-
-1. Run make dagster-dev → open http://localhost:3000
-2. Go to Assets tab → you'll see the full asset graph
-3. To run ingestion in the right order, use the Asset Jobs approach or materialize assets manually:
-
-#### Dimensions (no partition):
-
-- Click `raw_faa_airports` → Materialize → confirm
-- Click `station_map` → Materialize
-- Click `raw_openflights_routes` → Materialize
-- Click `dim_airport` → Materialize ← depends on `raw_faa_airports` + `station_map`
-- Click `dim_route` → Materialize ← depends on `raw_openflights_routes` + `dim_airport`
-
-#### Monthly partitioned assets (flights + weather):
-
-- Click `raw_bts_flights` → Materialize selected partitions → pick the months you want (e.g. `2024-01-01`)
-- Click `staged_flights` → Materialize selected partitions → same month(s)
-- Repeat for `raw_noaa_weather` → `staged_weather`
-
-#### Feature layer (run after all staging is complete):
-
-- Click `feat_cascading_delay` → Materialize
-- Click any `bmo_dbt_assets` model → Materialize all (or the whole group)
-
-#### Backfill all partitions at once
-
-##### Dagster UI
-
-For bulk historical ingestion, use Backfills rather than materializing one partition at a time:
-
-1. Go to Assets → select `staged_flights` → **Backfill**
-2. Select partition range: `2018-01` through `2024-12`
-3. Dagster queues a run per partition and executes them concurrently (up to your `max_concurrent_runs` setting)
-
-##### CLI
-
-```bash
-uv run dg launch --assets staged_flights --all-partitions
-```
-
-### From the CLI using `dg launch`
-
-```bash
-# Dimensions
-uv run dg launch --assets raw_faa_airports
-uv run dg launch --assets station_map
-uv run dg launch --assets raw_openflights_routes
-uv run dg launch --assets dim_airport
-uv run dg launch --assets dim_route
-
-# Monthly partitioned — specify partition key (format: YYYY-MM-DD)
-uv run dg launch --assets raw_bts_flights --partition 2024-01-01
-uv run dg launch --assets staged_flights --partition 2024-01-01
-uv run dg launch --assets raw_noaa_weather --partition 2024-01-01
-uv run dg launch --assets staged_weather --partition 2024-01-01
-
-# Run a range of months (no native range flag — loop in bash)
-for month in 2018-01-01 2018-02-01 2018-03-01; do
-  uv run dg launch --assets raw_bts_flights --partition $month
-  uv run dg launch --assets staged_flights --partition $month
-done
-
-# Features
-uv run dg launch --assets feat_cascading_delay
-
-# All dbt assets at once
-uv run dg launch --assets 'group:dbt'   # if dbt_assets are in a group
-# or by asset key pattern
-uv run dg launch --assets 'bmo_dbt_assets*'
-
-```
-
-#### Verify PIT correctness
-
-runs test_no_future_leakage on origin_obs_time_utc and the singular assert_pit_correct.sql. Both should report 0 failures.
-
-```bash
-cd dbt_project && uv run dbt test --select int_flights_enriched --profiles-dir .
-```
-
-#### Run instructions after stage 5
-
-1. One-time setup
-
-```bash
-make setup
-make feast-apply
-make dbt-bootstrap # runs dbt deps --profiles-dir . & dbt parse --profiles-dir .
-```
-
-- `dbt deps --profiles-dir .` - installs dependencies (like `pnpm install`); checks version compatibility
-- `dbt parse --profiles-dir .` - builds dbt's DAG (dependency graph) & ensures no syntax errors
-
-2. Start Dagster
-
-```bash
-make dagster-dev
-```
-
-Open [http://localhost:3000](http://localhost:3000)
-
-3. In the Dagster UI — materialize in order:
-
-- `raw_faa_airports` → Materialize
-- `raw_openflights_routes` → Materialize
-- `raw_bts_flights` → Materialize (pick a partition, e.g. 2024-01-01)
-- `raw_noaa_weather` → Materialize (same partition)
-- `dim_airport`, `dim_route` → Materialize
-- `staged_flights`, `staged_weather` → Materialize (same partition)
-- `feat_cascading_delay` → Materialize
-
-4. Run dbt (in a separate terminal)
-
-```bash
-make dbt-build
-```
-
-> Note: dbt should materialize automatically now:
->
-> ```python
-> bmo_dbt_assets = bmo_dbt_assets.with_attributes(
->   automation_condition=AutomationCondition.eager()
-> )
-> ```
-
-The [dbt build](https://docs.getdbt.com/reference/commands/build?version=1.12) command consolidates four primary dbt actions — `run`, `test`, `snapshot`, and `seed—into` a single operation. It executes these resources in the correct order based on your project's dependency graph (DAG).
-
-- Seeds: Loads static CSV files into the database.
-- Models: Materializes SQL transformations into tables or views.
-- Snapshots: Captures historical state changes (SCD Type 2).
-- Tests: Runs both unit tests (before models) and data tests (after models)
-- generates manifests.json
-
-5. Back in Dagster UI:
-
-- `feast_feature_export` → Materialize
-- `feast_materialized_features` → Materialize
-- `training_dataset` → Materialize
-- `trained` → Materialize
-
-The BTS sensor will automatically trigger raw_bts_flights for new months going forward — you only need to manually kick off step 3 for backfills.
-
-### Note on Postgres, Iceberg, S3, DuckDB
-
-#### S3 (MinIO) — the actual storage
-
-All data lives here as Parquet files. Iceberg just adds a metadata layer on top:
-
-```
-s3://staging/iceberg/dim_airport/
-  metadata/
-    v1.metadata.json      ← table schema, partition spec, snapshot history
-    snap-123.avro         ← manifest list (which files belong to this snapshot)
-  data/
-    00000.parquet         ← actual rows
-```
-
-Without Iceberg, you'd just have raw Parquet files with no schema tracking, no ACID writes, and no way to do partial overwrites.
-
-#### Iceberg
-
-Iceberg is a table format, not a database. It's a spec for how to organize Parquet files on S3 into something that behaves like a database table — with ACID writes, schema evolution, and time travel.
-
-It uses Postgres (or sqlite) to store metadata. (e.g. `staging.dim_airport → s3://staging/iceberg/dim_airport/`)
-
-#### DuckDB - query engine
-
-DuckDB doesn't store anything. It reads Iceberg tables at query time via two paths in this project:
-
-- **PyIceberg plugin** (for dbt) — the plugin asks the Postgres catalog for the table location, then hands DuckDB the S3 path to read
-- **PySpark** — uses its own JdbcCatalog to do the same thing independently
-
-#### Data flow summary
-
-Python staging code
-→ writes Parquet files to S3 via PyIceberg
-→ registers snapshot in Postgres catalog
-
-dbt (DuckDB)
-→ asks Postgres catalog (via Iceberg): "where is staging.staged_flights?"
-→ gets back S3 path
-→ DuckDB reads Parquet directly from S3
-→ computes feature tables in memory
-→ (optionally) writes results back to S3
-
-#### Why not just use Parquet files directly?
-
-The old code (the commented-out lines in dimensions.py) did exactly that — wrote to dim_airport/dim_airport.parquet and read it back with boto3. The migration to Iceberg adds:
-
-- Atomic overwrites — a failed write doesn't corrupt the table
-- Schema enforcement — Iceberg rejects data that doesn't match the schema
-- Partition pruning — DuckDB only reads the months it needs for a query
-- A single source of truth — both Python and DuckDB query the same table via the catalog, instead of hardcoded S3 paths scattered across the code
-
-## Deployment
-
-TODO
-
-Dagster UI: https://dagster.207.211.176.98.sslip.io ~~http://207.211.176.98:3000/~~
-MLflow UI: https://mlflow.207.211.176.98.sslip.io
-
-TODO: document generating pw hashs for mlflow & dagster (caddy): `docker run --rm caddy:alpine caddy hash-password --plaintext '<password>'`
-
-### Terraform (re)apply
-
-#### What survives the VM rebuild (stored externally):
-
-- All R2 data — `raw/`, `staging/`, `rejected/`, `mlflow-artifacts/` are Cloudflare and completely independent of the VM
-- Feast registry (`s3://staging/feast/registry.db`)
-- Upstash Redis (online feature store)
-- MLflow model artifacts (the actual .pkl/model files in mlflow-artifacts/)
-
-#### What's lost (Docker named volumes on the VM disk):
-
-- `postgres_data` — all Postgres databases: `bmo`, `dagster`, `iceberg`
-  - Dagster's run history, event log, sensor cursors, schedule state
-  - MLflow experiment/run metadata (the UI history — artifacts in R2 are fine)
-  - `drift_metrics` table (used by drift_retrain_sensor)
-- `dagster_home` — Dagster's local state
-
-#### Do you need to start from scratch? No. The pipeline is largely idempotent:
-
-- `station_map` already has an explicit R2 existence check — it'll skip if the file is there
-- BTS/NOAA ingestion likely skips already-present partitions (check `ingest_month` for a similar guard)
-- Staging, features, and training assets will find their inputs in R2
-
-#### What you will need to do:
-
-- Re-run the full asset graph once — Dagster will show everything as "never materialized" since its event log is gone, but most runs will be fast no-ops hitting existing R2 data
-- Re-register the model — `registered_model` needs to re-run to recreate the MLflow Model Registry entry (artifacts are still in R2, it just re-points to them)
-- Watch the `bts_new_month_sensor` — its cursor is reset, so it may try to queue all historical months. Those runs will skip quickly since the data exists in R2, but you might want to manually backfill and then let the sensor resume from current month
 
 ---
 
@@ -527,10 +260,10 @@ The `src/bmo/common/storage.py` boto3 wrapper is endpoint-agnostic — swap the 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         DAGSTER                                  │
+│                         DAGSTER                                 │
 │  Asset Graph: raw → staged → features → training → serving      │
 │  Sensor: polls BTS website → triggers partition runs            │
-│  Metadata DB: PostgreSQL                                         │
+│  Metadata DB: PostgreSQL                                        │
 └───────┬────────────┬───────────────┬────────────────────────────┘
         │            │               │
         ▼            ▼               ▼
@@ -555,7 +288,7 @@ The `src/bmo/common/storage.py` boto3 wrapper is endpoint-agnostic — swap the 
           │                     │
           ▼                     ▼
     ┌─────────────────────────────┐
-    │   FastAPI (Fly.io)          │
+    │   FastAPI                   │
     │   XGBoost model + features  │
     └─────────────────────────────┘
 ```
@@ -597,6 +330,7 @@ BTS / NOAA / FAA  ──────►  raw Parquet on S3
 Through stage 5:
 
 <!-- prettier-ignore-start -->
+```
 ╔══════════════════════════════════════════════════════════════════════════════════════╗
 ║                         DATA SOURCES                                                 ║
 ║  BTS transtats.bts.gov    NOAA ncei.noaa.gov    FAA/OurAirports    OpenFlights       ║
@@ -742,6 +476,7 @@ Through stage 5:
 ║    schema_fingerprint   (SHA-256 of column names + dtypes)                           ║
 ║    storage_path      (s3://staging/datasets/{hash}/data.parquet)                     ║
 ╚══════════════════════════════════════════════════════════════════════════════════════╝
+```
 <!-- prettier-ignore-end -->
 
 ```mermaid
@@ -799,6 +534,7 @@ graph TD
 #### Stage 7:
 
 <!-- prettier-ignore-start -->
+```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │  RAW (MinIO/S3 Parquet)                                                         │
 │  raw_bts_flights [MonthlyPartition]  raw_noaa_weather  raw_faa_airports         │
@@ -876,6 +612,7 @@ graph TD
                                └─────────────────────┘
                                + Evidently HTML report
                                  logged as MLflow artifact
+```
 <!-- prettier-ignore-end -->
 
 #### Stage 8
@@ -993,6 +730,7 @@ graph TB
 ```
 
 <!-- prettier-ignore-start -->
+```
 ┌──────────────────────────────────────────────────────────────────────────────────────┐
 │ ORCHESTRATION LAYER (Dagster)                                                        │
 │                                                                                      │
@@ -1075,10 +813,10 @@ RESOURCES (wired in Phase 8, available to all assets)
   │ mlflow_tracking │  │ MinIO / R2    │  │ feature_repo/│  │ bmo_features   │
   │ _uri            │  │ S3-compatible │  │ feast_store  │  │ .duckdb        │
   └─────────────────┘  └───────────────┘  └──────────────┘  └────────────────┘
-
+```
 
 #### phase 9
-
+```
                          ┌──────────────────────────────────────────────────┐
                          │             CONTROL PLANE (Oracle/Local)          │
                          │  Dagster  ·  MLflow Registry  ·  Feast Registry   │
@@ -1125,10 +863,10 @@ RESOURCES (wired in Phase 8, available to all assets)
              Phase 10 (drift_report asset reads
              mart_predictions dbt model which
              queries predictions/ Parquet)
-
+```
 
 stage 10
-
+```
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                       CONTROL PLANE (Oracle Cloud Free)                      │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────────────────────────┐  │
@@ -1207,7 +945,7 @@ Auto-retrain loop (Phase 10 closes this):
                                     (training_dataset → trained_model
                                      → evaluation_gate checks
                                      → registered_model → deployed_api)
-
+```
 <!-- prettier-ignore-end -->
 
 ---

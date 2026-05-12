@@ -4,7 +4,7 @@ The core data engineering problem in any ML pipeline that trains on historical e
 
 ## The Problem: What Leakage Looks Like
 
-For a flight departing ORD at 09:15, the correct feature is the average departure delay as it was *known at 09:15* — not what it became later in the day.
+For a flight departing ORD at 09:15, the correct feature is the average departure delay as it was _known at 09:15_ — not what it became later in the day.
 
 ```
 Time →
@@ -28,7 +28,7 @@ WRONG (naive "latest value" join):
   flight_B → use 11:00 snapshot → avg_dep_delay=18.5 ✗  (same leak, different reason)
 ```
 
-The naive join gives every training example the same "latest" value regardless of when the event occurred. A model trained this way learns a relationship that cannot exist at inference time — at serving time, you only have the feature values that exist *right now*, not future values.
+The naive join gives every training example the same "latest" value regardless of when the event occurred. A model trained this way learns a relationship that cannot exist at inference time — at serving time, you only have the feature values that exist _right now_, not future values.
 
 ## BTS-Specific Subtlety: Scheduled vs Actual Departure
 
@@ -57,7 +57,7 @@ ASOF JOIN stg_weather w
     AND w.observation_time <= f.scheduled_departure_utc
 ```
 
-The `ASOF JOIN` guarantee: for each flight row, it selects the *most recent* weather snapshot that predates the scheduled departure. No future data can enter.
+The `ASOF JOIN` guarantee: for each flight row, it selects the _most recent_ weather snapshot that predates the scheduled departure. No future data can enter.
 
 ### Layer 2 — Feast `get_historical_features`
 
@@ -72,7 +72,7 @@ For each row in entity_df (one row per training example):
   5. Return the row with the maximum event_ts in that filtered set
 ```
 
-This is distinct from a plain `SELECT`: it returns a *different* feature value for each training example based on *when* that example occurred, not a single latest value for each entity.
+This is distinct from a plain `SELECT`: it returns a _different_ feature value for each training example based on _when_ that example occurred, not a single latest value for each entity.
 
 ```mermaid
 sequenceDiagram
@@ -136,7 +136,7 @@ flowchart TD
 
 ### Layer 4 — dbt singular test `assert_pit_correct.sql`
 
-A dbt singular test plants a known future value in the feature data and asserts the PIT join *excludes* it. This test runs in CI on every push.
+A dbt singular test plants a known future value in the feature data and asserts the PIT join _excludes_ it. This test runs in CI on every push.
 
 ### Layer 5 — Integration test `test_leakage_planted_value.py`
 
@@ -144,13 +144,13 @@ Plants a feature value at time T+1h for an event at time T, calls `build_dataset
 
 ## Feature TTLs by Entity Type
 
-| Entity | Feature View | TTL | Rationale |
-|--------|-------------|-----|-----------|
-| Origin airport | `origin_airport_features` | 26 hours | Rolling windows ≤ 24h; buffer for late data |
-| Destination airport | `dest_airport_features` | 26 hours | Same |
-| Carrier | `carrier_features` | 8 days | 7-day rolling window |
-| Route (OD pair) | `route_features` | 8 days | 7-day rolling window |
-| Aircraft tail | `aircraft_features` | 12 hours | Previous flight delay; staleness matters most here |
+| Entity              | Feature View              | TTL      | Rationale                                          |
+| ------------------- | ------------------------- | -------- | -------------------------------------------------- |
+| Origin airport      | `origin_airport_features` | 26 hours | Rolling windows ≤ 24h; buffer for late data        |
+| Destination airport | `dest_airport_features`   | 26 hours | Same                                               |
+| Carrier             | `carrier_features`        | 8 days   | 7-day rolling window                               |
+| Route (OD pair)     | `route_features`          | 8 days   | 7-day rolling window                               |
+| Aircraft tail       | `aircraft_features`       | 12 hours | Previous flight delay; staleness matters most here |
 
 TTLs serve two purposes: they bound how stale a feature can be at serving time (Redis), and they define the warning threshold for offline retrieval via Guard 3.
 
