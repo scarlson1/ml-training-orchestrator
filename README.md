@@ -581,23 +581,23 @@ graph TD
                       XGBoost + Optuna (50 trials)
                       champion run logged to MLflow
                       ┌────┴──────────────────────────────┐
-                      │  @asset_check (blocking=True)      │
+                      │  @asset_check (blocking=True)     │
                       │  ┌─────────────────────────────┐  │
-                      │  │ check_auc_gate               │  │
-                      │  │   AUC ≥ 0.70 floor           │  │
-                      │  │   AUC ≥ prod_AUC − 0.01      │  │
+                      │  │ check_auc_gate              │  │
+                      │  │   AUC ≥ 0.70 floor          │  │
+                      │  │   AUC ≥ prod_AUC − 0.01     │  │
                       │  ├─────────────────────────────┤  │
-                      │  │ check_leakage_sentinel       │  │
-                      │  │   max feature importance     │  │
-                      │  │   ≤ 0.70                     │  │
+                      │  │ check_leakage_sentinel      │  │
+                      │  │   max feature importance    │  │
+                      │  │   ≤ 0.70                    │  │
                       │  ├─────────────────────────────┤  │
-                      │  │ check_slice_parity           │  │
-                      │  │   per-carrier/hub/hour/      │  │
-                      │  │   weather AUC ≥ 0.60         │  │
-                      │  │   drop vs overall ≤ 0.10     │  │
+                      │  │ check_slice_parity          │  │
+                      │  │   per-carrier/hub/hour/     │  │
+                      │  │   weather AUC ≥ 0.60        │  │
+                      │  │   drop vs overall ≤ 0.10    │  │
                       │  ├─────────────────────────────┤  │
-                      │  │ check_calibration (WARN)     │  │
-                      │  │   brier_score ≤ 0.25         │  │
+                      │  │ check_calibration (WARN)    │  │
+                      │  │   brier_score ≤ 0.25        │  │
                       │  └─────────────────────────────┘  │
                       └────────────────┬──────────────────┘
                                        │  all blocking checks pass
@@ -736,24 +736,24 @@ graph TB
 │                                                                                      │
 │  SENSORS                          SCHEDULES                                          │
 │  ┌──────────────────────┐         ┌───────────────────────┐                          │
-│  │ bts_new_month_sensor │         │ feast_hourly_schedule  │                          │
-│  │ polls BTS every 6h   │         │ cron: 0 * * * *        │──────────────────────┐  │
+│  │ bts_new_month_sensor │         │ feast_hourly_schedule │                          │
+│  │ polls BTS every 6h   │         │ cron: 0 * * * *       │───────────────────────┐  │
 │  └──────────┬───────────┘         └───────────────────────┘                       │  │
-│             │                                                                      │  │
+│             │                                                                     │  │
 │             ▼                     ┌───────────────────────┐  ┌──────────────────┐ │  │
-│  ┌──────────────────────┐         │ nightly_retrain_sched  │  │ drift_retrain_   │ │  │
-│  │ ingest_bts_month job │         │ cron: 0 1 * * *        │  │ sensor           │ │  │
+│  ┌──────────────────────┐         │ nightly_retrain_sched │  │ drift_retrain_   │ │  │
+│  │ ingest_bts_month job │         │ cron: 0 1 * * *       │  │ sensor           │ │  │
 │  └──────────────────────┘         └────────────┬──────────┘  │ polls Postgres   │ │  │
-│                                                │              │ drift_metrics    │ │  │
-│  ┌──────────────────────┐                      │              │ PSI > 0.2?       │ │  │
-│  │ run_failure_sensor   │◄── any run failure   │              └────────┬─────────┘ │  │
-│  │ posts Discord embed  │                      ▼                       │           │  │
-│  └──────────────────────┘         ┌──────────────────────────────────┐ │           │  │
-│                                   │        retrain_job               │◄┘           │  │
-│                                   │  training_dataset → trained_model│             │  │
-│                                   │  → [eval gate checks]            │             │  │
-│                                   │  → registered_model              │             │  │
-│                                   └──────────────────────────────────┘             │  │
+│                                                │             │ drift_metrics    │ │  │
+│  ┌──────────────────────┐                      │             │ PSI > 0.2?       │ │  │
+│  │ run_failure_sensor   │◄── any run failure   │             └────────┬─────────┘ │  │
+│  │ posts Discord embed  │                      ▼                       │          │  │
+│  └──────────────────────┘         ┌──────────────────────────────────┐ │          │  │
+│                                   │        retrain_job               │◄┘          │  │
+│                                   │  training_dataset → trained_model│            │  │
+│                                   │  → [eval gate checks]            │            │  │
+│                                   │  → registered_model              │            │  │
+│                                   └──────────────────────────────────┘            │  │
 └──────────────────────────────────────────────────────────────────────────────────────┘
                                                                                      │
                                                                                      │ feast_materialize_job
@@ -763,20 +763,20 @@ graph TB
 │                                                                                      │
 │  [raw]                  [staging]              [features]        [feast]             │
 │                                                                                      │
-│  raw_faa_airports ──►  dim_airport ─┐                                               │
-│  station_map      ──►              ─┤                                               │
-│  raw_openflights  ──►  dim_route    │                                               │
-│                                     │                                               │
-│  raw_bts_flights  ──►  staged_flights ─────────────────────────────────────────┐   │
-│   (partitioned)         (partitioned) ─► bmo_dbt_assets ◄──── dim_airport      │   │
-│                                          (15 dbt models:  ◄──── dim_route       │   │
-│  raw_noaa_weather ──►  staged_weather ──► stg_, int_,     ◄──── staged_weather  │   │
-│   (partitioned)         (partitioned)     feat_* models)                        │   │
-│                                                   │                             │   │
-│                         staged_flights ──► feat_cascading_delay (PySpark)       │   │
-│                                                   │                             │   │
-│                                                   ▼                             │   │
-│                                          feast_feature_export ◄─────────────────┘   │
+│  raw_faa_airports ──►  dim_airport ─┐                                                │
+│  station_map      ──►              ─┤                                                │
+│  raw_openflights  ──►  dim_route    │                                                │
+│                                     │                                                │
+│  raw_bts_flights  ──►  staged_flights ─────────────────────────────────────────┐     │
+│   (partitioned)         (partitioned) ─► bmo_dbt_assets ◄──── dim_airport      │     │
+│                                          (15 dbt models:  ◄──── dim_route      │     │
+│  raw_noaa_weather ──►  staged_weather ──► stg_, int_,     ◄──── staged_weather │     │
+│   (partitioned)         (partitioned)     feat_* models)                       │     │
+│                                                   │                            │     │
+│                         staged_flights ──► feat_cascading_delay (PySpark)      │     │
+│                                                   │                            │     │
+│                                                   ▼                            │     │
+│                                          feast_feature_export ◄────────────────┘     │
 │                                          (DuckDB → S3 Parquet)                       │
 │                                                   │                                  │
 │                                                   ▼                                  │
@@ -803,7 +803,7 @@ graph TB
 │                                          (MLflow: challenger → champion)             │
 │                                                   │                                  │
 │                                        ┌──────────┴──────────┐                       │
-│  [serving — Phase 9]      batch_predictions           deployed_api (FastAPI)          │
+│  [serving — Phase 9]      batch_predictions           deployed_api (FastAPI)         │
 │  [monitoring — Phase 10]            drift_report ──► drift_retrain_sensor            │
 └──────────────────────────────────────────────────────────────────────────────────────┘
 
@@ -818,20 +818,20 @@ RESOURCES (wired in Phase 8, available to all assets)
 #### phase 9
 ```
                          ┌──────────────────────────────────────────────────┐
-                         │             CONTROL PLANE (Oracle/Local)          │
-                         │  Dagster  ·  MLflow Registry  ·  Feast Registry   │
+                         │             CONTROL PLANE (Oracle/Local)         │
+                         │  Dagster  ·  MLflow Registry  ·  Feast Registry  │
                          └────────────────────┬─────────────────────────────┘
                                               │ triggers
              ┌────────────────────────────────▼────────────────────────────┐
-             │                    DAGSTER ASSET GRAPH                       │
-             │                                                              │
- raw_bts_flights                                                            │
-      │                                                                     │
+             │                    DAGSTER ASSET GRAPH                      │
+             │                                                             │
+ raw_bts_flights                                                           │
+      │                                                                    │
  staged_flights ──► bmo_dbt_assets ──► feast_feature_export                │
       │                                        │                           │
  staged_weather ──────────────────────────────►│                           │
                                                ▼                           │
-                                  feast_materialized_features               │
+                                  feast_materialized_features              │
                                                │                           │
                                          training_dataset                  │
                                                │                           │
@@ -841,12 +841,12 @@ RESOURCES (wired in Phase 8, available to all assets)
                                           /          \                     │
                                          /            \                    │
                          batch_predictions         deployed_api            │
-                    (DailyPartitionsDefinition)   (model_config.json→S3)  │
-             └────────────────────────────────────────────────────────────┘
+                    (DailyPartitionsDefinition)   (model_config.json→S3)   │
+             └─────────────────────────────────────────────────────────────┘
                           │                              │
                           ▼                              ▼
           ┌───────────────────────────┐    ┌────────────────────────────────┐
-          │  s3://staging/            │    │    Fly.io / FastAPI             │
+          │  s3://staging/            │    │    Fly.io / FastAPI            │
           │  predictions/             │    │                                │
           │  date=YYYY-MM-DD/         │    │  POST /predict                 │
           │  data.parquet             │    │   └── FeatureClient            │
@@ -869,14 +869,14 @@ stage 10
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                       CONTROL PLANE (Oracle Cloud Free)                      │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────────────────────────┐  │
-│  │ Dagster  │  │  MLflow  │  │  Feast   │  │  Postgres                   │  │
-│  │ webui +  │  │  Server  │  │ Registry │  │  ┌─────────────────────┐    │  │
-│  │ daemon   │  │          │  │          │  │  │ drift_metrics       │◄───┼──┼─ drift_report writes
-│  └──────────┘  └──────────┘  └──────────┘  │  │ live_accuracy       │    │  │
-│                                            │  │ (dagster metadata)  │    │  │
-│                                            │  └─────────────────────┘    │  │
-│                                            └─────────────────────────────┘  │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────────────────────────┐   │
+│  │ Dagster  │  │  MLflow  │  │  Feast   │  │  Postgres                   │   │
+│  │ webui +  │  │  Server  │  │ Registry │  │  ┌─────────────────────┐    │   │
+│  │ daemon   │  │          │  │          │  │  │ drift_metrics       │◄───┼───┼─ drift_report writes
+│  └──────────┘  └──────────┘  └──────────┘  │  │ live_accuracy       │    │   │
+│                                            │  │ (dagster metadata)  │    │   │
+│                                            │  └─────────────────────┘    │   │
+│                                            └─────────────────────────────┘   │
 └──────────────────────────────────────────────────────────────────────────────┘
                 │
                 │ triggers / reads
@@ -884,41 +884,41 @@ stage 10
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                          DAGSTER ASSET GRAPH                                 │
 │                                                                              │
-│  [raw_bts_flights] ──► [staged_flights] ──► [bmo_dbt_assets]                │
+│  [raw_bts_flights] ──► [staged_flights] ──► [bmo_dbt_assets]                 │
 │  [raw_noaa_weather] ──► [staged_weather] ──┘    │                            │
 │  [raw_faa_airports] ──► [dim_airport] ──────────┘                            │
 │       │                                         │                            │
 │       │                                         ▼                            │
-│       │               [feast_feature_export] ──► [feast_materialized_features]│
+│       │              [feast_feature_export] ──► [feast_materialized_features]│
 │       │                                              │                       │
 │       │                                              ▼                       │
 │       │                              [training_dataset] ──► [trained_model]  │
-│       │                                                          │            │
-│       │                                          [eval checks] ──┤            │
-│       │                                                          ▼            │
-│       │                                             [registered_model]        │
-│       │                                                    │                  │
+│       │                                                          │           │
+│       │                                          [eval checks] ──┤           │
+│       │                                                          ▼           │
+│       │                                             [registered_model]       │
+│       │                                                    │                 │
 │       │                              ┌─────────────────────┴──────────┐      │
 │       │                              │                                │      │
 │       │                              ▼                                ▼      │
-│       │                    [batch_predictions]              [deployed_api]    │
-│       │                (DailyPartition, 6am UTC)                     │      │
+│       │                    [batch_predictions]              [deployed_api]   │
+│       │                (DailyPartition, 6am UTC)                     │       │
 │       │                          │                              S3 config    │
-│       │                          │                                   │      │
-│       │                          ▼ ← NEW (Phase 10)                  │      │
-│       │                    [drift_report] ──────────────────────────►┘      │
-│       │                (DailyPartition, 8am UTC)                            │
+│       │                          │                                   │       │
+│       │                          ▼ ← NEW (Phase 10)                  │       │
+│       │                    [drift_report] ──────────────────────────►┘       │
+│       │                (DailyPartition, 8am UTC)                             │
 │       │                     │        │                                       │
-│       │             HTML to S3   PSI to Postgres                            │
+│       │             HTML to S3   PSI to Postgres                             │
 │       │                     │        │                                       │
-│       │                     │        └──► drift_retrain_sensor (polls 1h)   │
+│       │                     │        └──► drift_retrain_sensor (polls 1h)    │
 │       │                     │                        │                       │
 │       │                     ▼                        │ PSI > 0.2             │
 │       │             GitHub Pages                     ▼                       │
 │       │             (CI workflow)             retrain_job triggers           │
 │       │                                              │                       │
 │       │              (mart_predictions)              │ (nightly OR triggered)│
-│       └──► [bmo_dbt_assets] ──► [ground_truth_backfill] ← NEW (Phase 10)   │
+│       └──► [bmo_dbt_assets] ──► [ground_truth_backfill] ← NEW (Phase 10)     │
 │                                            │                                 │
 │                                   live_accuracy (Postgres)                   │
 └──────────────────────────────────────────────────────────────────────────────┘
@@ -926,9 +926,9 @@ stage 10
                 ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                         SERVING (Fly.io + Upstash)                           │
-│  ┌──────────────────┐       ┌──────────────────────────────────────────┐    │
-│  │  FastAPI         │──────►│  Upstash Redis (Feast online store)      │    │
-│  │  /predict        │       └──────────────────────────────────────────┘    │
+│  ┌──────────────────┐       ┌──────────────────────────────────────────┐     │
+│  │  FastAPI         │──────►│  Upstash Redis (Feast online store)      │     │
+│  │  /predict        │       └──────────────────────────────────────────┘     │
 │  │  /health         │                                                        │
 │  │  /metrics        │                                                        │
 │  │  /admin/reload   │◄── model_config.json from deployed_api                 │
@@ -950,68 +950,7 @@ Auto-retrain loop (Phase 10 closes this):
 
 ---
 
-### PyIceberg: HadoopCatalog vs JdbcCatalog
-
-> Note: PyIceberg uses SqlCatalog (stores metadata in Postgres). Spark (used in `feat_cascading_delay`) was using HadoopCatalog, which uses S3 files to track metadata. PyIceberg was switched from HadoopCatalog to JdbcCatalog to align with PyIceberg's SqlCatalog (use same Postgres `iceberg_tables`)
-
-#### How Each Works
-
-**HadoopCatalog** is a filesystem-based catalog. Table state is tracked by two file conventions on the object store:
-
-- `metadata/version-hint.text` — an integer pointing to the current version
-- `metadata/v{n}.metadata.json` — sequentially-named snapshots
-
-To commit a new snapshot, the writer increments `version-hint.text`. "Locking" is done via optimistic filesystem overwrites.
-
-**JdbcCatalog** tracks `metadata_location` (a UUID-named path) in an `iceberg_tables` row in PostgreSQL. Commits are database transactions — a `SELECT ... FOR UPDATE` followed by an `UPDATE` atomically swaps the pointer to the new metadata file.
-
----
-
-#### Concurrency Safety (the critical difference)
-
-|                          | HadoopCatalog                                                           | JdbcCatalog                              |
-| ------------------------ | ----------------------------------------------------------------------- | ---------------------------------------- |
-| Commit mechanism         | Overwrite `version-hint.text` on object store                           | PostgreSQL `UPDATE` inside a transaction |
-| Atomic compare-and-swap  | **No** — S3/MinIO don't support atomic file rename                      | **Yes** — DB transactions                |
-| Concurrent writer safety | **Unsafe** — two writers can overwrite each other's `version-hint.text` | **Safe** — database serializes commits   |
-| Lost update risk         | Real, not theoretical                                                   | None                                     |
-
-S3 doesn't support atomic rename. MinIO has partial support but it's not reliable enough to trust for production writes. This is a well-documented Iceberg limitation, not a hypothetical — it's why the Iceberg spec warns against using HadoopCatalog with S3-compatible stores in multi-writer scenarios.
-
-Dagster runs assets concurrently. HadoopCatalog on MinIO is a data corruption risk.
-
----
-
-#### Other Dimensions
-
-|                                     | HadoopCatalog                       | JdbcCatalog                                       |
-| ----------------------------------- | ----------------------------------- | ------------------------------------------------- |
-| External dependency                 | None (catalog is the filesystem)    | PostgreSQL                                        |
-| Infrastructure cost in this project | Zero                                | **Also zero** — Postgres already runs for Dagster |
-| Failure mode if DB is down          | N/A                                 | Catalog operations fail; **data files are safe**  |
-| Catalog portability                 | Moves with the bucket               | Requires migrating PostgreSQL too                 |
-| Namespace/schema management         | Directory-based                     | Full SQL, supports properties/tags                |
-| Catalog discoverability             | `ls s3://staging/iceberg/`          | Query `iceberg_tables` in psql                    |
-| PyIceberg compatibility             | Uses `HadoopCatalog` class          | Uses `SqlCatalog` — same schema as `JdbcCatalog`  |
-| Debugging                           | Read JSON files directly from MinIO | Query PostgreSQL                                  |
-
----
-
-#### Recommendation: JdbcCatalog
-
-HadoopCatalog would win only if you had no external services available and single-writer access patterns. Neither is true here.
-
-JdbcCatalog wins on the only dimension that actually matters for correctness: **it's safe for concurrent writes**. The fact that this project already runs PostgreSQL for Dagster makes the infrastructure argument for HadoopCatalog moot. You get ACID catalog commits at zero additional operational cost.
-
-The one legitimate concern with JdbcCatalog is that PostgreSQL is a second thing that has to be up for Iceberg to function — but Dagster already has this requirement, so it's not a new dependency.
-
-If you ever wanted to upgrade further, the modern production choice is an **Iceberg REST catalog** (stateless service, any backend), but that's meaningfully more infrastructure. JdbcCatalog is the right level of robustness for this project's scale.
-
 ### TODO
-
-- React client to call FastAPI inference endpoint
-
-- figure out how to parallelize `raw_noaa_weather` data ingestion to run multiple months at a time. Only downloads full year and filters to specific month. CDO API key allows specific month (rate limited)? Cache annual files in S3 ?? What's file size?
 
 - document xgboost params
 

@@ -14,18 +14,18 @@ Local development uses a `.env` file at the project root. Production uses a `.en
 
 All three object stores use the same boto3 API. `S3_ENDPOINT_URL` is what redirects requests away from AWS.
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `S3_ENDPOINT_URL` | Yes | — | Full URL including scheme. `http://localhost:9000` (MinIO) or `https://<account>.r2.cloudflarestorage.com` (R2). |
-| `AWS_ACCESS_KEY_ID` | Yes | — | Access key. Also accepted as `S3_ACCESS_KEY_ID` (pydantic `AliasChoices`). |
-| `AWS_SECRET_ACCESS_KEY` | Yes | — | Secret key. Also accepted as `S3_SECRET_ACCESS_KEY`. |
-| `AWS_DEFAULT_REGION` | No | `us-east-1` | Region. Also accepted as `AWS_REGION` or `S3_REGION`. |
-| `AWS_ENDPOINT_URL` | Yes | — | Picked up automatically by boto3 and Feast. Mirror of `S3_ENDPOINT_URL`. |
-| `S3_BUCKET_RAW` | No | `raw` | Bucket for raw ingestion data. |
-| `S3_BUCKET_STAGING` | No | `staging` | Bucket for dbt outputs, features, predictions, monitoring. |
-| `S3_BUCKET_REJECTED` | No | `rejected` | Bucket for records that fail validation. |
-| `FEAST_S3_BASE` | No | `s3://staging/feast` | Base S3 path for Feast feature parquet and registry. |
-| `DATASET_S3_BASE` | No | `s3://staging/datasets` | Base S3 path for training dataset parquet. |
+| Variable                | Required | Default                 | Description                                                                                                      |
+| ----------------------- | -------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `S3_ENDPOINT_URL`       | Yes      | —                       | Full URL including scheme. `http://localhost:9000` (MinIO) or `https://<account>.r2.cloudflarestorage.com` (R2). |
+| `AWS_ACCESS_KEY_ID`     | Yes      | —                       | Access key. Also accepted as `S3_ACCESS_KEY_ID` (pydantic `AliasChoices`).                                       |
+| `AWS_SECRET_ACCESS_KEY` | Yes      | —                       | Secret key. Also accepted as `S3_SECRET_ACCESS_KEY`.                                                             |
+| `AWS_DEFAULT_REGION`    | No       | `us-east-1`             | Region. Also accepted as `AWS_REGION` or `S3_REGION`.                                                            |
+| `AWS_ENDPOINT_URL`      | Yes      | —                       | Picked up automatically by boto3 and Feast. Mirror of `S3_ENDPOINT_URL`.                                         |
+| `S3_BUCKET_RAW`         | No       | `raw`                   | Bucket for raw ingestion data.                                                                                   |
+| `S3_BUCKET_STAGING`     | No       | `staging`               | Bucket for dbt outputs, features, predictions, monitoring.                                                       |
+| `S3_BUCKET_REJECTED`    | No       | `rejected`              | Bucket for records that fail validation.                                                                         |
+| `FEAST_S3_BASE`         | No       | `s3://staging/feast`    | Base S3 path for Feast feature parquet and registry.                                                             |
+| `DATASET_S3_BASE`       | No       | `s3://staging/datasets` | Base S3 path for training dataset parquet.                                                                       |
 
 **S3 path layout (inside `staging`):**
 
@@ -45,14 +45,14 @@ s3://staging/
 
 Dagster, MLflow, and the Iceberg catalog all share one Postgres instance. Dagster uses a `dagster` database; the application uses `bmo`; Iceberg metadata uses an `iceberg` database. All three are created by `infra/postgres/init.sql`.
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `POSTGRES_HOST` | Yes | — | Hostname. `localhost` in dev; `postgres` (Docker service name) in prod. |
-| `POSTGRES_PORT` | Yes | — | Port, typically `5432`. |
-| `POSTGRES_DB` | Yes | — | Application database name, e.g. `bmo`. |
-| `POSTGRES_USER` | Yes | — | Database user. |
-| `POSTGRES_PASSWORD` | Yes | — | Database password. |
-| `ICEBERG_CATALOG_URI` | No | Derived | SQLAlchemy URI for the Iceberg catalog. If unset, `config.py` builds it from `POSTGRES_*` as `postgresql+psycopg2://<user>:<password>@<host>:<port>/iceberg`. |
+| Variable              | Required | Default | Description                                                                                                                                                   |
+| --------------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POSTGRES_HOST`       | Yes      | —       | Hostname. `localhost` in dev; `postgres` (Docker service name) in prod.                                                                                       |
+| `POSTGRES_PORT`       | Yes      | —       | Port, typically `5432`.                                                                                                                                       |
+| `POSTGRES_DB`         | Yes      | —       | Application database name, e.g. `bmo`.                                                                                                                        |
+| `POSTGRES_USER`       | Yes      | —       | Database user.                                                                                                                                                |
+| `POSTGRES_PASSWORD`   | Yes      | —       | Database password.                                                                                                                                            |
+| `ICEBERG_CATALOG_URI` | No       | Derived | SQLAlchemy URI for the Iceberg catalog. If unset, `config.py` builds it from `POSTGRES_*` as `postgresql+psycopg2://<user>:<password>@<host>:<port>/iceberg`. |
 
 `settings.postgres_url` and `settings.iceberg_catalog_uri` URL-encode user/password/host/port to handle special characters.
 
@@ -62,16 +62,16 @@ In production Postgres is bound to `127.0.0.1:5432` (loopback only). Dagster and
 
 ### MLflow
 
-| Variable | Required | Default | Description |
-| --- | --- | --- | --- |
-| `MLFLOW_TRACKING_URI` | Yes | — | Tracking server URI. `http://localhost:5000` (dev); `http://mlflow:5000` (prod, overridden in compose). |
-| `MLFLOW_AUTH_ADMIN_USERNAME` | Prod only | — | Admin username for MLflow basic auth. |
-| `MLFLOW_AUTH_ADMIN_PASSWORD` | Prod only | — | Admin password for MLflow basic auth. |
-| `MLFLOW_TRACKING_USERNAME` | Prod only | — | Picked up automatically by the MLflow client once basic auth is enabled. Set to the same value as `MLFLOW_AUTH_ADMIN_USERNAME`. |
-| `MLFLOW_TRACKING_PASSWORD` | Prod only | — | Picked up automatically by the MLflow client. |
-| `MLFLOW_FLASK_SERVER_SECRET_KEY` | Prod only | — | Random string for Flask session signing (required for CSRF protection). |
-| `MLFLOW_DOMAIN` | Prod only | — | Public subdomain for the MLflow UI, e.g. `mlflow.<IP>.sslip.io`. Caddy proxies this to `mlflow:5000`. |
-| `MODEL_NAME` | No | `bmo_flight_delay` | MLflow registered model name, used by serving and training assets. |
+| Variable                         | Required  | Default            | Description                                                                                                                     |
+| -------------------------------- | --------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `MLFLOW_TRACKING_URI`            | Yes       | —                  | Tracking server URI. `http://localhost:5000` (dev); `http://mlflow:5000` (prod, overridden in compose).                         |
+| `MLFLOW_AUTH_ADMIN_USERNAME`     | Prod only | —                  | Admin username for MLflow basic auth.                                                                                           |
+| `MLFLOW_AUTH_ADMIN_PASSWORD`     | Prod only | —                  | Admin password for MLflow basic auth.                                                                                           |
+| `MLFLOW_TRACKING_USERNAME`       | Prod only | —                  | Picked up automatically by the MLflow client once basic auth is enabled. Set to the same value as `MLFLOW_AUTH_ADMIN_USERNAME`. |
+| `MLFLOW_TRACKING_PASSWORD`       | Prod only | —                  | Picked up automatically by the MLflow client.                                                                                   |
+| `MLFLOW_FLASK_SERVER_SECRET_KEY` | Prod only | —                  | Random string for Flask session signing (required for CSRF protection).                                                         |
+| `MLFLOW_DOMAIN`                  | Prod only | —                  | Public subdomain for the MLflow UI, e.g. `mlflow.<IP>.sslip.io`. Caddy proxies this to `mlflow:5000`.                           |
+| `MODEL_NAME`                     | No        | `bmo_flight_delay` | MLflow registered model name, used by serving and training assets.                                                              |
 
 Admin credentials are set by environment variables (in GitHub Secrets). To enable basic auth:
 
@@ -97,11 +97,11 @@ curl -X POST https://<mlflow-domain>/api/2.0/mlflow/users/create \
 
 ### Feast / Redis
 
-| Variable | Required | Default | Description |
-| --- | --- | --- | --- |
-| `REDIS_URL` | Yes | — | Redis connection string. `localhost:6379` (dev); `<id>.upstash.io:6379,ssl=true,password=<pw>` (prod via Upstash). |
-| `FEAST_REGISTRY_PATH` | Yes | — | Path to the Feast registry. `data/registry.db` (dev, local SQLite); `s3://staging/feast/registry.db` (prod, shared between Dagster writer and serving reader). |
-| `FEATURE_REPO_DIR` | No | `feature_repo/` | Path to the directory containing `feature_store.yaml`. Used by the `FeastResource` Dagster resource and the serving `FeatureClient`. |
+| Variable              | Required | Default         | Description                                                                                                                                                    |
+| --------------------- | -------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `REDIS_URL`           | Yes      | —               | Redis connection string. `localhost:6379` (dev); `<id>.upstash.io:6379,ssl=true,password=<pw>` (prod via Upstash).                                             |
+| `FEAST_REGISTRY_PATH` | Yes      | —               | Path to the Feast registry. `data/registry.db` (dev, local SQLite); `s3://staging/feast/registry.db` (prod, shared between Dagster writer and serving reader). |
+| `FEATURE_REPO_DIR`    | No       | `feature_repo/` | Path to the directory containing `feature_store.yaml`. Used by the `FeastResource` Dagster resource and the serving `FeatureClient`.                           |
 
 `feature_repo/feature_store.yaml` reads `FEAST_REGISTRY_PATH` and `REDIS_URL` at `feast apply` / `feast materialize` time.
 
@@ -111,10 +111,10 @@ In production Redis is Upstash (managed, TLS). The local dev Redis container is 
 
 ### Dagster
 
-| Variable | Required | Default | Description |
-| --- | --- | --- | --- |
-| `DAGSTER_HOME` | Yes | — | Absolute path to the `dagster_home/` directory. Contains `dagster.yaml`, the DuckDB file, and the DuckDB spill directory. In prod this is a named Docker volume mounted at `/dagster_home`. |
-| `DAGSTER_HPO_N_TRIALS` | No | `50` | Number of Optuna trials for the `trained_model` asset HPO sweep. Set to `5` for fast local runs: `DAGSTER_HPO_N_TRIALS=5 make dagster-dev`. |
+| Variable               | Required | Default | Description                                                                                                                                                                                 |
+| ---------------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DAGSTER_HOME`         | Yes      | —       | Absolute path to the `dagster_home/` directory. Contains `dagster.yaml`, the DuckDB file, and the DuckDB spill directory. In prod this is a named Docker volume mounted at `/dagster_home`. |
+| `DAGSTER_HPO_N_TRIALS` | No       | `50`    | Number of Optuna trials for the `trained_model` asset HPO sweep. Set to `5` for fast local runs: `DAGSTER_HPO_N_TRIALS=5 make dagster-dev`.                                                 |
 
 `dagster_home/dagster.yaml` configures:
 
@@ -128,11 +128,11 @@ In production Redis is Upstash (managed, TLS). The local dev Redis container is 
 
 DuckDB is the query engine for dbt feature models and the training dataset builder. Its S3 config is session-level (`SET s3_endpoint = '...'`), not global.
 
-| Variable | Required | Default | Description |
-| --- | --- | --- | --- |
-| `DUCKDB_S3_ENDPOINT` | Yes | — | S3 endpoint as `HOST:PORT` — **no scheme**. DuckDB's `httpfs` requires this format. `localhost:9000` (MinIO dev); `<account>.r2.cloudflarestorage.com` (R2 prod). |
-| `DUCKDB_PATH` | No | `/tmp/bmo_features.duckdb` | Path to the DuckDB file. In prod: `/dagster_home/bmo_features.duckdb` (set in compose, shared named volume between Dagster and serving). |
-| `S3_USE_SSL` | No | `false` | Set to `true` for endpoints requiring TLS (R2 in prod). |
+| Variable             | Required | Default                    | Description                                                                                                                                                       |
+| -------------------- | -------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DUCKDB_S3_ENDPOINT` | Yes      | —                          | S3 endpoint as `HOST:PORT` — **no scheme**. DuckDB's `httpfs` requires this format. `localhost:9000` (MinIO dev); `<account>.r2.cloudflarestorage.com` (R2 prod). |
+| `DUCKDB_PATH`        | No       | `/tmp/bmo_features.duckdb` | Path to the DuckDB file. In prod: `/dagster_home/bmo_features.duckdb` (set in compose, shared named volume between Dagster and serving).                          |
+| `S3_USE_SSL`         | No       | `false`                    | Set to `true` for endpoints requiring TLS (R2 in prod).                                                                                                           |
 
 `settings.s3_endpoint` is a computed property that strips `http://` or `https://` from `S3_ENDPOINT_URL` for use by `DuckDBResource`.
 
@@ -147,13 +147,13 @@ SET temp_directory = '/dagster_home/duckdb_spill'
 
 ### FastAPI Serving
 
-| Variable | Required | Default | Description |
-| --- | --- | --- | --- |
-| `ADMIN_TOKEN` | No | `''` | Bearer token for `POST /admin/reload`. Empty string disables the check (dev mode). |
-| `SERVING_API_URL` | No | — | Public URL of the serving API. `http://localhost:8000` (dev); `https://<SERVING_DOMAIN>` (prod). Used by Dagster's `deployed_api` asset to verify the hot-swap after champion promotion. |
-| `SERVING_DOMAIN` | Prod only | — | Public domain for the serving API. Caddy obtains and renews a Let's Encrypt TLS cert for this domain automatically. |
-| `CORS_ORIGIN_DEV` | Dev only | — | Additional CORS origin appended to the hardcoded allowlist. E.g. `http://localhost:5433`. Omit in production. |
-| `SHADOW_MODEL_VERSION` | No | — | MLflow registry version number to run as a shadow model, e.g. `5`. Every `/predict` request also runs the shadow model as a `BackgroundTask` and emits a structured `shadow_prediction` JSON log. Zero latency impact on the primary response. |
+| Variable               | Required  | Default | Description                                                                                                                                                                                                                                    |
+| ---------------------- | --------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ADMIN_TOKEN`          | No        | `''`    | Bearer token for `POST /admin/reload`. Empty string disables the check (dev mode).                                                                                                                                                             |
+| `SERVING_API_URL`      | No        | —       | Public URL of the serving API. `http://localhost:8000` (dev); `https://<SERVING_DOMAIN>` (prod). Used by Dagster's `deployed_api` asset to verify the hot-swap after champion promotion.                                                       |
+| `SERVING_DOMAIN`       | Prod only | —       | Public domain for the serving API. Caddy obtains and renews a Let's Encrypt TLS cert for this domain automatically.                                                                                                                            |
+| `CORS_ORIGIN_DEV`      | Dev only  | —       | Additional CORS origin appended to the hardcoded allowlist. E.g. `http://localhost:5433`. Omit in production.                                                                                                                                  |
+| `SHADOW_MODEL_VERSION` | No        | —       | MLflow registry version number to run as a shadow model, e.g. `5`. Every `/predict` request also runs the shadow model as a `BackgroundTask` and emits a structured `shadow_prediction` JSON log. Zero latency impact on the primary response. |
 
 **CORS policy** (enforced in both FastAPI middleware and Caddy):
 
@@ -173,13 +173,13 @@ There are no dedicated `SPARK_*` environment variables. The Spark session is con
 
 ### General / Notifications
 
-| Variable | Required | Default | Description |
-| --- | --- | --- | --- |
-| `DISCORD_WEBHOOK_URL` | No | — | Discord webhook URL. When set, the `run_failure_sensor` posts an embed on any Dagster run failure. If unset, the sensor silently no-ops. |
-| `CADDY_EMAIL` | Prod only | — | Email sent to Let's Encrypt for TLS certificate expiry warnings. |
-| `DAGSTER_USER` | Prod only | — | Username for Caddy HTTP basic auth on the Dagster UI. |
-| `DAGSTER_HASHED_PASSWORD` | Prod only | — | bcrypt hash of the Dagster UI password. Generate: `docker run --rm caddy:alpine caddy hash-password --plaintext 'yourpassword'` |
-| `GHCR_OWNER` | Prod only | — | GitHub username. The serving container is pulled from `ghcr.io/<GHCR_OWNER>/bmo-serving:latest`. Built and pushed by CI on merge to `main`. |
+| Variable                  | Required  | Default | Description                                                                                                                                 |
+| ------------------------- | --------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DISCORD_WEBHOOK_URL`     | No        | —       | Discord webhook URL. When set, the `run_failure_sensor` posts an embed on any Dagster run failure. If unset, the sensor silently no-ops.    |
+| `CADDY_EMAIL`             | Prod only | —       | Email sent to Let's Encrypt for TLS certificate expiry warnings.                                                                            |
+| `DAGSTER_USER`            | Prod only | —       | Username for Caddy HTTP basic auth on the Dagster UI.                                                                                       |
+| `DAGSTER_HASHED_PASSWORD` | Prod only | —       | bcrypt hash of the Dagster UI password. Generate: `docker run --rm caddy:alpine caddy hash-password --plaintext 'yourpassword'`             |
+| `GHCR_OWNER`              | Prod only | —       | GitHub username. The serving container is pulled from `ghcr.io/<GHCR_OWNER>/bmo-serving:latest`. Built and pushed by CI on merge to `main`. |
 
 To create a Discord webhook: **Server Settings → Integrations → Webhooks → New Webhook → Copy URL**.
 
@@ -213,11 +213,11 @@ s3_access_key_id: str = Field(
 
 ### Computed Properties
 
-| Property | Formula |
-| --- | --- |
-| `settings.s3_endpoint` | `S3_ENDPOINT_URL` with `http://` or `https://` stripped. Used by `DuckDBResource` (requires `HOST:PORT` only). |
-| `settings.postgres_url` | `postgresql+psycopg2://<user>:<password>@<host>:<port>/<db>` (URL-encoded). |
-| `settings.iceberg_catalog_uri` | `ICEBERG_CATALOG_URI` if set; otherwise `postgresql+psycopg2://<user>:<password>@<host>:<port>/iceberg`. |
+| Property                       | Formula                                                                                                        |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `settings.s3_endpoint`         | `S3_ENDPOINT_URL` with `http://` or `https://` stripped. Used by `DuckDBResource` (requires `HOST:PORT` only). |
+| `settings.postgres_url`        | `postgresql+psycopg2://<user>:<password>@<host>:<port>/<db>` (URL-encoded).                                    |
+| `settings.iceberg_catalog_uri` | `ICEBERG_CATALOG_URI` if set; otherwise `postgresql+psycopg2://<user>:<password>@<host>:<port>/iceberg`.       |
 
 ### Environment-Specific Overrides
 
@@ -225,9 +225,9 @@ In `compose.prod.yml`, service-level `environment:` blocks override the `localho
 
 ```yaml
 dagster:
-  env_file: ../../.env        # loads POSTGRES_HOST=localhost, etc.
+  env_file: ../../.env # loads POSTGRES_HOST=localhost, etc.
   environment:
-    POSTGRES_HOST: postgres   # overrides to Docker service name
+    POSTGRES_HOST: postgres # overrides to Docker service name
     MLFLOW_TRACKING_URI: http://mlflow:5000
     DUCKDB_S3_ENDPOINT: <account>.r2.cloudflarestorage.com
     DAGSTER_HOME: /dagster_home
@@ -240,17 +240,17 @@ This pattern means the same `.env` file works for both local `dagster dev` and t
 
 ## Local vs. Production Differences
 
-| Concern | Local (dev) | Production (Oracle VM) |
-| --- | --- | --- |
-| Object store | MinIO (`http://localhost:9000`) | Cloudflare R2 (`https://<account>.r2.cloudflarestorage.com`) |
-| Redis | Local Redis container (`localhost:6379`) | Upstash managed Redis (`<id>.upstash.io:6379,ssl=true,...`) |
-| Feast registry | SQLite file (`data/registry.db`) | S3 path (`s3://staging/feast/registry.db`) |
-| MLflow auth | None (open) | Basic auth (`--app-name basic-auth`) |
-| Dagster UI auth | None | Caddy HTTP basic auth |
-| DuckDB S3 endpoint | `localhost:9000` | `<account>.r2.cloudflarestorage.com` |
-| DuckDB path | `/tmp/bmo_features.duckdb` | `/dagster_home/bmo_features.duckdb` (named volume, shared with serving) |
-| Postgres binding | `0.0.0.0:5432` | `127.0.0.1:5432` (loopback only) |
-| TLS | None | Caddy + Let's Encrypt (auto-renewed) |
+| Concern            | Local (dev)                              | Production (Oracle VM)                                                  |
+| ------------------ | ---------------------------------------- | ----------------------------------------------------------------------- |
+| Object store       | MinIO (`http://localhost:9000`)          | Cloudflare R2 (`https://<account>.r2.cloudflarestorage.com`)            |
+| Redis              | Local Redis container (`localhost:6379`) | Upstash managed Redis (`<id>.upstash.io:6379,ssl=true,...`)             |
+| Feast registry     | SQLite file (`data/registry.db`)         | S3 path (`s3://staging/feast/registry.db`)                              |
+| MLflow auth        | None (open)                              | Basic auth (`--app-name basic-auth`)                                    |
+| Dagster UI auth    | None                                     | Caddy HTTP basic auth                                                   |
+| DuckDB S3 endpoint | `localhost:9000`                         | `<account>.r2.cloudflarestorage.com`                                    |
+| DuckDB path        | `/tmp/bmo_features.duckdb`               | `/dagster_home/bmo_features.duckdb` (named volume, shared with serving) |
+| Postgres binding   | `0.0.0.0:5432`                           | `127.0.0.1:5432` (loopback only)                                        |
+| TLS                | None                                     | Caddy + Let's Encrypt (auto-renewed)                                    |
 
 ---
 
@@ -272,13 +272,13 @@ The production `.env` on the VM is loaded by Docker Compose via `env_file: - ../
 
 ### Memory per Container (production)
 
-| Container | `mem_limit` | Notes |
-| --- | --- | --- |
-| `postgres` | 256 MB | Metadata only |
-| `mlflow` | 1 GB | 1 worker; MLflow auth uses a SQLite DB in the `mlflow_auth` volume |
-| `dagster` | 4.5 GB | DuckDB ASOF JOIN + XGBoost HPO peak |
-| `serving` | 1 GB | Champion model + Feast client |
-| `caddy` | 256 MB | TLS + reverse proxy |
+| Container  | `mem_limit` | Notes                                                              |
+| ---------- | ----------- | ------------------------------------------------------------------ |
+| `postgres` | 256 MB      | Metadata only                                                      |
+| `mlflow`   | 1 GB        | 1 worker; MLflow auth uses a SQLite DB in the `mlflow_auth` volume |
+| `dagster`  | 4.5 GB      | DuckDB ASOF JOIN + XGBoost HPO peak                                |
+| `serving`  | 1 GB        | Champion model + Feast client                                      |
+| `caddy`    | 256 MB      | TLS + reverse proxy                                                |
 
 ### Dagster Concurrency (`dagster_home/dagster.yaml`)
 
@@ -296,23 +296,23 @@ concurrency:
 
 Partitions are **daily** for batch predictions and drift reports, **monthly** for BTS raw flight data.
 
-| Path | Partition | Notes |
-| --- | --- | --- |
-| `s3://staging/predictions/**/data.parquet` | Daily (`score_date=YYYY-MM-DD`) | Read by DuckDB mart |
-| `s3://staging/monitoring/reports/date=YYYY-MM-DD/` | Daily | Synced to GitHub Pages by CI |
-| `s3://staging/monitoring/metrics/date=YYYY-MM-DD/` | Daily | Consumed by `mart_drift_metrics` dbt model |
-| `s3://raw/bts/year=YYYY/month=MM/` | Monthly | Raw BTS on-time performance CSVs |
-| `s3://staging/datasets/` | Content-addressed (SHA hash) | `skip_if_exists=True`; stable across reruns |
-| `s3://mlflow-artifacts/` | Per MLflow run | Model artifacts |
+| Path                                               | Partition                       | Notes                                       |
+| -------------------------------------------------- | ------------------------------- | ------------------------------------------- |
+| `s3://staging/predictions/**/data.parquet`         | Daily (`score_date=YYYY-MM-DD`) | Read by DuckDB mart                         |
+| `s3://staging/monitoring/reports/date=YYYY-MM-DD/` | Daily                           | Synced to GitHub Pages by CI                |
+| `s3://staging/monitoring/metrics/date=YYYY-MM-DD/` | Daily                           | Consumed by `mart_drift_metrics` dbt model  |
+| `s3://raw/bts/year=YYYY/month=MM/`                 | Monthly                         | Raw BTS on-time performance CSVs            |
+| `s3://staging/datasets/`                           | Content-addressed (SHA hash)    | `skip_if_exists=True`; stable across reruns |
+| `s3://mlflow-artifacts/`                           | Per MLflow run                  | Model artifacts                             |
 
 ### Timeouts & Concurrency Settings
 
-| Schedule | Cron (UTC) | Assets | Default status |
-| --- | --- | --- | --- |
-| `feast_hourly_materialization` | `0 * * * *` | `feast_materialized_features` | Running |
-| `nightly_retrain_schedule` | `0 1 * * *` | `training_dataset → trained_model → registered_model` | Stopped |
-| `daily_batch_score_schedule` | `0 6 * * *` | `batch_predictions` | Stopped |
-| `daily_drift_report_schedule` | `0 8 * * *` | `drift_report` | Stopped |
+| Schedule                       | Cron (UTC)  | Assets                                                | Default status |
+| ------------------------------ | ----------- | ----------------------------------------------------- | -------------- |
+| `feast_hourly_materialization` | `0 * * * *` | `feast_materialized_features`                         | Running        |
+| `nightly_retrain_schedule`     | `0 1 * * *` | `training_dataset → trained_model → registered_model` | Stopped        |
+| `daily_batch_score_schedule`   | `0 6 * * *` | `batch_predictions`                                   | Stopped        |
+| `daily_drift_report_schedule`  | `0 8 * * *` | `drift_report`                                        | Stopped        |
 
 Schedules marked **Stopped** must be enabled in the Dagster UI for production use.
 
@@ -322,3 +322,60 @@ Schedule ordering rationale:
 - `01:00` — Nightly retrain reads from the Feast offline store (1h gap ensures the midnight Feast run completes first)
 - `06:00` — Batch scoring reads features from Redis
 - `08:00` — Drift report runs against yesterday's complete prediction set (2h after scoring)
+
+### PyIceberg: HadoopCatalog vs JdbcCatalog
+
+> Note: PyIceberg uses SqlCatalog (stores metadata in Postgres). Spark (used in `feat_cascading_delay`) was using HadoopCatalog, which uses S3 files to track metadata. PyIceberg was switched from HadoopCatalog to JdbcCatalog to align with PyIceberg's SqlCatalog (use same Postgres `iceberg_tables`)
+
+#### How Each Works
+
+**HadoopCatalog** is a filesystem-based catalog. Table state is tracked by two file conventions on the object store:
+
+- `metadata/version-hint.text` — an integer pointing to the current version
+- `metadata/v{n}.metadata.json` — sequentially-named snapshots
+
+To commit a new snapshot, the writer increments `version-hint.text`. "Locking" is done via optimistic filesystem overwrites.
+
+**JdbcCatalog** tracks `metadata_location` (a UUID-named path) in an `iceberg_tables` row in PostgreSQL. Commits are database transactions — a `SELECT ... FOR UPDATE` followed by an `UPDATE` atomically swaps the pointer to the new metadata file.
+
+---
+
+#### Concurrency Safety (the critical difference)
+
+|                          | HadoopCatalog                                                           | JdbcCatalog                              |
+| ------------------------ | ----------------------------------------------------------------------- | ---------------------------------------- |
+| Commit mechanism         | Overwrite `version-hint.text` on object store                           | PostgreSQL `UPDATE` inside a transaction |
+| Atomic compare-and-swap  | **No** — S3/MinIO don't support atomic file rename                      | **Yes** — DB transactions                |
+| Concurrent writer safety | **Unsafe** — two writers can overwrite each other's `version-hint.text` | **Safe** — database serializes commits   |
+| Lost update risk         | Real, not theoretical                                                   | None                                     |
+
+S3 doesn't support atomic rename. MinIO has partial support but it's not reliable enough to trust for production writes. This is a well-documented Iceberg limitation, not a hypothetical — it's why the Iceberg spec warns against using HadoopCatalog with S3-compatible stores in multi-writer scenarios.
+
+Dagster runs assets concurrently. HadoopCatalog on MinIO is a data corruption risk.
+
+---
+
+#### Other Dimensions
+
+|                                     | HadoopCatalog                       | JdbcCatalog                                       |
+| ----------------------------------- | ----------------------------------- | ------------------------------------------------- |
+| External dependency                 | None (catalog is the filesystem)    | PostgreSQL                                        |
+| Infrastructure cost in this project | Zero                                | **Also zero** — Postgres already runs for Dagster |
+| Failure mode if DB is down          | N/A                                 | Catalog operations fail; **data files are safe**  |
+| Catalog portability                 | Moves with the bucket               | Requires migrating PostgreSQL too                 |
+| Namespace/schema management         | Directory-based                     | Full SQL, supports properties/tags                |
+| Catalog discoverability             | `ls s3://staging/iceberg/`          | Query `iceberg_tables` in psql                    |
+| PyIceberg compatibility             | Uses `HadoopCatalog` class          | Uses `SqlCatalog` — same schema as `JdbcCatalog`  |
+| Debugging                           | Read JSON files directly from MinIO | Query PostgreSQL                                  |
+
+---
+
+#### Recommendation: JdbcCatalog
+
+HadoopCatalog would win only if you had no external services available and single-writer access patterns. Neither is true here.
+
+JdbcCatalog wins on the only dimension that actually matters for correctness: **it's safe for concurrent writes**. The fact that this project already runs PostgreSQL for Dagster makes the infrastructure argument for HadoopCatalog moot. You get ACID catalog commits at zero additional operational cost.
+
+The one legitimate concern with JdbcCatalog is that PostgreSQL is a second thing that has to be up for Iceberg to function — but Dagster already has this requirement, so it's not a new dependency.
+
+If you ever wanted to upgrade further, the modern production choice is an **Iceberg REST catalog** (stateless service, any backend), but that's meaningfully more infrastructure. JdbcCatalog is the right level of robustness for this project's scale.

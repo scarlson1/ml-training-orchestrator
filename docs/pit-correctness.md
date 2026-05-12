@@ -59,6 +59,8 @@ ASOF JOIN stg_weather w
 
 The `ASOF JOIN` guarantee: for each flight row, it selects the _most recent_ weather snapshot that predates the scheduled departure. No future data can enter.
 
+[DuckDB ASOF JOIN docs](https://duckdb.org/docs/sql/query_syntax/from.html#as-of-joins)
+
 ### Layer 2 — Feast `get_historical_features`
 
 Feast's offline retrieval implements the same semantics for the feature store:
