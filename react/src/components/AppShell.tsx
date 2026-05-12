@@ -213,6 +213,10 @@ const links = [
   { label: 'Dagster', href: import.meta.env.VITE_DAGSTER_URL },
   { label: 'MLflow', href: import.meta.env.VITE_MLFLOW_DASHBOARD_URL },
   { label: 'S3 Storage', href: import.meta.env.VITE_S3_DASHBOARD_URL },
+  {
+    label: 'Evidently',
+    href: 'https://scarlson1.github.io/ml-training-orchestrator/evidently-reports/',
+  },
 ];
 
 function ExternalLinksMenu() {

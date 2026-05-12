@@ -4,7 +4,7 @@
 
 ### Problem Statement
 
-TODO
+It might be nice to know whether a flight is likely to be delayed. This project ingests flight data from the Bureau of Transportation Statistics and NOAA, transforms the data, and trains a model to predict the likelihood a flight will be delayed.
 
 ### Architecture
 
@@ -1567,7 +1567,59 @@ PIT correctness doesn't matter for drift - only training & inference
           return None
       ```
     - [AVWX](https://info.avwx.rest/) - generous free tier
-  -
+
+- save evidently report data as json --> render reports in native react charts
+
+```python
+# The Evidently `Report` object has built-in methods to get the raw data:
+snapshot = report.run(current_data=dataset, reference_data=None)
+
+# These give you the raw data as structured JSON:
+snapshot.as_dict()   # → dict with all metrics, confusion matrix, curves, etc.
+snapshot.json()      # → JSON string
+```
+
+The `ClassificationPreset` outputs:
+
+- **Confusion matrix** (TP, FP, TN, FN counts)
+- **ROC curve** (FPR/TPR points)
+- **PR curve** (precision/recall points)
+- **Calibration curve** (mean predicted prob vs actual fraction)
+- **Class distribution** (support counts)
+- **Summary metrics** (accuracy, precision, recall, f1, roc_auc, log_loss, etc.)
+
+```python
+import json
+
+# Extract raw metrics data as JSON
+metrics_json = json.dumps(snapshot.as_dict(), cls=CustomEncoder)  # handle numpy types
+
+# Save alongside the HTML
+json_path = str(out_dir / 'classification_report.json')
+with open(json_path, 'w') as f:
+    f.write(metrics_json)
+```
+
+Then in `training.py`, also log the JSON as an MLflow artifact:
+
+```python
+mlflow.log_artifact(json_path, artifact_path='reports')
+```
+
+```python
+@app.get('/api/models/{version}/classification', tags=['api'])
+async def model_classification_report(version: str):
+    """Return the classification report metrics for a model version."""
+    # Fetch from MLflow artifacts (reports/classification_report.json)
+    # Return as JSON
+```
+
+Alternatively, most of the values are already computed by ground_truth_backfill (accessible via `/api/accuracy` endpoint):
+
+```
+# monitoring.py lines 281-289
+accuracy, precision_score, recall_score, f1, roc_auc, log_loss, brier_score
+```
 
 ## References
 

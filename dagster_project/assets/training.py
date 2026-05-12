@@ -117,62 +117,65 @@ def training_dataset(context: AssetExecutionContext, duckdb: DuckDBResource) -> 
     bmo_dbt_assets) because we need features in the Feast offline store (S3),
     not just the DuckDB tables. The feast_feature_export asset bridges DuckDB → S3.
     """
-    con = duckdb.connect(settings.duckdb_path, read_only=True)
-    con.execute("SET memory_limit = '4GB'")
-    con.execute("SET temp_directory = '/dagster_home/duckdb_spill'")
+    # con = duckdb.connect(settings.duckdb_path, read_only=True)
+    with duckdb.get_connection(read_only=True) as con:
+        con.execute("SET memory_limit = '4GB'")
+        con.execute("SET temp_directory = '/dagster_home/duckdb_spill'")
 
-    # read label columns from dbt mart
-    # strip feature cols from mart to let build_dataset retrieve via PIT join to ensure same temporal correctness logic as in production serving
-    select_cols = (
-        ', '.join(_entity_col_sql(col) for col in _ENTITY_COLUMNS)
-        + ', '
-        + ', '.join(_LABEL_COLUMNS)
-    )
-
-    raw = con.execute(f'SELECT {select_cols} FROM mart_training_dataset').df()  # noqa S608
-    con.close()
-
-    # event_timestamp must be tz aware for PIT join and leakage guards
-    raw['event_timestamp'] = pd.to_datetime(raw['event_timestamp'], utc=True)
-    context.log.info(f'loaded {len(raw)} label rows from mart_training_dataset')
-
-    # as_of is pipeline run timestamp
-    as_of = datetime.now(timezone.utc)
-
-    try:
-        handle: DatasetHandle = build_dataset(
-            label_df=raw,
-            feature_refs=ALL_FEATURE_REFS,
-            as_of=as_of,
-            output_base_path=settings.dataset_s3_base,
-            feature_views=default_feature_view_configs(settings.feast_s3_base),
-            skip_if_exists=True,
+        # read label columns from dbt mart
+        # strip feature cols from mart to let build_dataset retrieve via PIT join to ensure same temporal correctness logic as in production serving
+        select_cols = (
+            ', '.join(_entity_col_sql(col) for col in _ENTITY_COLUMNS)
+            + ', '
+            + ', '.join(_LABEL_COLUMNS)
         )
-    except LeakageError as exc:
-        context.log.error(f'Leakage guard failure: {exc}')
-        raise
 
-    context.log.info(f'Dataset built: {handle.row_count} rows, hash={handle.version_hash[:12]}...')
+        raw = con.execute(f'SELECT {select_cols} FROM mart_training_dataset').df()  # noqa S608
+        # con.close()
 
-    return MaterializeResult(
-        metadata={
-            'version_hash': MetadataValue.text(handle.version_hash),
-            'row_count': MetadataValue.int(handle.row_count),
-            'storage_path': MetadataValue.url(handle.storage_path),
-            'schema_fingerprint': MetadataValue.text(handle.schema_fingerprint),
-            'as_of': MetadataValue.text(as_of.isoformat()),
-            'feature_views': MetadataValue.int(
-                len({ref.split(':')[0] for ref in ALL_FEATURE_REFS})
-            ),
-            'feature_count': MetadataValue.int(len(ALL_FEATURE_REFS)),
-            # Embed label distributions so they're visible in the Dagster UI
-            # without opening MLflow. Useful for quick sanity checks.
-            **{
-                f'label_dist/{name}': MetadataValue.float(dist.positive_rate or dist.mean)
-                for name, dist in handle.label_distribution.items()
-            },
-        }
-    )
+        # event_timestamp must be tz aware for PIT join and leakage guards
+        raw['event_timestamp'] = pd.to_datetime(raw['event_timestamp'], utc=True)
+        context.log.info(f'loaded {len(raw)} label rows from mart_training_dataset')
+
+        # as_of is pipeline run timestamp
+        as_of = datetime.now(timezone.utc)
+
+        try:
+            handle: DatasetHandle = build_dataset(
+                label_df=raw,
+                feature_refs=ALL_FEATURE_REFS,
+                as_of=as_of,
+                output_base_path=settings.dataset_s3_base,
+                feature_views=default_feature_view_configs(settings.feast_s3_base),
+                skip_if_exists=True,
+            )
+        except LeakageError as exc:
+            context.log.error(f'Leakage guard failure: {exc}')
+            raise
+
+        context.log.info(
+            f'Dataset built: {handle.row_count} rows, hash={handle.version_hash[:12]}...'
+        )
+
+        return MaterializeResult(
+            metadata={
+                'version_hash': MetadataValue.text(handle.version_hash),
+                'row_count': MetadataValue.int(handle.row_count),
+                'storage_path': MetadataValue.url(handle.storage_path),
+                'schema_fingerprint': MetadataValue.text(handle.schema_fingerprint),
+                'as_of': MetadataValue.text(as_of.isoformat()),
+                'feature_views': MetadataValue.int(
+                    len({ref.split(':')[0] for ref in ALL_FEATURE_REFS})
+                ),
+                'feature_count': MetadataValue.int(len(ALL_FEATURE_REFS)),
+                # Embed label distributions so they're visible in the Dagster UI
+                # without opening MLflow. Useful for quick sanity checks.
+                **{
+                    f'label_dist/{name}': MetadataValue.float(dist.positive_rate or dist.mean)
+                    for name, dist in handle.label_distribution.items()
+                },
+            }
+        )
 
 
 @asset(
