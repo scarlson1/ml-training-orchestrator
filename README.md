@@ -846,7 +846,7 @@ RESOURCES (wired in Phase 8, available to all assets)
                           │                              │
                           ▼                              ▼
           ┌───────────────────────────┐    ┌────────────────────────────────┐
-          │  s3://staging/            │    │    Fly.io / FastAPI            │
+          │  s3://staging/            │    │    FastAPI                     │
           │  predictions/             │    │                                │
           │  date=YYYY-MM-DD/         │    │  POST /predict                 │
           │  data.parquet             │    │   └── FeatureClient            │
@@ -905,7 +905,7 @@ stage 10
 │       │                (DailyPartition, 6am UTC)                     │       │
 │       │                          │                              S3 config    │
 │       │                          │                                   │       │
-│       │                          ▼ ← NEW (Phase 10)                  │       │
+│       │                          ▼                                   │       │
 │       │                    [drift_report] ──────────────────────────►┘       │
 │       │                (DailyPartition, 8am UTC)                             │
 │       │                     │        │                                       │
@@ -918,14 +918,14 @@ stage 10
 │       │             (CI workflow)             retrain_job triggers           │
 │       │                                              │                       │
 │       │              (mart_predictions)              │ (nightly OR triggered)│
-│       └──► [bmo_dbt_assets] ──► [ground_truth_backfill] ← NEW (Phase 10)     │
+│       └──► [bmo_dbt_assets] ──► [ground_truth_backfill]                      │
 │                                            │                                 │
 │                                   live_accuracy (Postgres)                   │
 └──────────────────────────────────────────────────────────────────────────────┘
                 │
                 ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│                         SERVING (Fly.io + Upstash)                           │
+│                         SERVING (FastAPI + Upstash)                          │
 │  ┌──────────────────┐       ┌──────────────────────────────────────────┐     │
 │  │  FastAPI         │──────►│  Upstash Redis (Feast online store)      │     │
 │  │  /predict        │       └──────────────────────────────────────────┘     │
