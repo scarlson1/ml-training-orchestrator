@@ -1,5 +1,5 @@
 import { OpenInNew } from '@mui/icons-material';
-import { Button } from '@mui/material';
+import { Button, Tooltip, type SxProps } from '@mui/material';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useSuspenseQuery } from '@tanstack/react-query';
@@ -239,8 +239,12 @@ function ChampionBanner({
         borderBottom: '1px solid',
         borderColor: 'divider',
         display: 'grid',
-        gridTemplateColumns: '1.5fr 1fr 1fr 1fr',
-        gap: 6,
+        gridTemplateColumns: {
+          xs: '1fr 1fr 1fr ',
+          sm: '1.5fr 1fr 1fr 1fr',
+          md: '1.5fr 1fr 1fr 1fr 1fr',
+        },
+        gap: { xs: 3, sm: 4, md: 5 },
         alignItems: 'start',
       }}
     >
@@ -260,7 +264,7 @@ function ChampionBanner({
             letterSpacing: '-0.02em',
           }}
         >
-          {champion?.model_version ?? '—'}
+          v{champion?.model_version ?? '—'}
         </Typography>
         <Typography
           sx={{
@@ -270,22 +274,37 @@ function ChampionBanner({
             mt: 1,
           }}
         >
-          {champion?.last_scored ?? 'connect /api/model-stats'}
+          {champion?.last_scored
+            ? `scored: ${champion?.last_scored}`
+            : 'connect /api/model-stats'}
         </Typography>
       </Box>
 
       <MetricColumn
         label='ROC-AUC'
+        description='A performance metric where 1.0 is perfect and 0.5 is random. Shows how well the model avoids false alarms while catching true cases.'
         value={
-          champion?.avg_roc_auc != null ? champion.avg_roc_auc.toFixed(4) : '—'
+          champion?.avg_roc_auc != null ? champion.avg_roc_auc.toFixed(3) : '—'
         }
       />
       <MetricColumn
         label='F1'
-        value={champion?.avg_f1 != null ? champion.avg_f1.toFixed(4) : '—'}
+        description='Measures how well the model finds all the right cases without being "trigger-happy" with false alarms. A score of 1.0 is perfect.'
+        value={champion?.avg_f1 != null ? champion.avg_f1.toFixed(3) : '—'}
       />
 
-      <Box>
+      <MetricColumn
+        label='Recall'
+        description='How many of the actual positive cases did the model correctly identify? High recall means fewer "False Negatives" (missed cases).'
+        value={
+          champion?.avg_recall_score != null
+            ? champion.avg_recall_score.toFixed(3)
+            : '-'
+        }
+        sx={{ display: { xs: 'none', md: 'block' } }}
+      />
+
+      <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
         <Typography
           variant='overline'
           sx={{ color: 'text.disabled', display: 'block', mb: 1 }}
@@ -318,15 +337,37 @@ function ChampionBanner({
   );
 }
 
-function MetricColumn({ label, value }: { label: string; value: string }) {
+function MetricColumn({
+  label,
+  value,
+  description,
+  sx,
+}: {
+  label: string;
+  value: string;
+  description?: string;
+  sx?: SxProps;
+}) {
   return (
-    <Box>
-      <Typography
-        variant='overline'
-        sx={{ color: 'text.disabled', display: 'block', mb: 1 }}
-      >
-        {label}
-      </Typography>
+    <Box sx={sx}>
+      {description ? (
+        <Tooltip title={description}>
+          <Typography
+            variant='overline'
+            sx={{ color: 'text.disabled', display: 'block', mb: 1 }}
+          >
+            {label}
+          </Typography>
+        </Tooltip>
+      ) : (
+        <Typography
+          variant='overline'
+          sx={{ color: 'text.disabled', display: 'block', mb: 1 }}
+        >
+          {label}
+        </Typography>
+      )}
+
       <Typography
         sx={{
           fontFamily: serifFont,
