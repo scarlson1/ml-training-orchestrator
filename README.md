@@ -950,31 +950,6 @@ Auto-retrain loop (Phase 10 closes this):
 
 ---
 
-### TODO
-
-- document xgboost params
-
-Param | What it controls | Overfitting risk
-max_depth | Tree depth; deeper = more expressive | High depth → overfit
-learning_rate | Shrinkage per tree; lower = more trees needed | Lower = better generalization
-n_estimators | Number of trees (mitigated by early stopping) | More = overfit without ES
-subsample | Fraction of rows per tree (bagging) | Introduces randomness = regularizes
-colsample_bytree | Fraction of features per tree | Regularizes, like Random Forest
-scale_pos_weight | Upweights positive class | Critical for imbalanced data
-
-- Tag all feature columns with owner, description, expected range, and update frequency in a metadata YAML
-
-- Resource constraints - memory, storage per partition/month,
-
-- Fix triggers - "materialize all" doesn't wait for partition to finish when data from other partitions exist. options:
-  - Separate the jobs (cleanest): keep raw ingestion and training as separate jobs. Run training only after ingestion is fully complete. The ingest_bts_month_job already exists for this pattern — add a train_job that starts from bmo_dbt_assets downward, triggered by a sensor that fires when all needed staged_weather partitions are materialized.
-  - Drop eager() from bmo_dbt_assets: removes the daemon-triggered cascade, though the step-ordering gap within a mixed run remains.
-
-- Add explaination for each tech stack item & purpose it serves
-  - Feast: Feast feature views act as a logical mapping layer between raw data sources (like SQL tables or Parquet files) and the Feast feature store. Their primary purpose is to ensure consistent feature data definitions across offline (training) and online (serving) environments, ensuring point-in-time correctness to prevent data leakage
-
-- how duckdb/iceberge queries work
-
 ### Troubleshooting
 
 - if `predict/` returns `503`, ensure feast has data in redis (run `feast_feature_export` & `feast_materialized_features`). Check that the `hourly_feast_materialization` automation is enabled & running properly.
@@ -994,6 +969,24 @@ scale_pos_weight | Upweights positive class | Critical for imbalanced data
 ---
 
 ### TODO:
+
+- document xgboost params
+
+Param | What it controls | Overfitting risk
+max_depth | Tree depth; deeper = more expressive | High depth → overfit
+learning_rate | Shrinkage per tree; lower = more trees needed | Lower = better generalization
+n_estimators | Number of trees (mitigated by early stopping) | More = overfit without ES
+subsample | Fraction of rows per tree (bagging) | Introduces randomness = regularizes
+colsample_bytree | Fraction of features per tree | Regularizes, like Random Forest
+scale_pos_weight | Upweights positive class | Critical for imbalanced data
+
+- Tag all feature columns with owner, description, expected range, and update frequency in a metadata YAML
+
+- Document resource constraints - memory, storage per partition/month,
+
+- Fix triggers - "materialize all" doesn't wait for partition to finish when data from other partitions exist. options:
+  - Separate the jobs (cleanest): keep raw ingestion and training as separate jobs. Run training only after ingestion is fully complete. The ingest_bts_month_job already exists for this pattern — add a train_job that starts from bmo_dbt_assets downward, triggered by a sensor that fires when all needed staged_weather partitions are materialized.
+  - Drop eager() from bmo_dbt_assets: removes the daemon-triggered cascade, though the step-ordering gap within a mixed run remains.
 
 - document need to run feast assets (and prereqs) for each partition before running batch_predict ?? use 'ins' in @asset decorator ??
 - resources health status in react (dagster, vm memory usage, etc.)
