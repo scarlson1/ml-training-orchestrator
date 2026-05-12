@@ -2,13 +2,13 @@
 
 ## Prerequisites
 
-| Tool | Version | Notes |
-| ---- | ------- | ----- |
-| [Python](https://www.python.org/downloads/) | 3.11 – 3.12 | 3.13 not yet supported |
-| [uv](https://docs.astral.sh/uv/getting-started/installation/) | latest | replaces pip + venv |
-| [Docker Desktop](https://docs.docker.com/get-started/get-docker/) | latest | runs Postgres, MinIO, Redis, MLflow |
-| [Make](https://www.gnu.org/software/make/) | any | macOS: included with Xcode CLI tools |
-| [Node.js](https://nodejs.org/) + [pnpm](https://pnpm.io/installation) | 18+ / latest | React frontend only |
+| Tool                                                                  | Version      | Notes                                |
+| --------------------------------------------------------------------- | ------------ | ------------------------------------ |
+| [Python](https://www.python.org/downloads/)                           | 3.11 – 3.12  | 3.13 not yet supported               |
+| [uv](https://docs.astral.sh/uv/getting-started/installation/)         | latest       | replaces pip + venv                  |
+| [Docker Desktop](https://docs.docker.com/get-started/get-docker/)     | latest       | runs Postgres, MinIO, Redis, MLflow  |
+| [Make](https://www.gnu.org/software/make/)                            | any          | macOS: included with Xcode CLI tools |
+| [Node.js](https://nodejs.org/) + [pnpm](https://pnpm.io/installation) | 18+ / latest | React frontend only                  |
 
 ## Local Development Setup
 
@@ -43,6 +43,12 @@ DAGSTER_HOME=/absolute/path/to/ml-training-orchestrator/dagster_home
 
 All other defaults in `.env.example` work as-is for local development — MinIO, Postgres, and Redis all use the credentials configured in the Docker Compose stack.
 
+Create `react/.env.local`
+
+```env
+AIRLABS_KEY=<API_KEY>
+```
+
 ### 3. Start the Docker Stack
 
 ```bash
@@ -51,12 +57,12 @@ make compose-dev
 
 This starts four services defined in [infra/compose/compose.dev.yml](../infra/compose/compose.dev.yml):
 
-| Service | Port | Purpose |
-| ------- | ---- | ------- |
-| Postgres | 5432 | Dagster metadata, MLflow backend, Iceberg catalog |
-| MinIO | 9000 / 9001 | S3-compatible object store (raw, staging, rejected buckets) |
-| Redis | 6379 | Feast online feature store |
-| MLflow | 5000 | Experiment tracking UI |
+| Service  | Port        | Purpose                                                     |
+| -------- | ----------- | ----------------------------------------------------------- |
+| Postgres | 5432        | Dagster metadata, MLflow backend, Iceberg catalog           |
+| MinIO    | 9000 / 9001 | S3-compatible object store (raw, staging, rejected buckets) |
+| Redis    | 6379        | Feast online feature store                                  |
+| MLflow   | 5000        | Experiment tracking UI                                      |
 
 MinIO buckets (`raw`, `staging`, `rejected`) are created automatically by the `minio_init` container on first startup.
 
