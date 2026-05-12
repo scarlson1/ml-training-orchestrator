@@ -950,108 +950,6 @@ Auto-retrain loop (Phase 10 closes this):
 
 ---
 
-## Key Architectural Pattern: Point-in-Time Correctness
-
-The trickiest part of any ML pipeline. Every feature is keyed to `scheduled_departure_utc` — never actual departure — so that at inference time, you only use information that was knowable _before_ the flight departed. The `int_flights_enriched` dbt model enforces this with a `QUALIFY row_number() = 1` window to pick only weather observations that occurred before the scheduled departure.
-
----
-
-**Why `get_historical_features` is not just a SELECT — the interview explanation:**
-
-When you call `get_historical_features(entity_df, features)`, Feast does:
-
-Takes your `entity_df` — one row per training example, each with an entity key and an `event_timestamp`.
-For each row, finds all feature rows matching the entity key.
-Filters to rows where `feature.event_ts <= entity.event_timestamp`.
-Within that filtered set, picks the latest row (maximum `event_ts`).
-Returns that value as the feature for that training example.
-This is the "as-of join" or "point-in-time join." On a whiteboard, draw two timelines: one for feature snapshots (computed each hour) and one for flight events (one per scheduled departure). The PIT join connects each flight to the most recent feature snapshot that existed before that flight departed.
-
-A plain SQL `SELECT latest_value FROM features WHERE entity = X` would give every flight the same "latest" feature value regardless of when the flight happened — which leaks future information into the training set.
-
-**"Walk me through your feature store design."**
-
-Feast with a file-based offline store (Parquet on MinIO/R2) and Redis for online serving. Five feature views organized by entity type: origin airport, destination airport, carrier, route, and aircraft tail. Calendar features are excluded from the feature store deliberately — they're deterministic functions of the timestamp and cheaper to compute on-the-fly than to store and retrieve.
-
-**"Why is get_historical_features not just a SELECT?"**
-
-It's an as-of join. For each row in your entity dataframe — which has an entity key and a timestamp — Feast finds the latest feature snapshot where the feature's event_ts is less than or equal to the entity's timestamp. A plain SELECT of the latest value would give every training example the same feature value regardless of when the event happened, leaking future information into the training set. I have a test that plants two different values at T=10:00 and T=14:00, then requests features for events at T=11:30 and T=15:00, and asserts each gets its correct historical value.
-
-**"How do you keep training and serving features consistent?"**
-
-One feature view definition → one Parquet source → materialized to both the offline store (for get_historical_features during training) and the online store (Redis, for inference). The same field names, same TTLs, same types. There's no separate "training features" codebase — the Feast schema is the contract.
-
-**"How do you prevent training/serving skew?"**
-
-There are two separate code paths — bmo.batch_scoring.score (Feast offline, PIT join) and bmo.serving.feature_client (Feast online, latest value) — but both use exactly the same FEATURE_REFS list and the same FEATURE_COLUMNS ordering. The constants are defined once in each module and documented as "must match ALL_FEATURE_REFS in training.py." The integration test test_feast_roundtrip.py from Phase 4 verifies write-then-read equality. The only difference between batch and online is the join strategy, which is intentional.
-
-**"What happens if Redis goes down?"**
-
-FeatureClient.get_features() wraps the Feast call in a try/except and returns None. The FastAPI /predict endpoint checks for None and returns a 503 Service Unavailable with an explanatory message. The \_fail_closed_count Prometheus counter increments, making the degradation visible in Grafana. The /health endpoint returns status: 'degraded' (not unhealthy) so Fly.io doesn't replace the machine — it's still able to serve if Redis recovers.
-
-**"How do you do a zero-downtime model swap?"**
-
-deployed_api Dagster asset writes model_config.json to S3. The FastAPI /admin/reload endpoint calls ModelLoader.reload(), which downloads the new model in an asyncio.Lock block so in-flight requests finish on the old model before the swap. The lock is released as soon as the new model is loaded — subsequent requests use the new model. No container restart required.
-
-**"How does batch scoring prevent data leakage?"**
-
-event_timestamp = min(scheduled_departure_utc, run_time) per entity row. For a flight scheduled at 10am that we're scoring at 6am, event_timestamp = 6am. Feast's offline get_historical_features returns only features where feature_ts <= 6am. For a historical backfill of a flight that departed at 10am last week, event_timestamp = 10am last week — Feast returns features as they existed at 10am, not any data from after the flight.
-
-### Training Dataset
-
-- inputs
-  - label_df: who + when + what happened
-    - entity keys, event ts, target values
-  - feature_refs: which features to include
-    - ("origin_airport_features:origin_avg_dep_delay_1h", ...)
-- outputs
-  - parquet file where every row = 1 flight
-  - every column = 1 feature or label
-  - every feature = the value that was _KNOWN_ at that flight's scheduled departure time (PIT correctness - do not want to train on information that was not available at prediction time)
-
-Feast's `get_historical_features` handles PIT for features it manages. Training dataset builder adds safeguards:
-
-- **event timestamp validation**: ensures no training label uses a `scheduled_departure_utc` in the future relative to `as_of`
-- **TTL guard**: verifies retrieved feature values aren't older than TTL allows (Feast's TTL only applies to online serving; offline can return old values)
-- **target leakage guard**: checks none of the feature column names match known target/label column names
-- **immutable handle**: produces hash of dataset config to prove the same features and labels for a given training run were used
-
-#### Content addressing and immutability
-
-A **content-addressed dataset** is like a Git commit hash for your training data. The SHA-256 hash is computed from:
-
-- The sorted list of feature references
-- The `as_of` timestamp
-- A hash of the label data (the actual flight IDs and targets)
-- The feature registry version
-- The code version (git SHA)
-
-Two training runs with identical inputs produce the same hash. This means:
-
-- You can reproduce any historical training run byte-for-byte (given the same data in the offline store).
-- MLflow stores the `version_hash` as a run parameter — you can always trace back from a model to exactly what data built it.
-- A "dataset card" JSON file lives next to the Parquet — any downstream consumer can inspect it without running anything.
-
-Docs: [DVC's content-addressed storage](https://dvc.org/doc/user-guide/data-management/data-versioning) is the reference design. Ours is simpler but identical in principle.
-
-#### DuckDB ASOF JOIN
-
-Feast implements PIT join internally (it's documented but opaque). We also implement it explicitly in DuckDB so the algorithm is auditable and testable:
-
-DuckDB ASOF JOIN semantics:
-
-For every row in LEFT table (label event at time T),
-find the LATEST row in RIGHT table (feature snapshot at time F)
-where F.entity_key = L.entity_key AND F.event_ts <= L.event_timestamp.
-
-This is exactly PIT join:
-
-- The join respects time ordering.
-- It always uses the most recent known value.
-- It never reaches forward in time.
-
-[DuckDB ASOF JOIN docs](https://duckdb.org/docs/sql/query_syntax/from.html#as-of-joins)
-
 ### PyIceberg: HadoopCatalog vs JdbcCatalog
 
 > Note: PyIceberg uses SqlCatalog (stores metadata in Postgres). Spark (used in `feat_cascading_delay`) was using HadoopCatalog, which uses S3 files to track metadata. PyIceberg was switched from HadoopCatalog to JdbcCatalog to align with PyIceberg's SqlCatalog (use same Postgres `iceberg_tables`)
@@ -1138,53 +1036,27 @@ scale_pos_weight | Upweights positive class | Critical for imbalanced data
 
 - how duckdb/iceberge queries work
 
-## deployment notes (add to DEPLOYMENT.md)
+### Troubleshooting
 
-Useful commands to check service on VM:
+- if `predict/` returns `503`, ensure feast has data in redis (run `feast_feature_export` & `feast_materialized_features`). Check that the `hourly_feast_materialization` automation is enabled & running properly.
 
-```bash
-systemctl status bmo-compose      # is it running?
-journalctl -u bmo-compose -f      # live logs (all containers)
-systemctl restart bmo-compose     # rolling restart
-```
+## References
 
-Terraform deploy steps:
-
-```bash
-terraform init # run once to install providers
-
-# optional output file to apply directly from plan
-terraform plan -var-file="terraform.tfvars" -out=tfplan
-
-terraform apply tfplan
-```
-
-terraform apply output:
-
-```
-oracle_vm_public_ip = "207.211.176.98"
-oracle_vm_ssh = "ssh ubuntu@207.211.176.98"
-r2_bucket_names = {
-  "mlflow-artifacts" = "bmo-mlflow-artifacts"
-  "raw" = "raw"
-  "rejected" = "rejected"
-  "staging" = "staging"
-}
-r2_endpoint_url = "https://2662189f53004928cc8e89c79f095db9.r2.cloudflarestorage.com"
-```
-
-#### Dagster UI: http://<VM_ID>:3000 http://207.211.176.98:3000
-
-#### MLFlow UI: http://<VM_ID>:5000 http://207.211.176.98:5000
+- [Dagster](https://docs.dagster.io/getting-started/concepts)
+- [Parquet Docs](https://parquet.apache.org/docs/file-format/)
+- [PyArrow](https://arrow.apache.org/docs/python/getstarted.html)
+- [Feast](https://docs.feast.dev/)
+- [dbt](https://docs.getdbt.com/docs/build/materializations?version=1.12)
+- [Pandas](https://pandas.pydata.org/docs/user_guide/pyarrow.html)
+- [FastAPI](https://fastapi.tiangolo.com/)
+- [Evidently](https://docs.evidentlyai.com/docs/platform/dashboard_overview)
+- [XGBoost python examples](https://github.com/dmlc/xgboost/tree/master/demo/guide-python)
 
 ---
 
 ### TODO:
 
-- debug missing feature views in VM - `batch_predictions` fails b/c Feast has empty feature views
-- dagster resources - wire up dagster resources (duckDB, Feast, S3, mlflow)
 - document need to run feast assets (and prereqs) for each partition before running batch_predict ?? use 'ins' in @asset decorator ??
-- why doesn't mart_predictions have dependency on batch_predictions ??
 - resources health status in react (dagster, vm memory usage, etc.)
 
 - update congestion card
@@ -1192,30 +1064,6 @@ r2_endpoint_url = "https://2662189f53004928cc8e89c79f095db9.r2.cloudflarestorage
   - use ratio of delayed to schedules to approximate congestion?
   - or find api for: Airport Acceptance Rate (AAR), which determines the number of arriving aircraft allowed per hour, and the Expect Departure Clearance Times (EDCTs), which are assigned to manage delays when demand exceeds capacity
   - or: (delayed + cancelled flights) / total scheduled
-
-- need to rethink front end data - bts is behind ~60 days
-  - use streaming / batch api to ingest current data ?? or call 3rd party api ??
-  - use other apis: current flights, weather, hub congestion, etc.
-    - predict feature still works ? sort of - missing tail number cascading delay
-  - calc data from 2+ months back - not very useful ??
-
-- document querying S3 in dev:
-
-```bash
-D INSTALL httpfs;
-D LOAD httpfs;
-D INSTALL iceberg;
-D LOAD iceberg;
-D SET s3_endpoint='localhost:9000';
-D SET s3_access_key_id='admin';
-D SET s3_secret_access_key='password123';
-D SET s3_use_ssl=false;
-D SET s3_url_style='path';
-# from S3 path
-D SELECT * FROM read_parquet('s3://staging/iceberg/staged_flights/data/flight_date_month=2025-06/00000-0-a2bc71db-d8fd-4f42-b676-4b037ad81329.parquet') LIMIT 5;
-# using iceberg
-D SELECT * FROM iceberg_scan('s3://staging/iceberg/staged_flights') LIMIT 10;
-```
 
 - Dagster loom video:
 
@@ -1259,30 +1107,9 @@ Dagster Loom Script (~3-4 min)
 
 Talking points to say aloud (the things that won't be obvious on screen):
 
-- The full pipeline runs unattended — only the BTS sensor polling kicks off new monthly ingestions
+- The full pipeline runs unattended — only the BTS sensor polling kicks off new monthly ingestion
 - Asset checks act as automated model quality gates before any promotion happens
 - The drift sensor closes the loop: production drift triggers retraining automatically
-
-#### Document PIT JOINs & why Feast's `get_historical_features()` doesn't scale
-
-Why get_historical_features() is a memory bomb
-
-Feast's PIT join for FileSource works like this:
-
-Load the entire feature parquet into memory for each feature view
-Sort both the entity_df and feature_df by entity key + timestamp
-For each entity row, binary-search for the latest feature row where event_ts <= entity_timestamp
-The problem is step 1. Look at feast_feature_export:
-
-df = con.execute(f'SELECT {cols} FROM {table}').df() # no WHERE clause
-It dumps the entire DuckDB table with no date filter. If feat_origin_airport_windowed has been running for a year with hourly snapshots:
-
-500 airports × 24h × 365 days = 4.38 million rows
-feat_route_rolling: 5,000–10,000 routes × 365 days = 5.5M rows
-5 feature views loaded simultaneously = potentially several GB just for feature data
-Then Feast joins that against 210K entity rows, creating large intermediate DataFrames in pandas. Combined with pandas' copy-on-write behavior and macOS virtual memory (what Activity Monitor shows as "memory" includes swap-backed pages), you get the 99→159GB number.
-
-PIT correctness doesn't matter for drift - only training & inference
 
 ### Improvements
 
@@ -1358,7 +1185,3 @@ Alternatively, most of the values are already computed by ground_truth_backfill 
 # monitoring.py lines 281-289
 accuracy, precision_score, recall_score, f1, roc_auc, log_loss, brier_score
 ```
-
-## References
-
-[XGBoost python examples](https://github.com/dmlc/xgboost/tree/master/demo/guide-python)

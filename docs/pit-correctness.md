@@ -97,6 +97,18 @@ sequenceDiagram
     Note over R: ✗ WRONG alternative:<br/>SELECT latest FROM features WHERE entity=ORD<br/>→ 11:00 snapshot → 18.5 for BOTH flights
 ```
 
+> TODO: update docs: `get_historical_features()` crashes memory. Loads entire feature parquet for each feature view into memory -> sorts entity_df and feature_df by entity key + timestamp. `feast_feature_export` doesn't partition the data.
+>
+> `df = con.execute(f'SELECT {cols} FROM {table}').df()` # no WHERE clause
+> It dumps the entire DuckDB table with no date filter. If `feat_origin_airport_windowed` has been running for a year with hourly snapshots:
+>
+> 500 airports × 24h × 365 days = 4.38 million rows
+> feat_route_rolling: 5,000–10,000 routes × 365 days = 5.5M rows
+> 5 feature views loaded simultaneously = potentially several GB just for feature data
+> Then Feast joins that against 210K entity rows, creating large intermediate DataFrames in pandas. Combined with pandas' copy-on-write behavior and macOS virtual memory (what Activity Monitor shows as "memory" includes swap-backed pages), you get the 99→159GB number.
+>
+> PIT correctness doesn't matter for drift - only training & inference
+
 ### Layer 3 — Training Dataset Builder leakage guards
 
 The `TrainingDatasetBuilder` applies four explicit guards after the ASOF join:
