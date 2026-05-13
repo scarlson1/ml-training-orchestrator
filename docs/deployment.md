@@ -171,9 +171,9 @@ services:
 Useful commands to check service on VM:
 
 ```bash
-systemctl status bmo-compose      # is it running?
+sudo systemctl status bmo-compose      # is it running?
 journalctl -u bmo-compose -f      # live logs (all containers)
-systemctl restart bmo-compose     # rolling restart
+sudo systemctl restart bmo-compose     # rolling restart
 
 docker logs <container_name> --tail 100 # -f
 

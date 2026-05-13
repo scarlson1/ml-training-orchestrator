@@ -972,6 +972,15 @@ Auto-retrain loop (Phase 10 closes this):
 
 ---
 
+### Improvements
+
+- **Ray:**
+  - Wrap Optuna with [Ray](https://www.ray.io/) for distributed HPO if scale becomes an issue (if limits of single node parallelized HPO are reached)
+  - Remove PySpark, use Ray's `groupby().map_groups()` for `feature_cascadiing_delay` (removes heavy SparkSession dependency)
+  - Update `batch_scoring` to use Ray's `map_batches()` to score partitions in parallel
+
+---
+
 ### TODO:
 
 - document xgboost params
