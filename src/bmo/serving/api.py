@@ -32,6 +32,7 @@ import os
 import time
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
+from collections.abc import Generator
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 import duckdb
@@ -491,32 +492,22 @@ def get_airport_coordinates() -> Table:
     return cast(Table, _airport_coordinates)
 
 
-# Don't pool DuckDB connections — they hold a file lock.
-# Open read-only per request; Dagster's write connection can coexist.
-def get_duckdb() -> duckdb.DuckDBPyConnection:
-    # if not os.path.exists(settings.duckdb_path):
-    #     raise HTTPException(
-    #         status_code=503,
-    #         detail=f'DuckDB not found at {settings.duckdb_path}. Run dbt to materialize mart_predictions.',
-    #     )
-    # return duckdb.connect(settings.duckdb_path, read_only=True)
+def get_duckdb() -> Generator[duckdb.DuckDBPyConnection, None, None]:
     """
-    Returns a DuckDB connection pointing at predictions data.
+    Yields a DuckDB connection and guarantees close on request teardown.
+
+    Uses yield (not return) so FastAPI calls con.close() after every request,
+    releasing the shared flock() that would otherwise accumulate and block
+    dbt's exclusive write lock.
 
     Priority:
     1. Local DuckDB file (created by dbt) — fastest, has actuals joined
     2. Fallback: S3 Parquet directly — survives if dbt hasn't run yet
-
-    The S3 fallback means the dashboard endpoints work even when dbt
-    hasn't materialized mart_predictions yet. The tradeoff: no actuals
-    columns (actual_is_delayed, etc.), so aggregate queries that don't
-    need actuals will still work.
     """
     local_path = settings.duckdb_path
     if os.path.exists(local_path):
         con = duckdb.connect(local_path, read_only=True)
     else:
-        # Fallback: S3-backed ephemeral session
         log.info('local DuckDB not found — querying S3 predictions directly', path=local_path)
         con = duckdb.connect()
         try:
@@ -532,20 +523,18 @@ def get_duckdb() -> duckdb.DuckDBPyConnection:
             SET s3_url_style = 'path';
             SET s3_use_ssl = 'false';
         """)  # SET s3_region = '{settings.s3_region}'; duckDB doesn't support "auto"
-        # Register a view that mirrors mart_predictions but from raw S3
-        # actual_is_delayed only exists after the dbt join with actuals — stub it
-        # as NULL so queries that reference it (n_with_actuals) work without error.
         con.execute("""
             CREATE OR REPLACE VIEW mart_predictions AS
                 SELECT *, NULL::BOOLEAN AS actual_is_delayed
                 FROM read_parquet('s3://staging/predictions/**/data.parquet')
         """)
 
-    # stg_dim_airports is ephemeral/not materialized => cannot join in network route
-    # create small table here and pass to duckdb to join in /api/network/ route
     con.register('airport_coordinates', get_airport_coordinates())
 
-    return con
+    try:
+        yield con
+    finally:
+        con.close()
 
 
 def _duckdb_error_detail(exc: Exception) -> str:
@@ -806,35 +795,31 @@ async def predictions(
     """
 
     def _query() -> list[dict[str, Any]]:
-        try:
-            # to_dict('records') returns list[dict[Hashable, Any]] in pandas stubs
-            # but column names are always strings, so cast is safe.
-            rows = cast(
-                list[dict[str, Any]],
-                con.execute(
-                    """
-                    SELECT
-                        score_date::text                               AS score_date,
-                        model_version,
-                        COUNT(*)                                       AS n_flights,
-                        AVG(predicted_is_delayed::int)                 AS positive_rate,
-                        AVG(predicted_delay_proba)                     AS avg_proba,
-                        COUNT(*) FILTER (WHERE actual_is_delayed IS NOT NULL) AS n_with_actuals
-                    FROM mart_predictions
-                    WHERE CAST(score_date AS DATE) >= (
-                        SELECT MAX(CAST(score_date AS DATE)) FROM mart_predictions
-                    ) - INTERVAL (? || ' days')
-                    GROUP BY score_date, model_version
-                    ORDER BY score_date DESC
-                    """,
-                    [days],
-                )
-                .df()
-                .to_dict('records'),
+        # to_dict('records') returns list[dict[Hashable, Any]] in pandas stubs
+        # but column names are always strings, so cast is safe.
+        return cast(
+            list[dict[str, Any]],
+            con.execute(
+                """
+                SELECT
+                    score_date::text                               AS score_date,
+                    model_version,
+                    COUNT(*)                                       AS n_flights,
+                    AVG(predicted_is_delayed::int)                 AS positive_rate,
+                    AVG(predicted_delay_proba)                     AS avg_proba,
+                    COUNT(*) FILTER (WHERE actual_is_delayed IS NOT NULL) AS n_with_actuals
+                FROM mart_predictions
+                WHERE CAST(score_date AS DATE) >= (
+                    SELECT MAX(CAST(score_date AS DATE)) FROM mart_predictions
+                ) - INTERVAL (? || ' days')
+                GROUP BY score_date, model_version
+                ORDER BY score_date DESC
+                """,
+                [days],
             )
-        finally:
-            con.close()
-        return rows
+            .df()
+            .to_dict('records'),
+        )
 
     try:
         rows = await asyncio.to_thread(_query)
