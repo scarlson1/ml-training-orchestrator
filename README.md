@@ -964,6 +964,10 @@ Auto-retrain loop (Phase 10 closes this):
 - [Pandas](https://pandas.pydata.org/docs/user_guide/pyarrow.html)
 - [FastAPI](https://fastapi.tiangolo.com/)
 - [Evidently](https://docs.evidentlyai.com/docs/platform/dashboard_overview)
+- [PySpark Pandas](https://spark.apache.org/docs/latest/api/python/reference/pyspark.pandas/index.html)
+- [PySpark SQL](https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/index.html)
+- [PySpark Examples](https://sparkbyexamples.com/)
+- [Databricks PySpark](https://docs.databricks.com/aws/en/pyspark/)
 - [XGBoost python examples](https://github.com/dmlc/xgboost/tree/master/demo/guide-python)
 
 ---
