@@ -94,6 +94,7 @@ class BmoDbtTranslator(DagsterDbtTranslator):
     dagster_dbt_translator=BmoDbtTranslator(
         settings=DagsterDbtTranslatorSettings(enable_asset_checks=True)
     ),
+    op_tags={'dagster/concurrency_key': 'duckdb_write'},
     # automation_condition=AutomationCondition.eager()
 )
 def bmo_dbt_assets(context: AssetExecutionContext, dbt: DbtCliResource) -> Iterator:
