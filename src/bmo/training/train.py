@@ -96,6 +96,7 @@ def train_single_run(
     parent_run_id: str | None = None,  # set by Optuna for nested MLflow runs
     nthread: int = -1,  # -1 = all available CPUs; pass 1 for reproduce mode
     callbacks: list[Any] | None = None,  # XGBoostPruningCallback from Optuna
+    log_artifacts: bool = True,  # False for HPO trials — only champion run needs heavy artifacts
 ) -> TrainingResult:
     """
     Execute one XGBoost training run and log everything to MLflow.
@@ -171,13 +172,12 @@ def train_single_run(
         mlflow.log_metric('train_rows', len(X_train))
         mlflow.log_metric('test_rows', len(X_test))
 
-        # plot functions use pre-computed predictions from XGBFitResult - no redundant re-prediction passes needed
-        _log_feature_importance(fit_result)
-        _log_confusion_matrix(fit_result, y_test)
-        _log_calibration_plot(fit_result, y_test)
-
-        log_xgboost_model(fit_result.booster, 'model')
-        mlflow.log_dict(handle.model_dump(mode='json'), 'dataset_card.json')
+        if log_artifacts:
+            _log_feature_importance(fit_result)
+            _log_confusion_matrix(fit_result, y_test)
+            _log_calibration_plot(fit_result, y_test)
+            log_xgboost_model(fit_result.booster, 'model')
+            mlflow.log_dict(handle.model_dump(mode='json'), 'dataset_card.json')
 
         model_uri = f'runs:/{run.info.run_id}/model'
         log.info(

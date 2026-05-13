@@ -228,6 +228,7 @@ def _make_objective(
             mlflow_run_name=f'trial_{trial.number:03d}',
             parent_run_id=parent_run_id,
             callbacks=[pruning_callback],
+            log_artifacts=False,
         )
         return result.metrics['test_roc_auc']
 

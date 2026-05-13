@@ -846,7 +846,7 @@ RESOURCES (wired in Phase 8, available to all assets)
                           │                              │
                           ▼                              ▼
           ┌───────────────────────────┐    ┌────────────────────────────────┐
-          │  s3://staging/            │    │    Fly.io / FastAPI            │
+          │  s3://staging/            │    │    FastAPI                     │
           │  predictions/             │    │                                │
           │  date=YYYY-MM-DD/         │    │  POST /predict                 │
           │  data.parquet             │    │   └── FeatureClient            │
@@ -905,7 +905,7 @@ stage 10
 │       │                (DailyPartition, 6am UTC)                     │       │
 │       │                          │                              S3 config    │
 │       │                          │                                   │       │
-│       │                          ▼ ← NEW (Phase 10)                  │       │
+│       │                          ▼                                   │       │
 │       │                    [drift_report] ──────────────────────────►┘       │
 │       │                (DailyPartition, 8am UTC)                             │
 │       │                     │        │                                       │
@@ -918,14 +918,14 @@ stage 10
 │       │             (CI workflow)             retrain_job triggers           │
 │       │                                              │                       │
 │       │              (mart_predictions)              │ (nightly OR triggered)│
-│       └──► [bmo_dbt_assets] ──► [ground_truth_backfill] ← NEW (Phase 10)     │
+│       └──► [bmo_dbt_assets] ──► [ground_truth_backfill]                      │
 │                                            │                                 │
 │                                   live_accuracy (Postgres)                   │
 └──────────────────────────────────────────────────────────────────────────────┘
                 │
                 ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│                         SERVING (Fly.io + Upstash)                           │
+│                         SERVING (FastAPI + Upstash)                          │
 │  ┌──────────────────┐       ┌──────────────────────────────────────────┐     │
 │  │  FastAPI         │──────►│  Upstash Redis (Feast online store)      │     │
 │  │  /predict        │       └──────────────────────────────────────────┘     │
@@ -964,6 +964,10 @@ Auto-retrain loop (Phase 10 closes this):
 - [Pandas](https://pandas.pydata.org/docs/user_guide/pyarrow.html)
 - [FastAPI](https://fastapi.tiangolo.com/)
 - [Evidently](https://docs.evidentlyai.com/docs/platform/dashboard_overview)
+- [PySpark Pandas](https://spark.apache.org/docs/latest/api/python/reference/pyspark.pandas/index.html)
+- [PySpark SQL](https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/index.html)
+- [PySpark Examples](https://sparkbyexamples.com/)
+- [Databricks PySpark](https://docs.databricks.com/aws/en/pyspark/)
 - [XGBoost python examples](https://github.com/dmlc/xgboost/tree/master/demo/guide-python)
 
 ---
