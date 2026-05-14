@@ -26,9 +26,12 @@ from dagster import (
 
 from bmo.common.config import settings
 from bmo.training.hpo import run_hpo
+from bmo.training.train import MLFLOW_EXPERIMENT, _get_feature_columns, _load_dataset, _time_split
 from bmo.training_dataset_builder import DatasetHandle, LeakageError, build_dataset
 from bmo.training_dataset_builder.pit_join import default_feature_view_configs
 from dagster_project.resources import DuckDBResource, MLflowResource, S3Resource
+
+_MLLIB_TARGET_COLUMN = 'is_dep_delayed'
 
 # all features available from the 5 feature views
 # remove a feature group, retrain, compare AUC
@@ -178,6 +181,66 @@ def training_dataset(context: AssetExecutionContext, duckdb: DuckDBResource) -> 
         )
 
 
+_MLLIB_TARGET_COLUMN = 'is_dep_delayed'
+
+
+@asset(
+    group_name='training',
+    deps=['trained_model'],
+    description='PySpark MLlib GBT baseline. Runs in its own process after trained_model completes.',
+)
+def mllib_baseline(
+    context: AssetExecutionContext, s3: S3Resource, mlflow: MLflowResource
+) -> MaterializeResult:
+    from bmo.training.models.mllib_baseline import fit_mllib_baseline
+
+    # read DatasetHandle via the same card.json sidecar pattern as trained_model
+    dataset_event = context.instance.get_latest_materialization_event(
+        AssetKey(['training_dataset'])
+    )
+    if dataset_event is None or dataset_event.asset_materialization is None:
+        raise RuntimeError('No training_dataset materialization found.')
+
+    dataset_meta = dataset_event.asset_materialization.metadata
+    storage_path = str(dataset_meta['storage_path'].value)
+    card_path = storage_path.replace('data.parquet', 'card.json')
+    handle = _load_dataset_handle(card_path, s3)
+
+    # get the parent HPO run ID from trained_model so this baseline nests under it
+    trained_event = context.instance.get_latest_materialization_event(AssetKey(['trained_model']))
+    if trained_event is None or trained_event.asset_materialization is None:
+        raise RuntimeError('No trained_model materialization found.')
+    parent_run_id = str(trained_event.asset_materialization.metadata['mlflow_parent_run_id'].value)
+
+    df = _load_dataset(handle.storage_path)
+    feature_cols = _get_feature_columns(df)
+    X_train, _, X_test, y_train, _, y_test = _time_split(df, feature_cols, _MLLIB_TARGET_COLUMN)
+
+    train_df = pd.DataFrame(X_train, columns=feature_cols)
+    train_df[_MLLIB_TARGET_COLUMN] = y_train
+    test_df = pd.DataFrame(X_test, columns=feature_cols)
+    test_df[_MLLIB_TARGET_COLUMN] = y_test
+
+    mlflow.configure()
+    result = fit_mllib_baseline(
+        train_df=train_df,
+        test_df=test_df,
+        feature_columns=feature_cols,
+        target_column=_MLLIB_TARGET_COLUMN,
+        experiment_name=MLFLOW_EXPERIMENT,
+        parent_run_id=parent_run_id,
+    )
+
+    return MaterializeResult(
+        metadata={
+            'mlflow_run_id': MetadataValue.text(result.mlflow_run_id),
+            'test_roc_auc': MetadataValue.float(result.metrics['test_roc_auc']),
+            'test_pr_auc': MetadataValue.float(result.metrics['test_pr_auc']),
+            'test_log_loss': MetadataValue.float(result.metrics['test_log_loss']),
+        }
+    )
+
+
 @asset(
     group_name='training',
     deps=['training_dataset'],
@@ -226,7 +289,7 @@ def trained_model(
         handle=handle,
         n_trials=_HPO_N_TRIALS,
         target_column='is_dep_delayed',
-        run_mllib_baseline=True,
+        # run_mllib_baseline=True,
     )
 
     context.log.info(

@@ -1130,3 +1130,291 @@ Alternatively, most of the values are already computed by ground_truth_backfill 
 # monitoring.py lines 281-289
 accuracy, precision_score, recall_score, f1, roc_auc, log_loss, brier_score
 ```
+
+### TODO: load dataset once during HPO
+
+Two files need to change: train.py (remove the load from train_single_run, accept pre-split arrays) and hpo.py (load once, pass splits everywhere).
+
+new `train_single_run` refactor:
+
+```python
+def train_single_run(
+    handle: DatasetHandle,
+    X_train: np.ndarray,
+    X_val: np.ndarray,
+    X_test: np.ndarray,
+    y_train: np.ndarray,
+    y_val: np.ndarray,
+    y_test: np.ndarray,
+    feature_columns: list[str],
+    df: pd.DataFrame | None = None,      # only needed for mlflow.log_input; pass on champion run, skip for trials
+    params: dict[str, Any] | None = None,
+    target_column: str = DEFAULT_TARGET_COLUMN,
+    mlflow_run_name: str | None = None,
+    parent_run_id: str | None = None,
+    nthread: int = -1,
+    callbacks: list[Any] | None = None,
+    log_artifacts: bool = True,
+) -> TrainingResult:
+    merged_params = {**DEFAULT_PARAMS, **(params or {}), 'nthread': nthread}
+
+    if 'scale_pos_weight' not in (params or {}):
+        neg = float((y_train == 0).sum())
+        pos = float((y_train == 1).sum())
+        merged_params['scale_pos_weight'] = neg / max(pos, 1.0)
+
+    git_sha = _get_git_sha()
+    run_name = mlflow_run_name or f'xgb_{handle.version_hash[:8]}_{target_column}'
+
+    mlflow.set_experiment(MLFLOW_EXPERIMENT)
+    run_kwargs: dict[str, Any] = {'run_name': run_name}
+    if parent_run_id:
+        run_kwargs['nested'] = True
+
+    training_result: TrainingResult | None = None
+    with mlflow.start_run(**run_kwargs) as run:
+        _log_provenance(handle, merged_params, git_sha, target_column)
+
+        if df is not None:
+            mlflow.log_input(
+                mlflow.data.from_pandas(
+                    df,
+                    source=handle.storage_path,
+                    name='flight_delay_training',
+                    targets=target_column,
+                    digest=handle.version_hash[:36],
+                ),
+                context='training',
+            )
+
+        fit_result = fit_xgboost(
+            X_train=X_train,
+            y_train=y_train,
+            X_val=X_val,
+            y_val=y_val,
+            X_test=X_test,
+            y_test=y_test,
+            feature_names=feature_columns,
+            params=merged_params,
+            callbacks=callbacks,
+        )
+
+        mlflow.log_metrics(fit_result.metrics)
+        mlflow.log_metric('best_iteration', fit_result.best_iteration)
+        mlflow.log_metric('train_rows', len(X_train))
+        mlflow.log_metric('test_rows', len(X_test))
+
+        if log_artifacts:
+            _log_feature_importance(fit_result)
+            _log_confusion_matrix(fit_result, y_test)
+            _log_calibration_plot(fit_result, y_test)
+            log_xgboost_model(fit_result.booster, 'model')
+            mlflow.log_dict(handle.model_dump(mode='json'), 'dataset_card.json')
+
+        model_uri = f'runs:/{run.info.run_id}/model'
+        log.info(
+            'training run complete',
+            run_id=run.info.run_id,
+            auc=fit_result.metrics['test_roc_auc'],
+            best_iter=fit_result.best_iteration,
+        )
+
+        training_result = TrainingResult(
+            mlflow_run_id=run.info.run_id,
+            model_uri=model_uri,
+            metrics=fit_result.metrics,
+            feature_importance=fit_result.feature_importance,
+            params=merged_params,
+            dataset_version_hash=handle.version_hash,
+            feature_set_version=handle.feature_set_version,
+            git_sha=git_sha,
+            best_iteration=fit_result.best_iteration,
+            target_column=target_column,
+            train_rows=len(X_train),
+            test_rows=len(X_test),
+            trained_at=datetime.now(timezone.utc),
+        )
+
+    assert training_result is not None
+    return training_result
+```
+
+The only meaningful changes: df loading is removed, the split arrays come in as parameters, mlflow.log_input is gated on df is not None (trials pass None, champion run passes the real df).
+
+hpo.py — load once at the top of run_hpo, pass splits down:
+
+```python
+def run_hpo(
+    handle: DatasetHandle,
+    n_trials: int = 50,
+    target_column: str = 'is_dep_delayed',
+    run_mllib_baseline: bool = True,
+) -> HPOResult:
+    sweep_start = datetime.now(timezone.utc)
+    _OPTUNA_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+    storage_path = str(_OPTUNA_STORAGE_DIR / f'study_{handle.version_hash[:16]}.db')
+    study_name = f'bmo_xgb_{handle.version_hash[:16]}_{target_column}'
+
+    # load once — all 50 trials and the champion run share these arrays
+    df = _load_dataset(handle.storage_path)
+    feature_columns = _get_feature_columns(df)
+    X_train, X_val, X_test, y_train, y_val, y_test = _time_split(df, feature_columns, target_column)
+    log.info('dataset loaded', rows=len(df), features=len(feature_columns))
+
+    sampler = optuna.samplers.TPESampler(seed=42, n_startup_trials=10)
+    pruner = optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=50)
+
+    study = optuna.create_study(
+        study_name=study_name,
+        direction='maximize',
+        sampler=sampler,
+        pruner=pruner,
+        storage=f'sqlite:///{storage_path}',
+        load_if_exists=True,
+    )
+
+    mlflow.set_experiment(MLFLOW_EXPERIMENT)
+
+    champion_result: TrainingResult | None = None
+    best_trial: FrozenTrial | None = None
+    n_pruned: int | None = None
+
+    with mlflow.start_run(run_name=f'hpo_{handle.version_hash[:8]}') as parent_run:
+        mlflow.log_params(
+            {
+                'hpo_n_trials': n_trials,
+                'hpo_sampler': 'TPE',
+                'hpo_pruner': 'MedianPruner',
+                'dataset_version_hash': handle.version_hash,
+                'target_column': target_column,
+            }
+        )
+        mlflow.set_tag('role', 'hpo_parent')
+
+        objective = _make_objective(
+            handle=handle,
+            X_train=X_train,
+            X_val=X_val,
+            X_test=X_test,
+            y_train=y_train,
+            y_val=y_val,
+            y_test=y_test,
+            feature_columns=feature_columns,
+            target_column=target_column,
+            parent_run_id=parent_run.info.run_id,
+        )
+
+        already_done = len(study.trials)
+        remaining = max(0, n_trials - already_done)
+        if remaining > 0:
+            log.info('starting HPO sweep', n_trials=remaining, already_done=already_done)
+            study.optimize(objective, n_trials=remaining, show_progress_bar=True)
+        else:
+            log.info('study already complete', study=study_name)
+
+        best_trial = study.best_trial
+        n_pruned = sum(1 for t in study.trials if t.state == optuna.trial.TrialState.PRUNED)
+
+        log.info('HPO complete', best_auc=best_trial.value, n_pruned=n_pruned)
+
+        # champion run gets df so mlflow.log_input records the dataset lineage
+        champion_result = train_single_run(
+            handle=handle,
+            X_train=X_train,
+            X_val=X_val,
+            X_test=X_test,
+            y_train=y_train,
+            y_val=y_val,
+            y_test=y_test,
+            feature_columns=feature_columns,
+            df=df,
+            params=best_trial.params,
+            target_column=target_column,
+            mlflow_run_name=f'champion_{handle.version_hash[:8]}',
+            parent_run_id=parent_run.info.run_id,
+        )
+
+        mlflow.log_metrics(
+            {
+                'best_trial_auc': best_trial.value or 0.0,
+                'n_trials_completed': len(study.trials) - n_pruned,
+                'n_trials_pruned': n_pruned,
+                'champion_auc': champion_result.metrics['test_roc_auc'],
+            }
+        )
+        mlflow.log_artifact(storage_path, 'optuna_study.db')
+
+        if run_mllib_baseline:
+            _run_mllib_comparison(handle, target_column, parent_run.info.run_id)
+
+    assert champion_result is not None
+    assert best_trial is not None
+    assert n_pruned is not None
+
+    return HPOResult(
+        best_run_id=champion_result.mlflow_run_id,
+        best_auc=champion_result.metrics['test_roc_auc'],
+        best_params=best_trial.params,
+        n_trials_completed=len(study.trials) - n_pruned,
+        n_trials_pruned=n_pruned,
+        study_storage_path=storage_path,
+        parent_mlflow_run_id=parent_run.info.run_id,
+        dataset_version_hash=handle.version_hash,
+        sweep_started_at=sweep_start,
+        sweep_ended_at=datetime.now(timezone.utc),
+    )
+```
+
+\_make_objective — accept pre-split arrays, stop loading inside trials:
+
+```python
+def _make_objective(
+    handle: DatasetHandle,
+    X_train: np.ndarray,
+    X_val: np.ndarray,
+    X_test: np.ndarray,
+    y_train: np.ndarray,
+    y_val: np.ndarray,
+    y_test: np.ndarray,
+    feature_columns: list[str],
+    target_column: str,
+    parent_run_id: str,
+) -> Callable[[optuna.Trial], float]:
+    from optuna.integration import XGBoostPruningCallback
+
+    def objective(trial: optuna.Trial) -> float:
+        params = {
+            'max_depth': trial.suggest_int('max_depth', 3, 10),
+            'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3, log=True),
+            'n_estimators': trial.suggest_int('n_estimators', 100, 1000),
+            'min_child_weight': trial.suggest_int('min_child_weight', 1, 10),
+            'subsample': trial.suggest_float('subsample', 0.5, 1.0),
+            'colsample_bytree': trial.suggest_float('colsample_bytree', 0.5, 1.0),
+            'reg_alpha': trial.suggest_float('reg_alpha', 1e-8, 10.0, log=True),
+            'reg_lambda': trial.suggest_float('reg_lambda', 1e-8, 10.0, log=True),
+            'gamma': trial.suggest_float('gamma', 0.0, 5.0),
+        }
+
+        pruning_callback = XGBoostPruningCallback(trial, 'validation_0-logloss')
+
+        result = train_single_run(
+            handle=handle,
+            X_train=X_train,
+            X_val=X_val,
+            X_test=X_test,
+            y_train=y_train,
+            y_val=y_val,
+            y_test=y_test,
+            feature_columns=feature_columns,
+            df=None,          # no dataset lineage logging for trials
+            params=params,
+            target_column=target_column,
+            mlflow_run_name=f'trial_{trial.number:03d}',
+            parent_run_id=parent_run_id,
+            callbacks=[pruning_callback],
+            log_artifacts=False,
+        )
+        return result.metrics['test_roc_auc']
+
+    return objective
+```

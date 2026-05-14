@@ -27,12 +27,10 @@ retrain_job = define_asset_job(
     name='nightly_retrain',
     # The + prefix means "and all upstream assets. Here we just want the three training assets, not entire upstream"
     selection=AssetSelection.assets(
-        'training_dataset',
-        'trained_model',
-        'registered_model',
+        'training_dataset', 'trained_model', 'registered_model', 'mllib_baseline'
     ),
     description=(
-        'Full training pipeline: PIT dataset builder → XGBoost → evaluation gate → MLflow registry. '
+        'Full training pipeline: PIT dataset builder → XGBoost → evaluation gate → MLflow registry → MLlib baseline. '
         'Triggered nightly at 1am UTC by nightly_retrain_schedule, '
         ' and on-demand by drift_retrain_sensor when PSI > 0.2.'
     ),
