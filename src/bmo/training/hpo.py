@@ -66,7 +66,7 @@ def run_hpo(
     handle: DatasetHandle,
     n_trials: int = 50,
     target_column: str = 'is_dep_delayed',
-    run_mllib_baseline: bool = True,
+    # run_mllib_baseline: bool = True,
 ) -> HPOResult:
     """
     Run a full Optuna HPO sweep over XGBoost hyperparameters.
@@ -168,8 +168,9 @@ def run_hpo(
         mlflow.log_artifact(storage_path, 'optuna_study.db')
 
         # sanity check & benchmark (no tuning) - shows XGBoost model outperforms ML baseline
-        if run_mllib_baseline:
-            _run_mllib_comparison(handle, target_column, parent_run.info.run_id)
+        # removed and replaced with standalone dagster asset for loading training data from S3
+        # if run_mllib_baseline:
+        #     _run_mllib_comparison(handle, target_column, parent_run.info.run_id)
 
     assert champion_result is not None
     assert best_trial is not None

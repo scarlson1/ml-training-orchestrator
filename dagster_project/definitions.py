@@ -56,6 +56,7 @@ from dagster_project.assets.staging import (  # noqa: E402
     staged_weather,
 )
 from dagster_project.assets.training import (  # noqa: E402
+    mllib_baseline,
     registered_model,
     trained_model,
     training_dataset,
@@ -110,6 +111,7 @@ defs = Definitions(
         training_dataset,
         trained_model,
         registered_model,
+        mllib_baseline,
         # Serving layer
         batch_predictions,
         deployed_api,
