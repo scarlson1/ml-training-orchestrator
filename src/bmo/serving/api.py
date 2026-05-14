@@ -30,9 +30,9 @@ from __future__ import annotations
 import asyncio
 import os
 import time
+from collections.abc import Generator
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
-from collections.abc import Generator
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 import duckdb
@@ -505,10 +505,15 @@ def get_duckdb() -> Generator[duckdb.DuckDBPyConnection, None, None]:
     2. Fallback: S3 Parquet directly — survives if dbt hasn't run yet
     """
     local_path = settings.duckdb_path
+    con = None
+
     if os.path.exists(local_path):
-        con = duckdb.connect(local_path, read_only=True)
-    else:
-        log.info('local DuckDB not found — querying S3 predictions directly', path=local_path)
+        try:
+            con = duckdb.connect(local_path, read_only=True)
+        except IOException:
+            log.info('DuckDB file locked — falling back to S3', path=local_path)
+
+    if con is None:
         con = duckdb.connect()
         try:
             con.execute('INSTALL httpfs; LOAD httpfs;')
@@ -522,7 +527,7 @@ def get_duckdb() -> Generator[duckdb.DuckDBPyConnection, None, None]:
             SET s3_region = 'us-east-1';
             SET s3_url_style = 'path';
             SET s3_use_ssl = 'false';
-        """)  # SET s3_region = '{settings.s3_region}'; duckDB doesn't support "auto"
+        """)
         con.execute("""
             CREATE OR REPLACE VIEW mart_predictions AS
                 SELECT *, NULL::BOOLEAN AS actual_is_delayed
