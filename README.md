@@ -950,6 +950,12 @@ Auto-retrain loop (Phase 10 closes this):
 
 ---
 
+### Limitations
+
+- DuckDB requires a lock (both read and write). FastAPI was an after thought when I decided to make the react app. Any endpoint to uses `get_duckdb()` will fail when a dagster asset is utilizing DuckDB (and vice versa). (fixed by fallback on S3 ??)
+
+---
+
 ### Troubleshooting
 
 - if `predict/` returns `503`, ensure feast has data in redis (run `feast_feature_export` & `feast_materialized_features`). Check that the `hourly_feast_materialization` automation is enabled & running properly.
