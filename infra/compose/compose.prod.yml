@@ -6,7 +6,7 @@ services:
     image: postgres:17
     container_name: postgres
     restart: unless-stopped
-    mem_limit: 256m # used for metadata only
+    mem_limit: 512m # used for metadata only
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
