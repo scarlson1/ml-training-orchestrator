@@ -236,48 +236,50 @@ def _make_objective(
     return objective
 
 
-def _run_mllib_comparison(
-    handle: DatasetHandle,
-    target_column: str,
-    parent_run_id: str,
-) -> None:
-    """Run the PySpark MLlib baseline as a nested child run."""
-    try:
-        import pandas as pd
-        import pyarrow.parquet as pq
-        import s3fs
+# replaced by separate dagster asset
 
-        from bmo.common.config import settings
-        from bmo.training.models.mllib_baseline import fit_mllib_baseline
-        from bmo.training.train import _get_feature_columns, _time_split
+# def _run_mllib_comparison(
+#     handle: DatasetHandle,
+#     target_column: str,
+#     parent_run_id: str,
+# ) -> None:
+#     """Run the PySpark MLlib baseline as a nested child run."""
+#     try:
+#         import pandas as pd
+#         import pyarrow.parquet as pq
+#         import s3fs
 
-        fs = s3fs.S3FileSystem(
-            key=settings.s3_access_key_id,
-            secret=settings.s3_secret_access_key,
-            endpoint_url=settings.s3_endpoint_url,
-        )
-        with fs.open(handle.storage_path, 'rb') as f:
-            df = pq.read_table(f).to_pandas()
+#         from bmo.common.config import settings
+#         from bmo.training.models.mllib_baseline import fit_mllib_baseline
+#         from bmo.training.train import _get_feature_columns, _time_split
 
-        feature_cols = _get_feature_columns(df)
-        X_train, _, X_test, y_train, _, y_test = _time_split(df, feature_cols, target_column)
+#         fs = s3fs.S3FileSystem(
+#             key=settings.s3_access_key_id,
+#             secret=settings.s3_secret_access_key,
+#             endpoint_url=settings.s3_endpoint_url,
+#         )
+#         with fs.open(handle.storage_path, 'rb') as f:
+#             df = pq.read_table(f).to_pandas()
 
-        # MLlib doesn't use a validation set (uses maxIter instead of early stopping) --> only pass train/test
-        train_df = pd.DataFrame(X_train, columns=feature_cols)
-        train_df[target_column] = y_train
-        test_df = pd.DataFrame(X_test, columns=feature_cols)
-        test_df[target_column] = y_test
+#         feature_cols = _get_feature_columns(df)
+#         X_train, _, X_test, y_train, _, y_test = _time_split(df, feature_cols, target_column)
 
-        fit_mllib_baseline(
-            train_df=train_df,
-            test_df=test_df,
-            feature_columns=feature_cols,
-            target_column=target_column,
-            experiment_name=MLFLOW_EXPERIMENT,
-            parent_run_id=parent_run_id,
-        )
-        log.info('MLlib baseline complete')
+#         # MLlib doesn't use a validation set (uses maxIter instead of early stopping) --> only pass train/test
+#         train_df = pd.DataFrame(X_train, columns=feature_cols)
+#         train_df[target_column] = y_train
+#         test_df = pd.DataFrame(X_test, columns=feature_cols)
+#         test_df[target_column] = y_test
 
-    except Exception as exc:
-        # MLlib baseline is objectional - don't fail HPO sweep if Spark is unavailable
-        log.warning('MLlib baseline skipped', error=str(exc))
+#         fit_mllib_baseline(
+#             train_df=train_df,
+#             test_df=test_df,
+#             feature_columns=feature_cols,
+#             target_column=target_column,
+#             experiment_name=MLFLOW_EXPERIMENT,
+#             parent_run_id=parent_run_id,
+#         )
+#         log.info('MLlib baseline complete')
+
+#     except Exception as exc:
+#         # MLlib baseline is objectional - don't fail HPO sweep if Spark is unavailable
+#         log.warning('MLlib baseline skipped', error=str(exc))
