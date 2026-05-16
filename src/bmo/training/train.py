@@ -90,6 +90,7 @@ class TrainingResult(BaseModel):
 
 def train_single_run(
     handle: DatasetHandle,  # storage_path, as_of, version_hash, etc.
+    df: pd.DataFrame | None = None,  # pre-loaded; avoids per-trial S3 fetch in HPO
     params: dict[str, Any] | None = None,  # XGBoost overrides - missing keys use DEFAULT_PARAMS
     target_column: str = DEFAULT_TARGET_COLUMN,  # 'is_dep_delayed'
     mlflow_run_name: str | None = None,
@@ -117,7 +118,8 @@ def train_single_run(
     """
     merged_params = {**DEFAULT_PARAMS, **(params or {}), 'nthread': nthread}
 
-    df = _load_dataset(handle.storage_path)
+    if df is None:
+        df = _load_dataset(handle.storage_path)
     feature_columns = _get_feature_columns(df)
     # split into training, validation, test (by time so later data isn't leaked into training dataset)
     X_train, X_val, X_test, y_train, y_val, y_test = _time_split(df, feature_columns, target_column)
@@ -142,18 +144,19 @@ def train_single_run(
     with mlflow.start_run(**run_kwargs) as run:
         _log_provenance(handle, merged_params, git_sha, target_column)
 
-        mlflow.log_input(
-            mlflow.data.from_pandas(
-                df,
-                source=handle.storage_path,
-                name='flight_delay_training',
-                targets=target_column,
-                digest=handle.version_hash[
-                    :36
-                ],  # MLflow digest max is 36 chars; full hash is in version_hash metadata
-            ),
-            context='training',
-        )
+        if log_artifacts:
+            mlflow.log_input(
+                mlflow.data.from_pandas(
+                    df,
+                    source=handle.storage_path,
+                    name='flight_delay_training',
+                    targets=target_column,
+                    digest=handle.version_hash[
+                        :36
+                    ],  # MLflow digest max is 36 chars; full hash is in version_hash metadata
+                ),
+                context='training',
+            )
 
         fit_result = fit_xgboost(
             X_train=X_train,

@@ -36,8 +36,9 @@ import mlflow
 import optuna
 import structlog
 from optuna.trial import FrozenTrial
+from pandas import DataFrame
 
-from bmo.training.train import MLFLOW_EXPERIMENT, TrainingResult, train_single_run
+from bmo.training.train import MLFLOW_EXPERIMENT, TrainingResult, _load_dataset, train_single_run
 from bmo.training_dataset_builder.dataset_handle import DatasetHandle
 
 log = structlog.get_logger(__name__)
@@ -80,6 +81,7 @@ def run_hpo(
         target_column:       Binary classification target.
         run_mllib_baseline:  If True, also trains an MLlib GBT baseline.
     """
+
     sweep_start = datetime.now(timezone.utc)
     _OPTUNA_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
     storage_path = str(_OPTUNA_STORAGE_DIR / f'study_{handle.version_hash[:16]}.db')
@@ -106,6 +108,8 @@ def run_hpo(
     best_trial: FrozenTrial | None = None
     n_pruned: int | None = None
 
+    df = _load_dataset(handle.storage_path)  # load once for all 50 trials
+
     with mlflow.start_run(run_name=f'hpo_{handle.version_hash[:8]}') as parent_run:
         mlflow.log_params(
             {
@@ -124,6 +128,7 @@ def run_hpo(
         # objective returns result.metrics['test_roc_auc'] which Optuna uses to guide the next trial (& potentially prunes)
         objective = _make_objective(
             handle=handle,
+            df=df,
             target_column=target_column,
             parent_run_id=parent_run.info.run_id,
         )
@@ -151,6 +156,7 @@ def run_hpo(
         # champion run gets feature important plots, confusion matrix, etc.
         champion_result = train_single_run(
             handle=handle,
+            df=df,
             params=best_trial.params,
             target_column=target_column,
             mlflow_run_name=f'champion_{handle.version_hash[:8]}',
@@ -192,6 +198,7 @@ def run_hpo(
 
 def _make_objective(
     handle: DatasetHandle,
+    df: DataFrame,
     target_column: str,
     parent_run_id: str,
 ) -> Callable[[optuna.Trial], float]:
@@ -224,6 +231,7 @@ def _make_objective(
 
         result = train_single_run(
             handle=handle,
+            df=df,
             params=params,
             target_column=target_column,
             mlflow_run_name=f'trial_{trial.number:03d}',
