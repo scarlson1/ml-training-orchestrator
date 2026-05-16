@@ -50,7 +50,7 @@ services:
       dockerfile: infra/docker/mlflow.Dockerfile
     container_name: ml_flow
     restart: unless-stopped
-    mem_limit: 1g # 1 worker; MLflow auth uses a SQLite DB in the mlflow_auth volume
+    mem_limit: 1.5g # 1 worker; MLflow auth uses a SQLite DB in the mlflow_auth volume
     depends_on:
       postgres:
         condition: service_healthy
