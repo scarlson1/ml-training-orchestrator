@@ -55,7 +55,7 @@ def bts_new_month_sensor(context: SensorEvaluationContext) -> Iterator[RunReques
     available = _available_bts_months()
     already_seen: set[str] = set(json.loads(context.cursor or '[]'))
 
-    new_months = [key for key in available if key not in already_seen]
+    new_months = [key for key in available if key not in already_seen and key >= '2018-01-01']
 
     if not new_months:
         yield SkipReason(

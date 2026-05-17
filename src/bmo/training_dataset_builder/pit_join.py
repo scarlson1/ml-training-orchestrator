@@ -62,14 +62,13 @@ def _configure_duckdb_s3(con: duckdb.DuckDBPyConnection) -> None:
 
     Docs: https://duckdb.org/docs/guides/network_and_cloud/s3_import.html
     """
-    use_ssl = str(settings.s3_endpoint_url.startswith('https://')).lower()
     con.execute('INSTALL httpfs; LOAD httpfs;')
     con.execute(f"""
         SET s3_region='{settings.s3_region}';
         SET s3_access_key_id='{settings.s3_access_key_id}';
         SET s3_secret_access_key='{settings.s3_secret_access_key}';
         SET s3_endpoint='{settings.s3_endpoint}';
-        SET s3_use_ssl={use_ssl};
+        SET s3_use_ssl=false;
         SET s3_url_style='path';
     """)
 
