@@ -98,6 +98,7 @@ def train_single_run(
     nthread: int = -1,  # -1 = all available CPUs; pass 1 for reproduce mode
     callbacks: list[Any] | None = None,  # XGBoostPruningCallback from Optuna
     log_artifacts: bool = True,  # False for HPO trials — only champion run needs heavy artifacts
+    already_sorted: bool = False,  # True when df is pre-sorted/dropna'd by run_hpo
 ) -> TrainingResult:
     """
     Execute one XGBoost training run and log everything to MLflow.
@@ -122,7 +123,9 @@ def train_single_run(
         df = _load_dataset(handle.storage_path)
     feature_columns = _get_feature_columns(df)
     # split into training, validation, test (by time so later data isn't leaked into training dataset)
-    X_train, X_val, X_test, y_train, y_val, y_test = _time_split(df, feature_columns, target_column)
+    X_train, X_val, X_test, y_train, y_val, y_test = _time_split(
+        df, feature_columns, target_column, already_sorted=already_sorted
+    )
 
     # scale_pos_weight balances the loss for imbalanced binary targets
     # count(negative) / count(positive): 70%  on time / 30% delayed = 2.33
@@ -249,6 +252,7 @@ def _time_split(
     df: pd.DataFrame,
     feature_columns: list[str],
     target_column: str,
+    already_sorted: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Chronological split: train 68% / val 12% / test 20%.
@@ -291,8 +295,11 @@ def _time_split(
     ...
     39         weather_wind_speed_origin        14.3
     """
-    df_sorted = df.sort_values('event_timestamp').reset_index(drop=True)
-    df_sorted = df_sorted.dropna(subset=[target_column]).reset_index(drop=True)
+    if already_sorted:
+        df_sorted = df
+    else:
+        df_sorted = df.sort_values('event_timestamp').reset_index(drop=True)
+        df_sorted = df_sorted.dropna(subset=[target_column]).reset_index(drop=True)
     n = len(df_sorted)
     test_start = int(n * (1 - _TEST_FRACTION))
     val_start = int(test_start * (1 - _VAL_FRACTION))
