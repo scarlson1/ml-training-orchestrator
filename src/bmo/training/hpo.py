@@ -108,7 +108,12 @@ def run_hpo(
     best_trial: FrozenTrial | None = None
     n_pruned: int | None = None
 
-    df = _load_dataset(handle.storage_path)  # load once for all 50 trials
+    df = _load_dataset(handle.storage_path)
+    # Sort and dropna once so _time_split skips the per-trial copy (500MB × 50 trials)
+    df.sort_values('event_timestamp', inplace=True)
+    df.reset_index(drop=True, inplace=True)
+    df.dropna(subset=[target_column], inplace=True)
+    df.reset_index(drop=True, inplace=True)
 
     with mlflow.start_run(run_name=f'hpo_{handle.version_hash[:8]}') as parent_run:
         mlflow.log_params(
@@ -161,6 +166,7 @@ def run_hpo(
             target_column=target_column,
             mlflow_run_name=f'champion_{handle.version_hash[:8]}',
             parent_run_id=parent_run.info.run_id,
+            already_sorted=True,
         )
 
         mlflow.log_metrics(
@@ -238,6 +244,7 @@ def _make_objective(
             parent_run_id=parent_run_id,
             callbacks=[pruning_callback],
             log_artifacts=False,
+            already_sorted=True,
         )
         return result.metrics['test_roc_auc']
 
