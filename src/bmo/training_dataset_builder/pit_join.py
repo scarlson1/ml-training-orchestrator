@@ -68,7 +68,7 @@ def _configure_duckdb_s3(con: duckdb.DuckDBPyConnection) -> None:
         SET s3_access_key_id='{settings.s3_access_key_id}';
         SET s3_secret_access_key='{settings.s3_secret_access_key}';
         SET s3_endpoint='{settings.s3_endpoint}';
-        SET s3_use_ssl=false;
+        SET s3_use_ssl=true;
         SET s3_url_style='path';
     """)
 
