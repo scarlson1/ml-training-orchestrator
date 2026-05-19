@@ -61,55 +61,41 @@ The `ASOF JOIN` guarantee: for each flight row, it selects the _most recent_ wea
 
 [DuckDB ASOF JOIN docs](https://duckdb.org/docs/sql/query_syntax/from.html#as-of-joins)
 
-### Layer 2 — Feast `get_historical_features`
+### Layer 2 — DuckDB ASOF JOIN in `PITJoiner`
 
-Feast's offline retrieval implements the same semantics for the feature store:
+The training dataset builder does **not** use Feast's `get_historical_features()` — that API loads entire feature Parquet files into pandas memory (potentially several GB for multi-year history across 5 feature views) before joining. Instead, `PITJoiner` in [`pit_join.py`](../src/bmo/training_dataset_builder/pit_join.py) runs a DuckDB ASOF JOIN directly against the S3 `training.parquet` files. DuckDB executes the join in streaming columnar mode without materializing the full cross product.
 
+The join implements the same PIT semantics — for each label row, find the latest feature snapshot with `event_ts ≤ event_timestamp`:
+
+```sql
+FROM labels
+ASOF LEFT JOIN features
+    ON labels.<entity_col> = features.__entity_key
+    AND labels.event_timestamp >= features.event_ts
 ```
-For each row in entity_df (one row per training example):
-  1. entity_key = (origin_airport, carrier, tail_number, ...)
-  2. event_timestamp = scheduled_departure_utc
-  3. Find all feature rows matching entity_key
-  4. Filter to rows where feature.event_ts ≤ entity.event_timestamp
-  5. Return the row with the maximum event_ts in that filtered set
-```
-
-This is distinct from a plain `SELECT`: it returns a _different_ feature value for each training example based on _when_ that example occurred, not a single latest value for each entity.
 
 ```mermaid
 sequenceDiagram
-    participant E as Entity DataFrame<br/>(one row = one flight)
-    participant F as Feast Offline Store<br/>(feature snapshots)
+    participant E as Label DataFrame<br/>(one row = one flight)
+    participant F as training.parquet<br/>(all historical snapshots)
     participant R as Result Row
 
     Note over E: flight_A<br/>entity=ORD<br/>event_ts=09:15
 
-    E->>F: get features for ORD at 09:15
-    F->>F: filter: event_ts ≤ 09:15
-    F->>F: select: MAX(event_ts) → 09:00 snapshot
+    E->>F: ASOF JOIN on ORD, event_ts ≤ 09:15
+    F->>F: find MAX(event_ts) ≤ 09:15 → 09:00 snapshot
     F-->>R: avg_dep_delay_1h = 9.8 ✓
 
     Note over E: flight_B<br/>entity=ORD<br/>event_ts=10:45
 
-    E->>F: get features for ORD at 10:45
-    F->>F: filter: event_ts ≤ 10:45
-    F->>F: select: MAX(event_ts) → 10:00 snapshot
+    E->>F: ASOF JOIN on ORD, event_ts ≤ 10:45
+    F->>F: find MAX(event_ts) ≤ 10:45 → 10:00 snapshot
     F-->>R: avg_dep_delay_1h = 14.1 ✓
 
-    Note over R: ✗ WRONG alternative:<br/>SELECT latest FROM features WHERE entity=ORD<br/>→ 11:00 snapshot → 18.5 for BOTH flights
+    Note over R: ✗ WRONG (single-snapshot join):<br/>all flights get the 11:00 value → 18.5
 ```
 
-> TODO: update docs: `get_historical_features()` crashes memory. Loads entire feature parquet for each feature view into memory -> sorts entity_df and feature_df by entity key + timestamp. `feast_feature_export` doesn't partition the data.
->
-> `df = con.execute(f'SELECT {cols} FROM {table}').df()` # no WHERE clause
-> It dumps the entire DuckDB table with no date filter. If `feat_origin_airport_windowed` has been running for a year with hourly snapshots:
->
-> 500 airports × 24h × 365 days = 4.38 million rows
-> feat_route_rolling: 5,000–10,000 routes × 365 days = 5.5M rows
-> 5 feature views loaded simultaneously = potentially several GB just for feature data
-> Then Feast joins that against 210K entity rows, creating large intermediate DataFrames in pandas. Combined with pandas' copy-on-write behavior and macOS virtual memory (what Activity Monitor shows as "memory" includes swap-backed pages), you get the 99→159GB number.
->
-> PIT correctness doesn't matter for drift - only training & inference
+`training.parquet` contains all historical rows with real `event_ts` values (written by `feast_feature_export`). `data.parquet` in the same S3 prefix is a separate file with one row per entity and `event_ts = now()`, used only by `feast materialize_incremental` for the Redis online store. The two files serve incompatible consumers and must not be swapped.
 
 ### Layer 3 — Training Dataset Builder leakage guards
 

@@ -191,6 +191,20 @@ def build_dataset(
             f'Leakage guard failed - refusing to write dataset. Errors: {error_details}'
         )
 
+    # Sanity check: if any feature view joined zero rows, the PIT join silently failed
+    # (Feast materialization doesn't cover the training period). Fail loudly.
+    for fv in requested_views:
+        feature_cols_for_view = [c for c in fv.feature_cols if c in dataset_df.columns]
+        if not feature_cols_for_view:
+            continue
+        null_rate = dataset_df[feature_cols_for_view[0]].isna().mean()
+        if null_rate > 0.99:
+            raise LeakageError(
+                f"Feature view '{fv.name}' has {null_rate:.0%} null values after PIT join — "
+                f'Feast offline store likely not materialized for the training date range. '
+                f'Run: feast materialize <start> <end> covering your label timestamps.'
+            )
+
     # drop internal __feature_ts columns from final dataset (for leakage check)
     drop_cols = [c for c in dataset_df.columns if c.endswith('__feature_ts')]
     final_df = dataset_df.drop(columns=drop_cols)

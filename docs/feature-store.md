@@ -117,17 +117,24 @@ The 12h TTL reflects that cascading delay is only meaningful if the inbound flig
 
 ### Mapping Feature Views to dbt / Parquet Sources
 
-Feature view data sources are `FileSource` objects pointing to S3 paths. The `feast_feature_export` Dagster asset writes these paths after each dbt build. The entity-to-path mapping:
+`feast_feature_export` writes **two Parquet files per feature view** to S3, serving different consumers:
 
-| Feature view | dbt model | S3 path suffix | Entity col |
+| File | Contents | Consumer |
+| --- | --- | --- |
+| `data.parquet` | One row per entity, `event_ts = now()` | `feast materialize_incremental` → Redis online store. The `now()` stamp prevents TTL expiry at serving time. |
+| `training.parquet` | All historical rows, original `event_ts` values, sorted by `event_ts` | `PITJoiner` (training dataset builder). Real timestamps are required so the ASOF JOIN can find the correct feature snapshot for each historical flight. |
+
+The entity-to-path mapping:
+
+| Feature view | dbt model | S3 prefix | Entity col |
 | --- | --- | --- | --- |
-| `origin_airport_features` | `feat_origin_airport_windowed` | `/origin_airport/data.parquet` | `origin` |
-| `dest_airport_features` | `feat_dest_airport_windowed` | `/dest_airport/data.parquet` | `dest` |
-| `carrier_features` | `feat_carrier_rolling` | `/carrier/data.parquet` | `carrier` |
-| `route_features` | `feat_route_rolling` | `/route/data.parquet` | `route_key` |
-| `aircraft_features` | `staging.feat_cascading_delay` (Iceberg/PySpark) | `/aircraft/data.parquet` | `tail_number` |
+| `origin_airport_features` | `feat_origin_airport_windowed` | `/origin_airport/` | `origin` |
+| `dest_airport_features` | `feat_dest_airport_windowed` | `/dest_airport/` | `dest` |
+| `carrier_features` | `feat_carrier_rolling` | `/carrier/` | `carrier` |
+| `route_features` | `feat_route_rolling` | `/route/` | `route_key` |
+| `aircraft_features` | `staging.feat_cascading_delay` (Iceberg/PySpark) | `/aircraft/` | `tail_number` |
 
-All sources use `event_ts` as the `timestamp_field`. Before writing to S3, `feast_feature_export` deduplicates to one row per entity key (keeping the most recent by original `scheduled_departure_utc`) and then overwrites `event_ts` with `datetime.now(UTC)` so Feast's TTL check passes at serving time.
+All sources use `event_ts` as the `timestamp_field`.
 
 ---
 
@@ -153,7 +160,10 @@ The production serving code does not use `FeatureService` objects directly — i
 
 The offline store is `type: file` in `feature_store.yaml`. Feast reads Parquet files directly from S3 via boto3 (picks up `AWS_*` env vars automatically). In development this points to a MinIO instance; in production it points to Cloudflare R2.
 
-Each entity type has one file at `<feast_s3_base>/<entity_type>/data.parquet`, written as zstd-compressed Parquet by `feast_feature_export`. The file contains one row per unique entity key (deduplicated at write time).
+`feast_feature_export` writes two zstd-compressed Parquet files per entity type under `<feast_s3_base>/<entity_type>/`:
+
+- **`data.parquet`** — one row per entity key, `event_ts = now()`. Read by `feast materialize_incremental` to push values into Redis.
+- **`training.parquet`** — all historical rows with original `event_ts` values, sorted by `event_ts`. Read by `PITJoiner` during `build_dataset` for the training ASOF JOIN.
 
 ### Point-in-Time Join at Training Time
 
@@ -374,8 +384,30 @@ A `None` value means either: (a) the entity was never materialized, (b) the valu
 
 ```python
 import pandas as pd
+# data.parquet = one row per entity, event_ts=now() — for Redis
 df = pd.read_parquet('s3://<feast_s3_base>/origin_airport/data.parquet')
 print(df[df['origin'] == 'ORD'])
 ```
 
 If the entity is missing from the Parquet, the issue is upstream in the dbt `feat_origin_airport_windowed` model or in `feast_feature_export`.
+
+**Step 5: Check training feature coverage (if training AUC is 0.5)**
+
+If the model trains to AUC ≈ 0.5 with empty feature importance, the `training.parquet` files may not cover the training data's date range. Inspect null rates:
+
+```python
+import s3fs, pyarrow.parquet as pq
+from bmo.common.config import settings
+from bmo.training.train import _get_feature_columns
+
+fs = s3fs.S3FileSystem(key=settings.s3_access_key_id,
+                       secret=settings.s3_secret_access_key,
+                       endpoint_url=settings.s3_endpoint_url)
+
+# Check training.parquet timestamp coverage
+with fs.open('staging/feast/origin_airport/training.parquet', 'rb') as f:
+    df = pq.read_table(f).to_pandas()
+print(f"Rows: {len(df)}, event_ts range: {df['event_ts'].min()} → {df['event_ts'].max()}")
+```
+
+If `training.parquet` has a single timestamp or doesn't cover the label date range, re-run `feast_feature_export` from the Dagster UI. The ASOF JOIN condition `label.event_timestamp >= feature.event_ts` will match nothing if all feature snapshots postdate the training flights.

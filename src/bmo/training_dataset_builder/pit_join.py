@@ -228,7 +228,7 @@ def default_feature_view_configs(feast_s3_base: str) -> list[FeatureViewConfig]:
     return [
         FeatureViewConfig(
             name='origin_airport_features',
-            parquet_path=f'{feast_s3_base}/origin_airport/data.parquet',
+            parquet_path=f'{feast_s3_base}/origin_airport/training.parquet',
             entity_col='origin',
             label_entity_col='origin',
             ttl=timedelta(hours=26),
@@ -245,7 +245,7 @@ def default_feature_view_configs(feast_s3_base: str) -> list[FeatureViewConfig]:
         ),
         FeatureViewConfig(
             name='dest_airport_features',
-            parquet_path=f'{feast_s3_base}/dest_airport/data.parquet',
+            parquet_path=f'{feast_s3_base}/dest_airport/training.parquet',
             entity_col='dest',
             label_entity_col='dest',
             ttl=timedelta(hours=26),
@@ -258,7 +258,7 @@ def default_feature_view_configs(feast_s3_base: str) -> list[FeatureViewConfig]:
         ),
         FeatureViewConfig(
             name='carrier_features',
-            parquet_path=f'{feast_s3_base}/carrier/data.parquet',
+            parquet_path=f'{feast_s3_base}/carrier/training.parquet',
             entity_col='carrier',
             label_entity_col='carrier',
             ttl=timedelta(days=8),
@@ -271,7 +271,7 @@ def default_feature_view_configs(feast_s3_base: str) -> list[FeatureViewConfig]:
         ),
         FeatureViewConfig(
             name='route_features',
-            parquet_path=f'{feast_s3_base}/route/data.parquet',
+            parquet_path=f'{feast_s3_base}/route/training.parquet',
             entity_col='route_key',
             label_entity_col='route_key',
             ttl=timedelta(days=8),
@@ -286,7 +286,7 @@ def default_feature_view_configs(feast_s3_base: str) -> list[FeatureViewConfig]:
         ),
         FeatureViewConfig(
             name='aircraft_features',
-            parquet_path=f'{feast_s3_base}/aircraft/data.parquet',
+            parquet_path=f'{feast_s3_base}/aircraft/training.parquet',
             entity_col='tail_number',
             label_entity_col='tail_number',
             ttl=timedelta(hours=12),

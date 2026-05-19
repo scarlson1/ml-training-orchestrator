@@ -195,9 +195,9 @@ class LeakageSentinelCheck(EvalCheck):
         if not fi:
             return CheckResult(
                 name=self.name,
-                passed=True,
+                passed=False,
                 severity=self.severity,
-                message='no feature importance recorded',
+                message='no feature importance recorded — model has zero splits, likely trained on empty features',
                 metadata={},
             )
 
@@ -378,8 +378,7 @@ class SliceParityCheck(EvalCheck):
         )
         bad_weather = pd.Series(False, index=sliced.index)  # initialize series default to False
         if precip_col:
-            # merge current bad weather series with True if wind is above 0.1
-            bad_weather = bad_weather | (sliced[wind_col].fillna(0) > 0.1)
+            bad_weather = bad_weather | (sliced[precip_col].fillna(0) > 0.1)
         if wind_col:
             bad_weather = bad_weather | (sliced[wind_col].fillna(0) > 25)
         sliced['_weather'] = bad_weather.map({True: 'bad_weather', False: 'clear'})
