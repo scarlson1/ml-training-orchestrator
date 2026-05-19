@@ -41,38 +41,48 @@ def _export_table(
     s3_path: str,
 ) -> int:
     """
-    Read a dbt feature table from DuckDB, select entity+timestamp+features,
-    and write to Parquet on S3. Returns row count written.
+    Read a dbt feature table from DuckDB and write two Parquet files to S3:
 
-    Select only the columns Feast needs — entity key, event_ts, and the
-    feature values themselves. flight_id is deliberately excluded because
-    it's an internal surrogate key that Feast doesn't need and can't use
-    for entity resolution.
+    data.parquet     — one row per entity, event_ts=now(). Used by feast
+                       materialize_incremental to push into Redis. The now()
+                       stamp prevents TTL expiry at online-serving time.
 
-    event_ts is overridden to now() so Feast's TTL check passes at serving
-    time. The dbt models use scheduled_departure_utc as event_ts (historical
-    dates), which would cause all features to expire immediately on TTL check.
+    training.parquet — all rows with original event_ts values. Used by
+                       PITJoiner (build_dataset) for the training ASOF JOIN.
+                       Preserving real timestamps lets the join find the
+                       correct feature snapshot for each historical flight.
+
+    Returns the number of rows written to training.parquet.
     """
     cols = ', '.join([entity_col, 'event_ts'] + feature_cols)
     df: pd.DataFrame = con.execute(f'SELECT {cols} FROM {table}').df()  # noqa: S608
-    # Keep only the latest row per entity (by original scheduled_departure_utc) so
-    # Redis holds one fresh value per key, then stamp with now() so Feast TTL passes.
     df = df.dropna(subset=[entity_col])
-    df = df.sort_values('event_ts', ascending=False).drop_duplicates(subset=[entity_col])
-    df['event_ts'] = datetime.now(timezone.utc)
 
-    table_arrow = pa.Table.from_pandas(df, preserve_index=False)
+    # training.parquet: full history, real timestamps, sorted for DuckDB ASOF JOIN
+    df_training = df.sort_values('event_ts').reset_index(drop=True)
+    training_arrow = pa.Table.from_pandas(df_training, preserve_index=False)
+    with s3.open(f'{s3_path}/training.parquet', 'wb') as f:
+        pq.write_table(training_arrow, f, compression='zstd')
 
+    # data.parquet: latest per entity, event_ts=now() for Redis TTL
+    df_online = df.sort_values('event_ts', ascending=False).drop_duplicates(subset=[entity_col])
+    df_online = df_online.copy()
+    df_online['event_ts'] = datetime.now(timezone.utc)
+    online_arrow = pa.Table.from_pandas(df_online, preserve_index=False)
     with s3.open(f'{s3_path}/data.parquet', 'wb') as f:
-        pq.write_table(table_arrow, f, compression='zstd')
+        pq.write_table(online_arrow, f, compression='zstd')
 
-    return len(df)
+    return len(df_training)
 
 
 def _export_cascading_delay(s3: s3fs.S3FileSystem, row_counts: dict) -> None:
     """
     The cascading delay feature lives in Iceberg (written by PySpark), not DuckDB.
-    Read via PyArrow and re-export to Feast's expected path.
+    Read via PyArrow and re-export to Feast's expected paths.
+
+    Writes both training.parquet (full history, real timestamps) and
+    data.parquet (latest per tail_number, event_ts=now()) — same split as
+    _export_table. See that function's docstring for rationale.
     """
     catalog = make_catalog()
     table = catalog.load_table('staging.feat_cascading_delay')
@@ -91,15 +101,24 @@ def _export_cascading_delay(s3: s3fs.S3FileSystem, row_counts: dict) -> None:
         }
     )
     df = df.dropna(subset=['tail_number'])
-    df = df.sort_values('event_ts', ascending=False).drop_duplicates(subset=['tail_number'])
-    df['event_ts'] = datetime.now(timezone.utc)
 
     dest_path = f'{settings.feast_s3_base}/aircraft'
-    arrow_table = pa.Table.from_pandas(df, preserve_index=False)
-    with s3.open(f'{dest_path}/data.parquet', 'wb') as f:
-        pq.write_table(arrow_table, f, compression='zstd')
 
-    row_counts['feat_cascading_delay'] = len(df)
+    # training.parquet: full history, real timestamps
+    df_training = df.sort_values('event_ts').reset_index(drop=True)
+    training_arrow = pa.Table.from_pandas(df_training, preserve_index=False)
+    with s3.open(f'{dest_path}/training.parquet', 'wb') as f:
+        pq.write_table(training_arrow, f, compression='zstd')
+
+    # data.parquet: latest per tail_number, event_ts=now() for Redis TTL
+    df_online = df.sort_values('event_ts', ascending=False).drop_duplicates(subset=['tail_number'])
+    df_online = df_online.copy()
+    df_online['event_ts'] = datetime.now(timezone.utc)
+    online_arrow = pa.Table.from_pandas(df_online, preserve_index=False)
+    with s3.open(f'{dest_path}/data.parquet', 'wb') as f:
+        pq.write_table(online_arrow, f, compression='zstd')
+
+    row_counts['feat_cascading_delay'] = len(df_training)
 
 
 @asset(
